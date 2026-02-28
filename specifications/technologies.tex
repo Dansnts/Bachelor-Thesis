@@ -1,0 +1,49 @@
+\section{Technologies retenues}
+
+\subsection{Traitement distribué --- Ray}
+
+\gls{ray} est un framework Python de calcul distribué orienté charges \gls{gpu} et workflows \gls{ia}.
+Contrairement à Spark (orienté données structurées), Ray est nativement conçu pour
+distribuer des inférences de modèles sur GPU, ce qui en fait le choix naturel pour ce projet.
+
+\subsection{Format de données --- ZARR}
+
+\gls{zarr} est un format de tableau N-dimensionnel orienté chunking.
+Il permet de lire une image par tuiles sans la charger entièrement en mémoire,
+ce qui est critique pour des images haute résolution.
+Il est complémentaire à Ray : chaque worker lit uniquement les tuiles qui lui sont assignées.
+
+\subsection{Stockage objet --- à évaluer}
+
+Deux alternatives à \gls{minio} sont à évaluer dans le cadre de ce TB :
+
+\begin{itemize}
+    \item \textbf{RustFS} --- alternative S3-only, licence Apache 2.0, migration simple depuis MinIO.
+          Moins mature que MinIO mais potentiellement plus performant.
+    \item \textbf{CEPH} --- solution généraliste (bloc, fichier, objet), très mature,
+          mais complexe à administrer. Pertinent si un cluster CEPH existe déjà.
+\end{itemize}
+
+La décision finale sera documentée dans le rapport.
+
+\subsection{Base de données --- PostgreSQL + PostGIS}
+
+\gls{postgresql} avec l'extension \gls{postgis} permet de stocker les polygones
+issus de la segmentation avec leurs coordonnées géospatiales.
+L'index spatial GIST permet des requêtes géographiques performantes.
+
+Le schéma de base attendu :
+\begin{itemize}
+    \item table \texttt{annotations} avec colonne \texttt{geom GEOMETRY(POLYGON, 4326)}
+    \item index \texttt{GIST} sur la colonne géométrique
+\end{itemize}
+
+\subsection{Orchestration --- Kubernetes}
+
+Le cluster \gls{kubernetes} de la HEIG-VD est l'environnement cible de déploiement.
+Le pipeline sera packagé sous forme de manifestes Kubernetes (Jobs Ray, Deployments).
+
+\subsection{Modèle --- SAM3}
+
+\gls{sam3} (Segment Anything Model v3) est le modèle de segmentation retenu.
+Il sera utilisé en inférence uniquement (pas de réentraînement).

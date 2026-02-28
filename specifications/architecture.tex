@@ -1,0 +1,39 @@
+\section{Vue d'ensemble}
+
+Le pipeline est composé de ... :
+\section{Flux de traitement}
+
+Le flux de traitement d'une image suit les étapes suivantes :
+
+\begin{enumerate}
+    \item A
+    \item B
+    \item C
+\end{enumerate}
+
+\section{Composants}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|l|l|p{7cm}|}
+\hline
+\textbf{Composant} & \textbf{Technologie} & \textbf{Rôle} \\
+\hline
+Stockage objet & MinIO & Stockage des images brutes et ZARR \\
+\hline
+Processing & Ray & Orchestration du traitement parallèle sur GPU \\
+\hline
+Format image & ZARR & Découpage en tuiles pour lecture efficace \\
+\hline
+Modèle IA & SAM3 & Segmentation automatique des images \\
+\hline
+Base de données & PostgreSQL + PostGIS & Stockage des polygones géospatiaux \\
+\hline
+Orchestration & Kubernetes & Déploiement, scaling, gestion des Pods \\
+\hline
+Annotation & Label Studio & Validation humaine des annotations \\
+\hline
+\end{tabular}
+\caption{Composants de l'architecture}
+\label{tab:composants}
+\end{table}

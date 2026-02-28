@@ -1,0 +1,55 @@
+\section{Exigences fonctionnelles}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|l|p{10cm}|c|}
+\hline
+\textbf{ID} & \textbf{Description} & \textbf{Priorité} \\
+\hline
+EF-01 & Le système doit pouvoir lire des images au format PNG et TIFF depuis un stockage S3. & Haute \\
+\hline
+EF-02 & Le système doit convertir les images en format ZARR pour un accès par tuiles. & Haute \\
+\hline
+EF-03 & Le système doit exécuter le modèle SAM3 sur chaque tuile d'image. & Haute \\
+\hline
+EF-04 & Le système doit stocker les polygones de segmentation dans PostgreSQL/PostGIS. & Haute \\
+\hline
+EF-05 & Le système doit distribuer le traitement sur plusieurs workers Ray. & Haute \\
+\hline
+EF-06 & Le système doit permettre d'exporter les annotations vers Label Studio. & Moyenne \\
+\hline
+EF-07 & Le système doit fournir un rapport de traitement (nombre d'images, durée, erreurs). & Moyenne \\
+\hline
+EF-08 & Le système doit gérer les erreurs de traitement par image sans interrompre le pipeline. & Haute \\
+\hline
+\end{tabular}
+\caption{Exigences fonctionnelles}
+\label{tab:exigences-fonctionnelles}
+\end{table}
+
+\section{Exigences non fonctionnelles}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|l|p{10cm}|c|}
+\hline
+\textbf{ID} & \textbf{Description} & \textbf{Priorité} \\
+\hline
+ENF-01 & Le pipeline doit être déployable sur le cluster Kubernetes de la HEIG-VD. & Haute \\
+\hline
+ENF-02 & Le système doit exploiter les GPUs disponibles sur le cluster. & Haute \\
+\hline
+ENF-03 & Le traitement d'un lot d'images doit être scalable horizontalement. & Haute \\
+\hline
+ENF-04 & Les composants doivent être conteneurisés (Docker). & Haute \\
+\hline
+ENF-05 & Le code source doit être versionné sur Git et documenté. & Haute \\
+\hline
+ENF-06 & La solution de stockage objet retenue doit être compatible avec le protocole S3. & Haute \\
+\hline
+ENF-07 & Le système ne doit pas charger une image entière en mémoire vive. & Moyenne \\
+\hline
+\end{tabular}
+\caption{Exigences non fonctionnelles}
+\label{tab:exigences-non-fonctionnelles}
+\end{table}

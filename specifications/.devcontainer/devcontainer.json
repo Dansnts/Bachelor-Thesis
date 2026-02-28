@@ -1,0 +1,33 @@
+{
+    "name": "heig-report",
+    "build": {
+        "dockerfile": "Dockerfile"
+    },
+    "runArgs": [],
+    //"remoteUser": "vscode",
+
+    "postCreateCommand": "",
+    "customizations": {
+        "vscode": {
+            "settings": {
+                "files.eol": "\n",
+                "latex-workshop.chktex.enabled": true,
+                "latex-workshop.latex.clean.subfolder.enabled": true,
+                "latex-workshop.latex.autoClean.run": "onBuilt",
+                "editor.formatOnSave": true,
+                "files.associations": {
+                    "*.tex": "latex"
+                }
+            },
+            "extensions": [
+                "james-yu.latex-workshop",
+                "eamodio.gitlens",
+                "shardulm94.trailing-spaces",
+                "stkb.rewrap",
+                "vscode-icons-team.vscode-icons",
+                "hediet.vscode-drawio",
+                "yzhang.markdown-all-in-one"
+            ]
+        }
+    }
+}

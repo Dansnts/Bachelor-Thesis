@@ -1,0 +1,30 @@
+\section{Contexte}
+
+La HEIG-VD dispose d'un cluster \gls{kubernetes} équipé de \glspl{gpu}
+permettant d'exécuter des charges de calcul intensif.
+Dans le cadre de projets liés à l'analyse d'images géospatiales (images satellitaires ou aériennes),
+il est nécessaire de disposer d'un pipeline automatisé d'annotation d'images capable
+de traiter de grands volumes de données efficacement.
+
+Actuellement, les données d'images sont stockées sur un serveur \gls{minio} compatible \gls{s3},
+et les annotations sont gérées via \gls{labelstudio}.
+Le modèle \gls{sam3} est utilisé pour la segmentation automatique.
+
+\section{Problématique}
+
+Le traitement de grands volumes d'images haute résolution représente un défi en termes de
+performance et de scalabilité. Les principales contraintes sont :
+
+\begin{itemize}
+    \item les images sont volumineuses et ne peuvent pas être chargées entièrement en mémoire ;
+    \item le modèle SAM3 doit être exécuté sur \gls{gpu} pour des raisons de performance ;
+    \item les résultats de segmentation sont des données géospatiales (polygones)
+          qui doivent être stockées et requêtées efficacement ;
+    \item la solution doit être scalable et déployable sur le cluster existant.
+\end{itemize}
+
+\section{Périmètre du travail}
+
+Ce cahier des charges définit le périmètre, les objectifs, les exigences et
+l'architecture du pipeline à développer dans le cadre de ce travail de Bachelor.
+Il constitue le document de référence entre l'étudiant et le professeur responsable.
