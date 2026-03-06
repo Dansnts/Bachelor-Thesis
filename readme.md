@@ -32,16 +32,55 @@ L’étudiant devra :
 Traitement distribué (Ray), inférence de modèles d'IA à grande échelle, optimisation de pipelines de données, gestion de bases de données géospatiales (PostGIS), stockage cloud (S3), orchestration conteneurisée (Kubernetes), analyse de compromis performance/précision.
 
 ---
+
+## Structure du Projet
+
+```
+TB/
+├── pipeline/                   # Code principal du pipeline
+│   ├── ingestion/              # Lecture images depuis S3/MinIO
+│   ├── preprocessing/          # Downsampling, préparation images
+│   ├── inference/              # Wrapper SAM3 + tâches Ray
+│   ├── postprocessing/         # Masques → polygones vectoriels
+│   └── storage/                # Écriture Parquet sur S3
+│
+├── tests/                      # Tests et environnement de dev
+│   ├── Dockerfile              # Image Docker SAM3 (CUDA 12.6)
+│   ├── test_sam3.py            # Script de validation SAM3
+│   └── .env                    # Tokens (HF_TOKEN, GH_TOKEN) — ne pas commiter
+│
+├── experiments/                # Notebooks benchmarks et analyses
+│
+├── deploy/                     # Configs déploiement
+│   ├── k8s/                    # Manifestes Kubernetes
+│   └── ray/                    # Config Ray cluster
+│
+├── docs/                       # Documentation
+│   ├── Specification/          # Cahier des charges (.md + .tex)
+│   ├── Planification/          # Planning 450h
+│   ├── SAM3/                   # Notes et ressources SAM3
+│   ├── Redaction/              # Guides de rédaction
+│   ├── Thesis/                 # Documents officiels HEIG-VD
+│   ├── notes.md                # Notes hebdomadaires
+│   └── journal.md              # Journal de travail
+│
+├── specifications/             # Cahier des charges LaTeX
+├── report/                     # Rapport final LaTeX
+├── .gitignore
+└── readme.md
+```
+
+---
 ## Journal
 [Journal](/docs/journal.md)
 
 
 ## Cahier des charges
-[Cahier des charges](/docs/specifications.md)
+[Cahier des charges](/docs/Specification/specifications.md)
 
 ## Notes
 [Notes](/docs/notes.md)
 
 --- 
 ## Calendrier
-![Calendrier](/docs/planning.png)
+![Calendrier](/docs/Planification/planning.png)
