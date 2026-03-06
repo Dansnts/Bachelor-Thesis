@@ -26,7 +26,7 @@
 
 - [X] Check S3, solution in entreprise alternative to MinIO
 - [X] Spark [Historical], Ray [Modern], ZARR [More popular to do rasterization]
-- [] Read the 3 Redaction documents
+- [X] Read the 3 Redaction documents
 - [X] Check PostGIS
 - [X] Check HEIG's cluster
 
@@ -73,12 +73,12 @@ Is basicaly a data structure format focused in working with N-dimmensional data 
 
 ### MPS (Multi-Process Service)
 
->The Multi-Process Service (MPS) is an alternative, binary-compatible implementation of the CUDA Application Programming Interface (API). The MPS runtime architecture is designed to transparently enable co-operative multi-process CUDA applications, typically MPI jobs, to utilize Hyper-Q capabilities on the latest NVIDIA (Kepler-based) Tesla and Quadro GPUs.
+> The Multi-Process Service (MPS) is an alternative, binary-compatible implementation of the CUDA Application Programming Interface (API). The MPS runtime architecture is designed to transparently enable co-operative multi-process CUDA applications, typically MPI jobs, to utilize Hyper-Q capabilities on the latest NVIDIA (Kepler-based) Tesla and Quadro GPUs.
 
 Source : [Nvidia](https://docs.nvidia.com/deploy/mps/index.html)
 
 ### PostGIS
-It's an extension to PostgrsSQL, basicaly it will add a collum to the table like this :
+It's an extension to PostgresSQL, basicaly it will add a collum to the table like this :
 ```SQL
 CREATE TABLE superTable(
     ...
@@ -93,6 +93,36 @@ It uses also spacial indexes like :
 CREATE INDEX ON superTable USING GIST(geom);
 ```
 It allows to do fast requests with the GIST index. Usefull to filter all the data after it was added by SAM3 into the DB, it also allows us to just look for the value in the DB instead of re-calculate it.
+
+
+---
+
+# Semaine 3
+
+## Meeting
+
+- MinIO tourne sur un Synology → évaluer migration vers RustFS
+- Ajouter observabilité et logs au pipeline
+- Prévoir une entrée utilisateur (interface ou API)
+- Focus sur la donnée : approche batch
+
+## Scénarios
+
+### Scénario A — Batch (traitement de masse)
+- L'utilisateur fournit un lot de ~2000 images
+- SAM3 tourne en batch via Ray
+- Les métadonnées et résultats sont stockés sur S3 en format **Parquet**
+- Pas forcément de base de données → Parquet sur S3 suffit pour ce cas
+- Référence Ray Data : https://docs.ray.io/en/latest/data/data.html
+
+### Scénario B — Inférence à la demande
+- L'utilisateur soumet une image → réponse en temps quasi-réel
+- Pipeline déclenché à la volée (pas de batch)
+- Résultats stockés en DB (PostGIS) pour interrogation spatiale
+
+## Questions ouvertes
+- Base de données vraiment nécessaire, ou Parquet sur S3 suffit pour le scénario A ?
+- Quel format de sortie final pour les annotations ?
 
 
 ---

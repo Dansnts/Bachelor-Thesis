@@ -1,4 +1,4 @@
-# Week 1 
+# Week 1
 
 | Task              | Status | Time |
 | :---------------- | :------: | ----: |
@@ -23,3 +23,32 @@
 | Create base of the specifiaction document     |  Done   | 1h15 |
 | Create all the prelimenary tasks for the whole project   |  Done   | 1h45 |
 | **Total** |    | 8h |
+
+---
+
+# Week 3
+
+| Task              | Status | Time |
+| :---------------- | :------: | ----: |
+| Meeting with Bertil       |   Done   | 45min |
+| Updated week 3 notes (batch and on-demand scenarios) | Done | 20min |
+| Reworked specifications : removed ZARR, added observability, Parquet on S3, Rancher, fixed MinIO | Done | 1h30 |
+| Applied Elements of Style principles to specifications.md | Done | 30min |
+| Exported specifications to .tex files | Done | 45min |
+| Updated planification (weeks 4-22) | Done | 30min |
+| Created project folder structure | Done | 10min |
+| Created HuggingFace account + requested SAM3 model access | Done | 15min |
+| Setup GitHub Container Registry (ghcr.io) | Done | 20min |
+| Dockerfile SAM3 (CUDA 12.6 + venv + PyTorch) | Done | 45min |
+| test_sam3.py script | Done | 20min |
+| Migrated Docker/containerd storage to /home | Done | 45min |
+| Built and pushed SAM3 Docker image to ghcr.io | Done | 30min |
+| Deployed SAM3 pod on K8s cluster (namespace dani) | Done | 45min |
+| Fixed GPU access : added runtimeClassName: nvidia to pod YAML | Done | 15min |
+| Explored SAM3 Python API (Sam3Processor, add_geometric_prompt) | Done | 30min |
+| Successfully ran SAM3 inference on GPU (CUDA 12.6) | Done | 20 |
+| Documented deployment process in docs/SAM3/Readme.md | Done | 20min |
+| **Total** |    | 9h30 |
+
+---
+
