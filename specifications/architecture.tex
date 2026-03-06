@@ -19,17 +19,19 @@ Le flux de traitement d'une image suit les étapes suivantes :
 \hline
 \textbf{Composant} & \textbf{Technologie} & \textbf{Rôle} \\
 \hline
-Stockage objet & MinIO & Stockage des images brutes et ZARR \\
+Stockage objet & MinIO & Stockage des images sources et résultats \\
 \hline
 Processing & Ray & Orchestration du traitement parallèle sur GPU \\
 \hline
-Format image & ZARR & Découpage en tuiles pour lecture efficace \\
-\hline
 Modèle IA & SAM3 & Segmentation automatique des images \\
 \hline
-Base de données & PostgreSQL + PostGIS & Stockage des polygones géospatiaux \\
+Stockage résultats & Parquet sur S3 & Persistance des annotations et métadonnées \\
 \hline
 Orchestration & Kubernetes & Déploiement, scaling, gestion des Pods \\
+\hline
+Management cluster & Rancher & Administration et monitoring du cluster Kubernetes \\
+\hline
+Observabilité & Prometheus / Grafana & Monitoring GPU, mémoire, latence \\
 \hline
 Annotation & Label Studio & Validation humaine des annotations \\
 \hline

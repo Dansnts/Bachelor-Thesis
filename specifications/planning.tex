@@ -2,30 +2,89 @@
 
 \begin{table}[H]
 \centering
-\begin{tabular}{|c|l|l|}
+\begin{tabular}{|c|c|p{9cm}|}
 \hline
-\textbf{Semaine} & \textbf{Objectif} & \textbf{Livrable} \\
+\textbf{Sem.} & \textbf{Heures} & \textbf{Tâches} \\
 \hline
-TODO
+1  & 8h  & Setup poste, Git, outils. Rencontres superviseurs. Analyse infra. Brouillon cahier des charges. \\
+\hline
+2  & 8h  & Étude Ray, SAM3, alternatives S3, PostGIS. Base du cahier des charges. \\
+\hline
+3  & 8h  & Dockerfile SAM3. Demande accès HuggingFace. Premiers tests sur pod K8s GPU. \\
+\hline
+4  & 8h  & Build image Docker. Push registry. Inférence SAM3 validée sur cluster. \\
+\hline
+5  & 8h  & Prototype Ray distribué. Intégration Ray + SAM3. \\
+\hline
+6  & 8h  & Client S3 boto3. Connexion MinIO. Pipeline S3 $\rightarrow$ Ray $\rightarrow$ SAM3. \\
+\hline
+7  & 8h  & Scénario batch : Ray Data sur 2000 images. Stockage Parquet sur S3. \\
+\hline
+\textbf{8}  & \textbf{8h}  & \textbf{Scénario inférence à la demande. Dockerisation complète. Remise cahier des charges.} \\
+\hline
+9  & 8h  & Observabilité : Prometheus + Grafana sur K8s. Métriques GPU/mémoire/latence. \\
+\hline
+10 & 8h  & Rancher : configuration cluster, gestion namespaces, monitoring. \\
+\hline
+11 & 8h  & Intégration Label Studio : API, export annotations, tests validation humaine. \\
+\hline
+12 & 8h  & K8s manifests complets (Jobs Ray, Deployments, PVC). Tests intégration E2E. \\
+\hline
+13 & 8h  & Tests pipeline complet (2 scénarios). Corrections. Préparation rapport intermédiaire. \\
+\hline
+\textbf{14} & \textbf{8h}  & \textbf{Remise rapport intermédiaire. Feedback superviseurs.} \\
+\hline
+15 & 8h  & Intégration Label Studio. Export annotations. Ajustements post-feedback. \\
+\hline
+16 & 8h  & Optimisations performance. Benchmarks downsampling. \\
+\hline
+17 & 8h  & Documentation déploiement. Validation pipeline sur cluster HEIG. \\
+\hline
+\textbf{18} & \textbf{63h} & \textbf{TB à plein temps. Déploiement production. Premiers runs à grande échelle.} \\
+\hline
+19 & 63h & Tests GPU cluster. Benchmarks E2E (scalabilité, précision, ressources). Tuning. \\
+\hline
+20 & 63h & Rédaction rapport : Introduction, contexte, architecture, choix techniques. \\
+\hline
+21 & 63h & Rédaction rapport : Implémentation, résultats, benchmarks, conclusions. \\
+\hline
+\textbf{22} & \textbf{62h} & \textbf{Finalisation rapport. Résumé publiable. Relecture. Soumission GAPS.} \\
+\hline
+\multicolumn{2}{|c|}{\textbf{Total}} & \textbf{450 heures} \\
+\hline
 \end{tabular}
-\caption{Planning prévisionnel}
+\caption{Planning prévisionnel --- 450 heures sur 22 semaines}
 \label{tab:planning}
 \end{table}
 
 \section{Livrables}
 
 \begin{enumerate}
-    \item TODO
+    \item \textbf{Cahier des charges} : 09 avril 2026
+    \item \textbf{Rapport intermédiaire} : 20 mai 2026
+    \item \textbf{Code source} : Repository Git (Ray, SAM3, MinIO, Parquet, K8s, observabilité)
+    \item \textbf{Rapport de Bachelor} : 23 juillet 2026
+    \item \textbf{Résumé publiable} : 23 juillet 2026
+    \item \textbf{Présentation orale} : août/septembre 2026
 \end{enumerate}
 
 \section{Jalons importants}
 
 \begin{table}[H]
 \centering
-\begin{tabular}{|l|l|}
+\begin{tabular}{|l|p{9cm}|}
 \hline
-TODO
+\textbf{Date} & \textbf{État attendu du pipeline} \\
+\hline
+09 avril 2026 & SAM3 sur cluster GPU, Ray + S3 fonctionnels, scénarios batch et on-demand prototypés. \\
+\hline
+20 mai 2026   & Pipeline E2E complet (MinIO + Ray + SAM3 + Parquet S3 + Observabilité + Docker + K8s). \\
+\hline
+23 juillet 2026 & Pipeline déployé sur cluster HEIG avec GPU. Rapport final soumis. \\
+\hline
+Août--Sept 2026 & Soutenance avec démo live du pipeline. \\
+\hline
 \end{tabular}
-\caption{Jalons}
+\caption{Jalons officiels HEIG-VD}
 \label{tab:jalons}
 \end{table}

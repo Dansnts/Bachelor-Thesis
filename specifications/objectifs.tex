@@ -1,43 +1,44 @@
 \section{Objectif principal}
 
 Concevoir, implémenter et déployer un pipeline distribué d'annotation automatique
-d'images géospatiales par \gls{ia}, capable d'exploiter les ressources \gls{gpu}
-du cluster \gls{kubernetes} de la HEIG-VD.
+d'images géospatiales, exploitant les \glspl{gpu} du cluster \gls{kubernetes} de la HEIG-VD.
+Le pipeline expose des métriques d'observabilité pour surveiller et optimiser
+l'utilisation de l'infrastructure.
 
 \section{Objectifs secondaires}
 
 \begin{enumerate}
-    \item \textbf{Évaluation du stockage objet} \\
-          Analyser et évaluer les alternatives à \gls{minio} (RustFS, CEPH)
-          en termes de performance, de licence et d'intégration avec l'infrastructure existante.
+    \item \textbf{Stockage objet} \\
+          Utiliser \gls{minio} comme solution de stockage \gls{s3},
+          déjà en place dans l'infrastructure existante.
 
     \item \textbf{Traitement distribué des images} \\
           Mettre en place un pipeline \gls{ray} capable de distribuer le traitement
           des images sur plusieurs \glspl{gpu} en parallèle.
 
-    \item \textbf{Optimisation du chargement des images} \\
-          Intégrer \gls{zarr} pour la conversion et la lecture par tuiles des images,
-          afin de réduire la consommation mémoire et d'améliorer les performances.
+    \item \textbf{Observabilité du pipeline} \\
+          Mettre en place des outils de monitoring pour suivre l'utilisation des ressources
+          (\gls{gpu}, mémoire, temps d'inférence) et la progression des traitements.
 
-    \item \textbf{Persistance des résultats géospatiaux} \\
-          Stocker les polygones issus de la segmentation dans une base de données
-          \gls{postgresql} avec l'extension \gls{postgis}.
+    \item \textbf{Persistance des résultats} \\
+          Stocker les annotations et métadonnées produites par \gls{sam3}
+          en fichiers \gls{parquet} sur le bucket \gls{s3}.
 
     \item \textbf{Intégration avec Label Studio} \\
-          Exporter ou synchroniser les annotations produites automatiquement
-          vers \gls{labelstudio} pour permettre la validation humaine.
+          Exporter les annotations produites automatiquement vers \gls{labelstudio}
+          pour permettre la validation humaine.
 
     \item \textbf{Déploiement sur Kubernetes} \\
-          Packager et déployer l'ensemble du pipeline sous forme de ressources
-          \gls{kubernetes} (Pods, Jobs, ou Deployments).
+          Déployer l'ensemble du pipeline sous forme de manifestes
+          \gls{kubernetes} (Jobs Ray, Deployments).
 \end{enumerate}
 
 \section{Hors périmètre}
 
-Les éléments suivants sont explicitement hors du périmètre de ce travail :
-
 \begin{itemize}
-    \item le réentraînement ou la modification du modèle SAM3 ;
+    \item le réentraînement ou la modification du modèle \gls{sam3} ;
     \item le développement d'une interface utilisateur de visualisation ;
-    \item la gestion de la sécurité et des accès au cluster (supposée existante).
+    \item la gestion de la sécurité et des accès au cluster (supposée existante) ;
+    \item l'intégration de ZARR --- jugé redondant pour ce TB,
+          à évaluer en perspective future si des optimisations mémoire supplémentaires sont nécessaires.
 \end{itemize}

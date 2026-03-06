@@ -1,49 +1,35 @@
 \section{Technologies retenues}
 
-\subsection{Traitement distribué --- Ray}
+\subsection{Traitement distribué : Ray}
 
-\gls{ray} est un framework Python de calcul distribué orienté charges \gls{gpu} et workflows \gls{ia}.
-Contrairement à Spark (orienté données structurées), Ray est nativement conçu pour
-distribuer des inférences de modèles sur GPU, ce qui en fait le choix naturel pour ce projet.
+\gls{ray} distribue des workflows Python sur \gls{gpu}.
+Contrairement à Spark, conçu pour les données structurées, Ray est optimisé pour
+l'inférence de modèles, ce qui en fait le choix naturel pour ce pipeline.
 
-\subsection{Format de données --- ZARR}
+\subsection{Observabilité : à définir}
 
-\gls{zarr} est un format de tableau N-dimensionnel orienté chunking.
-Il permet de lire une image par tuiles sans la charger entièrement en mémoire,
-ce qui est critique pour des images haute résolution.
-Il est complémentaire à Ray : chaque worker lit uniquement les tuiles qui lui sont assignées.
+Le pipeline expose des métriques en temps réel : utilisation \gls{gpu}, mémoire,
+latence d'inférence et progression du batch. Prometheus et Grafana sont les candidats
+naturels dans un environnement \gls{kubernetes} ; le choix sera justifié dans le rapport.
 
-\subsection{Stockage objet --- à évaluer}
+\subsection{Stockage objet : MinIO}
 
-Deux alternatives à \gls{minio} sont à évaluer dans le cadre de ce TB :
+\gls{minio} est la solution de stockage objet retenue. Compatible \gls{s3},
+il est déjà déployé sur l'infrastructure de la HEIG-VD et partagé par d'autres projets du département.
 
-\begin{itemize}
-    \item \textbf{RustFS} --- alternative S3-only, licence Apache 2.0, migration simple depuis MinIO.
-          Moins mature que MinIO mais potentiellement plus performant.
-    \item \textbf{CEPH} --- solution généraliste (bloc, fichier, objet), très mature,
-          mais complexe à administrer. Pertinent si un cluster CEPH existe déjà.
-\end{itemize}
+\subsection{Persistance des résultats : Parquet sur S3}
 
-La décision finale sera documentée dans le rapport.
+Les annotations et métadonnées produites par \gls{sam3} sont stockées en fichiers
+\gls{parquet} sur le bucket \gls{s3}. Ce format columaire est nativement supporté
+par Ray Data, évite l'overhead d'une base de données et s'intègre directement
+dans le pipeline batch.
 
-\subsection{Base de données --- PostgreSQL + PostGIS}
+\subsection{Orchestration : Kubernetes}
 
-\gls{postgresql} avec l'extension \gls{postgis} permet de stocker les polygones
-issus de la segmentation avec leurs coordonnées géospatiales.
-L'index spatial GIST permet des requêtes géographiques performantes.
+Le pipeline est déployé sur le cluster \gls{kubernetes} de la HEIG-VD sous forme
+de manifestes (Jobs Ray, Deployments). \gls{rancher} assure l'administration
+et le monitoring du cluster.
 
-Le schéma de base attendu :
-\begin{itemize}
-    \item table \texttt{annotations} avec colonne \texttt{geom GEOMETRY(POLYGON, 4326)}
-    \item index \texttt{GIST} sur la colonne géométrique
-\end{itemize}
+\subsection{Modèle : SAM3}
 
-\subsection{Orchestration --- Kubernetes}
-
-Le cluster \gls{kubernetes} de la HEIG-VD est l'environnement cible de déploiement.
-Le pipeline sera packagé sous forme de manifestes Kubernetes (Jobs Ray, Deployments).
-
-\subsection{Modèle --- SAM3}
-
-\gls{sam3} (Segment Anything Model v3) est le modèle de segmentation retenu.
-Il sera utilisé en inférence uniquement (pas de réentraînement).
+\gls{sam3} (Segment Anything Model v3) est utilisé en inférence uniquement.

@@ -1,30 +1,26 @@
 \section{Contexte}
 
-La HEIG-VD dispose d'un cluster \gls{kubernetes} équipé de \glspl{gpu}
-permettant d'exécuter des charges de calcul intensif.
-Dans le cadre de projets liés à l'analyse d'images géospatiales (images satellitaires ou aériennes),
-il est nécessaire de disposer d'un pipeline automatisé d'annotation d'images capable
-de traiter de grands volumes de données efficacement.
+La HEIG-VD dispose d'un cluster \gls{kubernetes} équipé de \glspl{gpu}.
+Dans le cadre de projets d'analyse d'images géospatiales, ce cluster doit supporter
+un pipeline d'annotation automatique capable de traiter de grands volumes d'images haute résolution.
 
-Actuellement, les données d'images sont stockées sur un serveur \gls{minio} compatible \gls{s3},
+Les images sont stockées sur un serveur \gls{minio} (NAS Synology, protocole \gls{s3})
 et les annotations sont gérées via \gls{labelstudio}.
-Le modèle \gls{sam3} est utilisé pour la segmentation automatique.
+Le modèle \gls{sam3} assure la segmentation automatique.
 
 \section{Problématique}
 
-Le traitement de grands volumes d'images haute résolution représente un défi en termes de
-performance et de scalabilité. Les principales contraintes sont :
+Les principales contraintes sont :
 
 \begin{itemize}
-    \item les images sont volumineuses et ne peuvent pas être chargées entièrement en mémoire ;
-    \item le modèle SAM3 doit être exécuté sur \gls{gpu} pour des raisons de performance ;
-    \item les résultats de segmentation sont des données géospatiales (polygones)
-          qui doivent être stockées et requêtées efficacement ;
-    \item la solution doit être scalable et déployable sur le cluster existant.
+    \item les images haute résolution dépassent la capacité mémoire d'un seul nœud ;
+    \item \gls{sam3} requiert un \gls{gpu} pour fonctionner à une vitesse acceptable ;
+    \item les résultats de segmentation doivent être persistés et accessibles pour traitement ultérieur ;
+    \item le pipeline doit être scalable sur le cluster existant ;
+    \item le pipeline doit exposer des métriques pour surveiller l'utilisation du matériel et des modèles.
 \end{itemize}
 
 \section{Périmètre du travail}
 
-Ce cahier des charges définit le périmètre, les objectifs, les exigences et
-l'architecture du pipeline à développer dans le cadre de ce travail de Bachelor.
-Il constitue le document de référence entre l'étudiant et le professeur responsable.
+Ce document définit le périmètre, les objectifs, les exigences et l'architecture du pipeline.
+Il constitue la référence entre l'étudiant et le superviseur.

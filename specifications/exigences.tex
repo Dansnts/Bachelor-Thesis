@@ -8,17 +8,17 @@
 \hline
 EF-01 & Le système doit pouvoir lire des images au format PNG et TIFF depuis un stockage S3. & Haute \\
 \hline
-EF-02 & Le système doit convertir les images en format ZARR pour un accès par tuiles. & Haute \\
+EF-02 & Le système doit exécuter le modèle SAM3 sur les images ingérées. & Haute \\
 \hline
-EF-03 & Le système doit exécuter le modèle SAM3 sur chaque tuile d'image. & Haute \\
-\hline
-EF-04 & Le système doit stocker les polygones de segmentation dans PostgreSQL/PostGIS. & Haute \\
+EF-03 & Le système doit stocker les annotations en fichiers Parquet sur le bucket S3. & Haute \\
 \hline
 EF-05 & Le système doit distribuer le traitement sur plusieurs workers Ray. & Haute \\
 \hline
 EF-06 & Le système doit permettre d'exporter les annotations vers Label Studio. & Moyenne \\
 \hline
-EF-07 & Le système doit fournir un rapport de traitement (nombre d'images, durée, erreurs). & Moyenne \\
+EF-06 & Le système doit fournir un rapport de traitement (nombre d'images, durée, erreurs). & Moyenne \\
+\hline
+EF-07 & Le système doit exposer des métriques d'observabilité (GPU, mémoire, latence, throughput). & Haute \\
 \hline
 EF-08 & Le système doit gérer les erreurs de traitement par image sans interrompre le pipeline. & Haute \\
 \hline
