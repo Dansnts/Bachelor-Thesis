@@ -52,3 +52,24 @@
 
 ---
 
+# Week 4
+
+| Task              | Status | Time |
+| :---------------- | :------: | ----: |
+| Back to the project, reading and re-understanding the project | Done | 1h45 |
+| Meeting with Bertil | Done | 45min |
+| Ray extras selection (data, train, serve) | Done | 15min |
+| Dockerfile Ray (CUDA 12.6 + ray[data,train,serve,default]) | Done | 30min |
+| wordcount.py : MapReduce with Ray | Done | 1h |
+| K8s manifests Ray : head, workers, services, ingress | Done | 1h30 |
+| Debug connexion Ray client (ray:// vs GCS, runtimeClassName, ray-client-server-port) | Done | 2h |
+| RayCluster on K8s (1 head + 3 workers GPU) need acces to continue | Not Done | - |
+| Dashboard Ray accessible via ingress | Done | 30min |
+| Documented Ray deployment in docs/RAY/Readme.md | Done | 20min |
+| Dog classifier : EfficientNet B0 distributed on Ray workers | Done | 2h |
+| Debug OOM : switched from @ray.remote function to Actor (model loaded once per worker) | Done | 45min |
+| Batch processing 5000 images (batches of 100) on Ray cluster | Done | - |
+| Cleaned up notes.md | Done | 15min |
+| **Total** |    | 11h30 |
+
+---

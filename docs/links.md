@@ -61,6 +61,11 @@
 - [Repo GitHub](https://github.com/ray-project/ray)
 - [Paper académique original — OSDI 2018](https://www.usenix.org/system/files/osdi18-moritz.pdf)
 
+### Installation
+- [Setup](https://docs.ray.io/en/latest/ray-overview/installation.html)
+### Tests
+- [Wordcount](https://docs.ray.io/en/latest/ray-core/examples/map_reduce.html)
+
 ---
 
 ## Formats
