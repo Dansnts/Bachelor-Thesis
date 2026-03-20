@@ -36,7 +36,6 @@ echo $GH_TOKEN | docker login ghcr.io -u <github-username> --password-stdin
 # Push
 docker push ghcr.io/nearai-interreg/sam3-test:latest
 ```
-
 ---
 
 ## Déploiement sur K8s
