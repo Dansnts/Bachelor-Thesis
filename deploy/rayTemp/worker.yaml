@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ray-worker
+  namespace: dani
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: ray-worker
+  template:
+    metadata:
+      labels:
+        app: ray-worker
+    spec:
+      runtimeClassName: nvidia
+      imagePullSecrets:
+        - name: ghcr-secret
+      containers:
+        - name: ray-worker
+          image: ghcr.io/nearai-interreg/ray-wordcount:latest
+          imagePullPolicy: Always
+          command: ["ray", "start", "--address=ray-head-svc:6379", "--block"]
+          resources:
+            limits:
+              nvidia.com/gpu: '1'
+              cpu: '8'
+              memory: 16Gi
+            requests:
+              nvidia.com/gpu: '1'
+              cpu: '8'
+              memory: 16Gi

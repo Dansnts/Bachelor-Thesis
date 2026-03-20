@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ray-head
+  namespace: dani
+  labels:
+    app: ray-head
+spec:
+  restartPolicy: Never
+  imagePullSecrets:
+    - name: ghcr-secret
+  containers:
+    - name: ray-head
+      image: ghcr.io/nearai-interreg/ray-wordcount:latest
+      imagePullPolicy: Always
+      command: ["ray", "start", "--head", "--port=6379", "--ray-client-server-port=10001", "--dashboard-host=0.0.0.0", "--block"]
+      ports:
+        - containerPort: 6379
+        - containerPort: 10001
+        - containerPort: 8265
+      resources:
+        limits:
+          cpu: '2'
+          memory: 4Gi
+        requests:
+          cpu: '2'
+          memory: 4Gi

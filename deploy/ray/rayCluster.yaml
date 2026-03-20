@@ -1,0 +1,58 @@
+apiVersion: ray.io/v1
+kind: RayCluster
+metadata:
+  name: ray-cluster
+  namespace: dani
+spec:
+  rayVersion: '2.44.1'
+
+  # -- HEAD : coordinateur du cluster
+  headGroupSpec:
+    rayStartParams:
+      dashboard-host: '0.0.0.0'
+    template:
+      spec:
+        runtimeClassName: nvidia
+        imagePullSecrets:
+          - name: ghcr-secret
+        containers:
+          - name: ray-head
+            image: ghcr.io/nearai-interreg/ray-wordcount:latest
+            imagePullPolicy: Always
+            ports:
+              - containerPort: 6379   # Ray GCS
+              - containerPort: 8265   # Dashboard
+              - containerPort: 10001  # Ray client
+            resources:
+              limits:
+                nvidia.com/gpu: '1'
+                cpu: '2'
+                memory: 4Gi
+              requests:
+                nvidia.com/gpu: '1'
+                cpu: '2'
+                memory: 4Gi
+
+  # -- WORKERS : exécutants des tâches Ray
+  workerGroupSpecs:
+    - groupName: workers
+      replicas: 3
+      rayStartParams: {}
+      template:
+        spec:
+          runtimeClassName: nvidia
+          imagePullSecrets:
+            - name: ghcr-secret
+          containers:
+            - name: ray-worker
+              image: ghcr.io/nearai-interreg/ray-wordcount:latest
+              imagePullPolicy: Always
+              resources:
+                limits:
+                  nvidia.com/gpu: '1'
+                  cpu: '2'
+                  memory: 4Gi
+                requests:
+                  nvidia.com/gpu: '1'
+                  cpu: '2'
+                  memory: 4Gi
