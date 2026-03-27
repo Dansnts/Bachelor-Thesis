@@ -6,18 +6,16 @@ metadata:
 spec:
   rayVersion: '2.44.1'
 
-  # -- HEAD : coordinateur du cluster
   headGroupSpec:
     rayStartParams:
       dashboard-host: '0.0.0.0'
     template:
       spec:
-        runtimeClassName: nvidia
         imagePullSecrets:
           - name: ghcr-secret
         containers:
           - name: ray-head
-            image: ghcr.io/nearai-interreg/ray-wordcount:latest
+            image: ghcr.io/nearai-interreg/ray-sam3:latest
             imagePullPolicy: Always
             ports:
               - containerPort: 6379   # Ray GCS
@@ -25,15 +23,12 @@ spec:
               - containerPort: 10001  # Ray client
             resources:
               limits:
-                nvidia.com/gpu: '1'
                 cpu: '2'
                 memory: 4Gi
               requests:
-                nvidia.com/gpu: '1'
                 cpu: '2'
                 memory: 4Gi
 
-  # -- WORKERS : exécutants des tâches Ray
   workerGroupSpecs:
     - groupName: workers
       replicas: 3
@@ -45,14 +40,20 @@ spec:
             - name: ghcr-secret
           containers:
             - name: ray-worker
-              image: ghcr.io/nearai-interreg/ray-wordcount:latest
+              image: ghcr.io/nearai-interreg/ray-sam3:latest
               imagePullPolicy: Always
+              env:
+                - name: HF_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: hf-secret
+                      key: HF_TOKEN
               resources:
                 limits:
                   nvidia.com/gpu: '1'
-                  cpu: '2'
-                  memory: 4Gi
+                  cpu: '8'
+                  memory: 16Gi
                 requests:
                   nvidia.com/gpu: '1'
-                  cpu: '2'
-                  memory: 4Gi
+                  cpu: '8'
+                  memory: 16Gi

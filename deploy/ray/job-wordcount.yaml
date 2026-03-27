@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: wordcount
+  namespace: dani
+spec:
+  restartPolicy: Never
+  runtimeClassName: nvidia
+  imagePullSecrets:
+    - name: ghcr-secret
+  containers:
+    - name: wordcount
+      image: ghcr.io/nearai-interreg/ray-wordcount:latest
+      imagePullPolicy: Always
