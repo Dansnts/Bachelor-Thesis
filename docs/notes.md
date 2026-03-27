@@ -88,7 +88,7 @@ Supports `POINT`, `POLYGON`, `MULTIPOLYGON`. GIST index enables fast spatial que
 - SAM3 runs in batch via Ray
 - Results stored as Parquet on S3
 - No database required
-- Reference: https://docs.ray.io/en/latest/data/data.html
+- Reference: https://docs.ray.io/en/latest/data/data.htmlT folder (copy of templat
 
 ### Scenario B — On-demand
 - User submits one image → near-real-time response
@@ -244,3 +244,82 @@ Top 10 premières images :
 ```
 
 ![Dog classifier workers](images/dogClassifierWorkers.png)
+
+## Week 5
+
+### Loki
+
+Loki is a log aggregation system that only indexes metadata labels, not the full log content. This makes it lightweight compared to Elasticsearch which is useful in our case because we don't need full-text search, we need to find logs from a specific Ray worker pod at a specific time.
+
+It stores data in S3 format. Loki has 2 main storage types: index and chunks.
+
+- **Index**: table of contents, maps label sets to chunk locations.
+- **Chunks**: compressed blocks of raw log lines for a given label set and time range.
+
+![Loki index/chunks](./images/lokiChunksIndex.png)
+
+Logs are queried with **LogQL**, a label-based query language:
+
+```logql
+{namespace="dani", pod=~"ray-worker.*"} |= "ERROR"
+```
+
+In our pipeline, Promtail runs as a DaemonSet and ships all pod logs to Loki. Loki stores them on MinIO woth no extra storage infrastructure needed. Grafana queries Loki alongside Prometheus, which allows correlating a GPU spike on a graph with the corresponding worker logs.
+
+
+### Parquet
+
+Parquet is a binary columnar file format designed for analytical workloads on large datasets. Unlike a relational database, there is no loading phase, files are queried directly from the data lake (MinIO in our case).
+
+**Internal structure:**
+
+```
+Parquet file
+└── Row Group 1          < horizontal split of rows
+│   ├── Column Chunk A   < all values for column A in this group
+│   │   ├── Page 1
+│   │   └── Page 2
+│   └── Column Chunk B
+└── Row Group 2
+    └── ...
+```
+
+Each column chunk is stored and compressed independently. This means reading only the columns you need. For exemple filtering polygons by confidence score without loading GPS coordinates.
+
+Workers write results in parallel. each Ray worker produces one or more row groups. Queries on the output (filter by GPS zone, score threshold) only scan relevant columns. No database to maintain all our files sit on MinIO, PyArrow reads them directly.
+
+Parquet stores min/max statistics per column chunk. A query engine can skip entire row groups without reading them if the predicate falls outside the range. This is called **predicate pushdown** and is supported natively by PyArrow and DuckDB.
+
+Reference: Alice Rey, *Bridging the Gap between Data Lakes and RDBMSs*, EDBT/ICDT Workshop 2024.
+
+### Promtail
+
+Promtail is the log shipping agent for Loki. It runs as a DaemonSet (one instance per K8s node) and collects logs from all pods running on that node.
+
+Promtail discovers pods via the K8s API (service discovery) then it reads log files from `/var/log/pods/` on the node si it cab attaches labels extracted from pod metadata: `namespace`, `pod`, `container`. Finnaly it ships log streams to Loki's Distributor via POST.
+
+```
+K8s Node
+|-- ray-worker-0  |
+|-- ray-worker-1  |──> Promtail ──> Loki Distributor ──> Ingester ──<> MinIO
+|-- ray-worker-2  |
+```
+
+Each log line reaches Loki with labels like:
+
+```
+{namespace="dani", pod="ray-worker-abc", container="ray-worker"}
+```
+
+In our pipeline, Promtail captures stdout/stderr from Ray workers automatically. No code change required and the workers just print to stdout and Promtail picks it up.
+
+### DCGM Exporter
+
+It's simply a tool to export GPUs metrics. Which is very important in our case to monitor our pipeline. Protheus will scrap them via his HTTP endpoint then Grafana will simply read them.
+
+```
+K8s Node
+|-- GPU A1  |
+|-- GPU A2  |──> Prometheus ──> Grafana
+|-- GPU A3  |
+```

@@ -1,19 +1,23 @@
-# Cahier des charges : Travail de Bachelor
+# Cahier des charges
 
 **Auteur :** Dani Tiago Faria dos Santos
+
 **Superviseur :** Prof. Bertil Chapuis (HEIG-VD)
-**Institut :** IICT - Institut des Technologies de l'information et de la Communication
+
+**Institut :** IICT  Institut des Technologies de l'information et de la Communication
+
 **Orientation :** Réseaux et systèmes
+
 **Date :** 27 février 2026
+
 
 ---
 
 ## Résumé
 
-Ce travail de Bachelor porte sur la conception et le déploiement d'un pipeline
-d'annotation automatique d'images géospatiales à l'aide du modèle SAM3, sur le cluster Kubernetes de la HEIG-VD.
+Ce TB vise à implémeter la conception et le déploiement d'une pipeline distribuée d'annotation automatique d'images géospatiales. 
 
-TODO : compléter avec les objectifs spécifiques du projet, les méthodes utilisées, et les résultats attendus.
+La pipeline exploite SAM3 pour la segmentation et Ray pour distribuer le traitement sur les GPUs du cluster Kubernetes de la HEIG-VD. Les images JPEG sont lues depuis le serveur MinIO, découpées en tuiles et traitées en parallèle par des workers Ray. Les métadonnées GPS qui sont extraites de l'EXIF sont associées aux polygones qui ont été produits puis stockés au format Parquet sur S3. Une couche d'observabilité basée sur Prometheus, Loki et Grafana permet de surveiller l'état du cluster et d'identifier les incidents ou soucis de performances.
 
 ---
 
@@ -21,22 +25,20 @@ TODO : compléter avec les objectifs spécifiques du projet, les méthodes utili
 
 ### 1.1 Contexte
 
-La HEIG-VD dispose d'un cluster Kubernetes équipé de GPUs permettant d'exécuter des charges de calcul intensif. Dans le cadre de projets liés à l'analyse d'images géospatiales (images satellitaires ou aériennes), il est nécessaire de disposer d'un pipeline automatisé d'annotation d'images capable de traiter de grands volumes de données efficacement.
+La HEIG-VD dispose d'un cluster Kubernetes équipé de GPUs permettant d'exécuter des charges de calcul intensif. Dans le cadre de projets liés à l'analyse d'images géospatiales, il est nécessaire de disposer d'une pipeline automatisée capable de traiter de grands volumes de données.
 
-Actuellement, les données d'images sont stockées sur un serveur MinIO compatible S3, et les annotations sont gérées via Label Studio. Le modèle SAM3 est utilisé pour la segmentation automatique.
+Les images sont stockées sur un serveur MinIO compatible S3. Les annotations sont gérées via Label Studio. Le modèle SAM3 est utilisé pour la segmentation automatique.
 
 ### 1.2 Problématique
 
-Le traitement de grands volumes d'images haute résolution représente un défi en termes de performance et de scalabilité. Les principales contraintes sont :
+Le traitement de grands volumes d'images à haute résolution pose des problèmes de performance et de scalabilité sur les infrastructures.
 
-- les images sont volumineuses et ne peuvent pas être chargées entièrement en mémoire ;
-- le modèle SAM3 doit être exécuté sur GPU pour des raisons de performance ;
-- les résultats de segmentation sont des données géospatiales (polygones) qui doivent être stockées et requêtées efficacement ;
-- la solution doit être scalable et déployable sur le cluster existant.
+Voici une liste des contraintes:
 
-### 1.3 Périmètre du travail
-
-Ce cahier des charges définit le périmètre, les objectifs, les exigences et l'architecture du pipeline à développer dans le cadre de ce travail de Bachelor. Il constitue le document de référence entre l'étudiant et le professeur responsable.
+- Les images qui sont volumineuses et ne peuvent pas être chargées entièrement en mémoire.
+- Le modèle SAM3 requiert un GPU pour fonctionner dans des délais acceptables.
+- Les résultats de segmentation sont des polygones géospatiaux qui doivent être stockés et interrogeables efficacement.
+- La solution doit être déployable sur le cluster existant et scalable horizontalement.
 
 ---
 
@@ -44,35 +46,45 @@ Ce cahier des charges définit le périmètre, les objectifs, les exigences et l
 
 ### 2.1 Objectif principal
 
-Concevoir, implémenter et déployer un pipeline distribué d'annotation automatique d'images géospatiales par IA, capable d'exploiter les ressources GPU du cluster Kubernetes de la HEIG-VD.
+Concevoir, implémenter et déployer une pipeline distribuée d'annotation automatique d'images géospatiales, capable d'exploiter les ressources GPU du cluster Kubernetes de la HEIG-VD.
 
 ### 2.2 Objectifs secondaires
 
-1. **Évaluation du stockage objet**
-   Analyser et évaluer les alternatives à MinIO (RustFS, CEPH) en termes de performance, de licence et d'intégration avec l'infrastructure existante.
+1. **Analyse du stockage objet**
+
+   Documenter l'évaluation des alternatives à MinIO (RustFS, CEPH) et justifier le choix retenu au regard des contraintes de licence, de maturité et d'intégration avec l'infrastructure existante.
 
 2. **Traitement distribué des images**
-   Mettre en place un pipeline Ray capable de distribuer le traitement des images sur plusieurs GPUs en parallèle.
+
+   Mettre en place une pipeline Ray distribuant le traitement des images sur plusieurs GPUs en parallèle.
 
 3. **Optimisation du chargement des images**
-   Intégrer ZARR pour la conversion et la lecture par tuiles des images, afin de réduire la consommation mémoire et d'améliorer les performances.
 
-4. **Persistance des résultats géospatiaux**
-   Stocker les polygones issus de la segmentation dans une base de données PostgreSQL avec l'extension PostGIS.
+   Découper les images en tuiles en mémoire avant inférence. Intégrer ZARR comme amélioration optionnelle si les volumes ou les formats d'images le justifient.
+
+4. **Persistance des résultats**
+
+   Stocker les polygones issus de la segmentation au format Parquet sur le stockage S3.
 
 5. **Intégration avec Label Studio**
-   Exporter ou synchroniser les annotations produites automatiquement vers Label Studio pour permettre la validation humaine.
+
+   Pousser les pré-annotations produites par SAM3 vers Label Studio via son API REST. Les images restent sur MinIO, connecté à Label Studio comme source S3. Seuls les polygones transitent, convertis au format Label Studio depuis le Parquet.
 
 6. **Déploiement sur Kubernetes**
-   Packager et déployer l'ensemble du pipeline sous forme de ressources Kubernetes (Pods, Jobs, ou Deployments).
+
+   Packager et déployer la pipeline sous forme de manifestes Kubernetes.
+
+7. **Observabilité**
+
+   Mettre en place un système de monitoring couvrant l'état du cluster, l'utilisation des GPUs et les logs des workers, afin de permettre l'identification des goulots d'étranglement.
 
 ### 2.3 Hors périmètre
 
-Les éléments suivants sont explicitement hors du périmètre de ce travail :
+Les éléments suivants sont explicitement hors du périmètre de ce travail.
 
-- le réentraînement ou la modification du modèle SAM3 ;
-- le développement d'une interface utilisateur de visualisation ;
-- la gestion de la sécurité et des accès au cluster (supposée existante).
+- Le réentraînement ou la modification du modèle SAM3.
+- Le développement d'une interface utilisateur de visualisation.
+- La gestion de la sécurité et des accès au cluster, supposée existante.
 
 ---
 
@@ -82,26 +94,30 @@ Les éléments suivants sont explicitement hors du périmètre de ce travail :
 
 | Description | Priorité |
 |-------------|----------|
-| Le système doit pouvoir lire des images au format PNG et TIFF depuis un stockage S3. | Haute |
-| Le système doit convertir les images en format ZARR pour un accès par tuiles. | Haute |
-| Le système doit exécuter le modèle SAM3 sur chaque tuile d'image. | Haute |
-| Le système doit stocker les polygones de segmentation dans PostgreSQL/PostGIS. | Haute |
-| Le système doit distribuer le traitement sur plusieurs workers Ray. | Haute |
-| Le système doit permettre d'exporter les annotations vers Label Studio. | Moyenne |
-| Le système doit fournir un rapport de traitement (nombre d'images, durée, erreurs). | Moyenne |
-| Le système doit gérer les erreurs de traitement par image sans interrompre le pipeline. | Haute |
+| Le système lit des images JPEG depuis un stockage S3. | Haute |
+| Le système découpe chaque image en tuiles avant inférence. | Haute |
+| Le système exécute SAM3 sur chaque tuile d'image. | Haute |
+| Le système distribue le traitement sur plusieurs workers Ray. | Haute |
+| Le système extrait les métadonnées GPS de l'EXIF et les associe aux résultats. | Haute |
+| Le système stocke les polygones de segmentation au format Parquet sur S3. | Haute |
+| Le système gère les erreurs par image sans interrompre la pipeline. | Haute |
+| Le système produit un rapport de traitement (nombre d'images, durée, erreurs). | Moyenne |
+| Le système exporte les annotations vers Label Studio. | Moyenne |
+| Le système expose des métriques de traitement consultables via Grafana. | Moyenne |
+| Le système agrège les logs des workers et les rend consultables. | Moyenne |
+| Le système convertit les images au format ZARR pour un accès par tuiles depuis S3. | Basse |
 
 ### 3.2 Exigences non fonctionnelles
 
 | Description | Priorité |
 |-------------|----------|
-| Le pipeline doit être déployable sur le cluster Kubernetes de la HEIG-VD. | Haute |
-| Le système doit exploiter les GPUs disponibles sur le cluster. | Haute |
-| Le traitement d'un lot d'images doit être scalable horizontalement. | Haute |
-| Les composants doivent être conteneurisés (Docker). | Haute |
-| Le code source doit être versionné sur Git et documenté. | Haute |
-| La solution de stockage objet retenue doit être compatible avec le protocole S3. | Haute |
-| Le système ne doit pas charger une image entière en mémoire vive. | Moyenne |
+| La pipeline est déployable sur le cluster Kubernetes de la HEIG-VD. | Haute |
+| Le système exploite les GPUs disponibles sur le cluster. | Haute |
+| Le traitement d'un lot d'images est scalable horizontalement. | Haute |
+| Les composants sont conteneurisés avec Docker. | Haute |
+| Le code source est versionné sur Git et documenté. | Haute |
+| Le stockage objet retenu est compatible avec le protocole S3. | Haute |
+| Le système ne charge pas plus d'une image à la fois par worker. | Haute |
 
 ---
 
@@ -109,26 +125,47 @@ Les éléments suivants sont explicitement hors du périmètre de ce travail :
 
 ### 4.1 Vue d'ensemble
 
-Le pipeline devra être composée de :
+La pipeline est composé de cinq couches fonctionnelles.
 
-### 4.2 Flux de traitement
+1. La couche **stockage** centralise les images brutes, les résultats Parquet et les logs sur MinIO via le protocole S3.
+2. La couche **prétraitement** charge chaque image, en extrait les métadonnées GPS de l'EXIF et la découpe en tuiles.
+3. La couche **traitement distribué** orchestre l'exécution de SAM3 sur les tuiles via des workers Ray dotés d'un GPU chacun.
+4. La couche **persistance** écrit les polygones avec leurs métadonnées géographiques au format Parquet sur S3.
+5. La couche **observabilité** collecte métriques et logs en continu pour rendre l'état du cluster visible dans Grafana.
 
-Le flux de traitement d'une image suit les étapes suivantes :
+### 4.2 Flux de traitement : Scénario A (batch)
 
-1. A
-2. B
-3. C
+Le scénario principal traite un lot d'images en mode batch.
 
-### 4.3 Composants
+1. L'utilisateur soumet un lot d'images stockées sur MinIO.
+2. Chaque image est téléchargée, ses métadonnées GPS sont extraites de l'EXIF et elle est découpée en tuiles.
+3. Ray distribue les tuiles sur les workers GPU disponibles.
+4. Chaque worker exécute SAM3 sur ses tuiles et produit des polygones de segmentation.
+5. Les polygones sont agrégés avec leurs métadonnées géographiques et écrits au format Parquet sur S3.
+6. Un rapport de traitement est généré (images traitées, durée, erreurs).
+
+### 4.3 Flux de traitement : Scénario B (on-demand)
+
+Le scénario secondaire traite une image unique avec une réponse proche du temps réel.
+
+1. L'utilisateur soumet une image via l'API de la pipeline.
+2. La pipeline exécute SAM3 sur l'image et extrait les métadonnées GPS de l'EXIF.
+3. Le résultat est retourné à l'utilisateur et stocké sur S3.
+
+### 4.4 Composants
 
 | Composant | Technologie | Rôle |
 |-----------|-------------|------|
-| Stockage objet | MinIO | Stockage des images brutes et ZARR |
-| Processing | Ray | Orchestration du traitement parallèle sur GPU |
+| Stockage objet | MinIO | Stockage des images brutes et des résultats Parquet |
+| Traitement distribué | Ray | Distribution des tâches d'inférence sur les workers GPU |
 | Modèle IA | SAM3 | Segmentation automatique des images |
-| Base de données | PostgreSQL + PostGIS | Stockage des polygones géospatiaux |
-| Orchestration | Kubernetes | Déploiement, scaling, gestion des Pods |
-| Annotation | Label Studio | Validation humaine des annotations |
+| Format de sortie | Parquet | Stockage colonnaire des polygones de segmentation |
+| Orchestration | Kubernetes | Déploiement et gestion du cycle de vie des pods |
+| Annotation | Label Studio | Validation humaine des annotations produites |
+| Métriques cluster et GPU | Prometheus + DCGM Exporter | Scrape des métriques Ray et GPU |
+| Métriques jobs éphémères | Pushgateway | Réception des métriques des Ray Jobs avant leur arrêt |
+| Logs | Promtail + Loki | Collecte et agrégation des logs des pods K8s |
+| Visualisation | Grafana | Dashboards métriques et logs |
 
 ---
 
@@ -136,36 +173,35 @@ Le flux de traitement d'une image suit les étapes suivantes :
 
 ### 5.1 Traitement distribué : Ray
 
-Ray est un framework Python de calcul distribué orienté charges GPU et workflows IA. Contrairement à Spark (orienté données structurées), Ray est nativement conçu pour distribuer des inférences de modèles sur GPU, ce qui en fait le choix naturel pour ce projet.
+Ray est un framework Python de calcul distribué orienté workloads GPU et IA. Contrairement à Spark, conçu pour les données structurées, Ray distribue nativement des inférences de modèles sur GPU. Le pattern Actor permet de charger un modèle une seule fois par worker et de le réutiliser sur de nombreuses tâches, évitant les rechargements coûteux en mémoire.
 
-### 5.2 Format de données : ZARR
+### 5.2 Découpage des images
 
-ZARR est un format de tableau N-dimensionnel orienté chunking. Il permet de lire une image par tuiles sans la charger entièrement en mémoire, ce qui est critique pour des images haute résolution. Il est complémentaire à Ray : chaque worker lit uniquement les tuiles qui lui sont assignées.
+Les images sources sont au format JPEG. Ce format ne supporte pas la lecture partielle. La pipeline charge chaque image en mémoire et la découpe en tuiles avant de les distribuer aux workers Ray. Cette approche est suffisante pour les volumes observés (2.8 MB par image).
 
-### 5.3 Stockage objet : à évaluer
+ZARR est évalué comme amélioration optionnelle. Il permettrait une lecture par tuiles directement depuis S3 sans chargement complet, utile si les images sources deviennent significativement plus volumineuses ou si le format change.
 
-Deux alternatives à MinIO sont à évaluer dans le cadre de ce TB :
+### 5.3 Stockage objet : MinIO
 
-- **RustFS** : alternative S3-only, licence Apache 2.0, migration simple depuis MinIO. Moins mature que MinIO mais potentiellement plus performant.
-- **CEPH** : solution généraliste (bloc, fichier, objet), très mature, mais complexe à administrer. Pertinent si un cluster CEPH existe déjà.
+MinIO est conservé comme solution de stockage pour la durée du TB. L'analyse des alternatives (RustFS, CEPH) est documentée dans `docs/storage-analysis.md`. La pipeline ne dépend de MinIO qu'à travers le protocole S3. Changer de solution de stockage revient à modifier uniquement la configuration de l'endpoint.
 
-La décision finale sera documentée dans le rapport.
+### 5.4 Format de sortie : Parquet
 
-### 5.4 Base de données : PostgreSQL + PostGIS
+Parquet est un format de stockage colonnaire adapté aux résultats produits en batch. Il permet des requêtes analytiques efficaces sur les polygones (filtrage par score de confiance, par zone géographique) sans charger l'ensemble du fichier en mémoire.
 
-PostgreSQL avec l'extension PostGIS permet de stocker les polygones issus de la segmentation avec leurs coordonnées géospatiales. L'index spatial GIST permet des requêtes géographiques performantes.
+### 5.5 Observabilité
 
-Le schéma de base attendu :
-- table `annotations` avec colonne `geom GEOMETRY(POLYGON, 4326)`
-- index `GIST` sur la colonne géométrique
+Ray expose nativement des métriques au format Prometheus. DCGM Exporter ajoute les métriques GPU (utilisation, mémoire, température). Les Ray Jobs sont éphémères : ils meurent avant que Prometheus puisse les scraper. Le Pushgateway résout ce problème, chaque job pousse ses métriques finales avant de s'arrêter.
 
-### 5.5 Orchestration : Kubernetes
+Promtail tourne comme DaemonSet sur chaque node K8s. Il collecte les logs de tous les pods et les envoie à Loki. Loki stocke ces logs sur MinIO, sans infrastructure supplémentaire. Grafana affiche métriques et logs dans la même interface, ce qui permet de corréler un incident visible sur une courbe avec les logs correspondants.
 
-Le cluster Kubernetes de la HEIG-VD est l'environnement cible de déploiement. Le pipeline sera packagé sous forme de manifestes Kubernetes (Jobs Ray, Deployments).
+### 5.6 Orchestration : Kubernetes
 
-### 5.6 Modèle : SAM3
+Le cluster Kubernetes de la HEIG-VD est l'environnement cible. La pipeline est packagé sous forme de manifestes Kubernetes via l'opérateur KubeRay.
 
-SAM3 (Segment Anything Model v3) est le modèle de segmentation retenu. Il sera utilisé en inférence uniquement (pas de réentraînement).
+### 5.7 Modèle : SAM3
+
+SAM3 (Segment Anything Model v3) est le modèle de segmentation retenu. Il est utilisé en inférence uniquement, sans réentraînement.
 
 ---
 
@@ -183,13 +219,13 @@ Voir `planification.md` pour la décomposition détaillée des 450 heures.
 | 29 mai 2026 | Note rapport intermédiaire |
 | 15 juin – 23 juillet 2026 | TB à plein temps |
 | **23 juillet 2026 avant 11h00** | **Remise rapport final + résumé (GAPS)** |
-| 24 août – 11 septembre 2026 | **Soutenance** |
+| 24 août – 11 septembre 2026 | Soutenance |
 
 ### 6.2 Livrables
 
 1. **Cahier des charges** : 09 avril 2026
 2. **Rapport intermédiaire** : 20 mai 2026
-3. **Code source** : Repository Git (Ray, SAM3, ZARR, MinIO, PostGIS, K8s)
+3. **Code source** : Repository Git (Ray, SAM3, MinIO, Parquet, K8s)
 4. **Rapport de Bachelor** : 23 juillet 2026
 5. **Résumé publiable** : 23 juillet 2026
 6. **Présentation orale** : août/septembre 2026
@@ -198,10 +234,10 @@ Voir `planification.md` pour la décomposition détaillée des 450 heures.
 
 | Risque | Impact | Mitigation |
 |--------|--------|-----------|
-| SAM3 inférence trop lente sur GPU | Critique | Optimisation ONNX, quantisation, réduction résolution |
+| SAM3 trop lent sur GPU | Critique | Optimisation ONNX, quantisation, réduction de résolution |
 | Cluster K8s HEIG indisponible avant juin | Critique | Développement local avec Minikube |
-| Images trop volumineuses pour la mémoire | Moyen | Tuning ZARR chunk size, downsampling |
-| PostGIS requêtes lentes sur gros volumes | Moyen | Index GIST, batch inserts |
+| Images trop volumineuses pour la mémoire | Faible | Downsampling ou intégration de ZARR |
+| Fichiers Parquet trop fragmentés sur S3 | Faible | Agrégation en fin de batch, partitionnement par lot |
 
 ---
 
@@ -210,13 +246,21 @@ Voir `planification.md` pour la décomposition détaillée des 450 heures.
 | Terme | Définition |
 |-------|------------|
 | **Kubernetes** | Système d'orchestration de conteneurs open-source |
-| **Ray** | Framework Python de calcul distribué, optimisé pour les workloads GPU et IA |
-| **ZARR** | Format N-dimensionnel orienté chunking pour la lecture partielle de grandes images |
+| **KubeRay** | Opérateur Kubernetes pour déployer des clusters Ray |
+| **Ray** | Framework Python de calcul distribué, optimisé pour les workloads GPU |
 | **SAM3** | Segment Anything Model v3 : modèle de segmentation d'images de Meta AI |
-| **MinIO** | Serveur de stockage objet haute performance compatible S3 |
-| **PostgreSQL** | Système de gestion de base de données relationnelle open-source |
-| **PostGIS** | Extension PostgreSQL pour les types et fonctions géospatiales |
+| **ZARR** | Format N-dimensionnel orienté chunking, évalué comme optimisation optionnelle |
+| **EXIF** | Métadonnées embarquées dans les fichiers image, contenant notamment les coordonnées GPS |
+| **MinIO** | Serveur de stockage objet compatible S3 |
+| **Parquet** | Format de stockage colonnaire optimisé pour les requêtes analytiques |
 | **Label Studio** | Plateforme open-source d'annotation de données pour le machine learning |
 | **Pod** | Unité de déploiement atomique dans Kubernetes |
-| **S3** | Simple Storage Service : protocole de stockage objet d'Amazon |
+| **S3** | Protocole de stockage objet défini par Amazon Web Services |
 | **GPU** | Graphics Processing Unit |
+| **Actor** | Abstraction Ray permettant de charger un modèle une fois et de le réutiliser sur plusieurs tâches |
+| **Prometheus** | Système de collecte de métriques par scraping, modèle pull |
+| **DCGM Exporter** | Exporteur NVIDIA exposant les métriques GPU vers Prometheus |
+| **Pushgateway** | Composant Prometheus recevant les métriques des jobs éphémères |
+| **Promtail** | Agent de collecte de logs, tourne sur chaque node K8s |
+| **Loki** | Agrégateur de logs compatible S3, intégré à Grafana |
+| **Grafana** | Interface de visualisation des métriques et des logs |

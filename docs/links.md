@@ -75,3 +75,8 @@
 - [Documentation Python](https://zarr.readthedocs.io/en/stable/)
 - [Guide cloud-native géospatial](https://guide.cloudnativegeo.org/zarr/intro.html)
 - [Extension géospatiale GeoZarr](https://github.com/zarr-developers/geozarr-spec) 
+
+
+## Logs
+
+- [DCGM-Exporter](https://docs.nvidia.com/datacenter/dcgm/latest/gpu-telemetry/dcgm-exporter.html)

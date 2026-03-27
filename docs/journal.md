@@ -73,3 +73,23 @@
 | **Total** |    | 11h30 |
 
 ---
+
+# Week 5
+
+| Task              | Status | Time |
+| :---------------- | :------: | ----: |
+|Trouble connection to the newtork | Done | 30 min|
+| Meeting with Bertil | Done | 15min |
+| Reorganised Ray K8s manifests : moved from rayTemp (manual Pod+Deployment) to proper KubeRay RayCluster CRD in deploy/ray/  + fix of the RayCluster files manifest| Done | 45min |
+| Created Typst folder (copy of template from Silvain Pasinis's repo) | Done | 30min |
+| Converted specifications.md to Typst (chapitres/cahier-des-charges.typ) | Done | 1h |
+| Created main entry point cahier-des-charges.typ with title page, TOC, disclaimer | Done | 30min |
+| Populated bibliography.yaml with papers (MapReduce, Ray, Prometheus) and web references | Done | 30min |
+| Fixed supervisor gender label in Typst template | Done | 5min |
+| Completed Week 5 notes : Loki, Parquet (from PhDW-3 paper), Promtail | Done | 45min |
+| Created sam3_pipeline.py : Ray Actor + SAM3 + EXIF GPS extraction + tiling (need to be tested) | Done | 1h |
+| Created Dockerfile.sam3 : Ray 2.54.0 + SAM3 + exif + Pillow on CUDA 12.6 | Done | 30min |
+| Created job-sam3-pipeline.yaml K8s manifest | Done | 15min |
+| Built and pushed ray-sam3 image to ghcr.io | Done | 30min |
+| Debug Ray () | In progress | - |
+| **Total** |    | 11h |
