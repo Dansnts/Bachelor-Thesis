@@ -1,12 +1,13 @@
 import os
+import time
 import ray
 import torch
 import numpy as np
 from PIL import Image
 from exif import Image as ExifImage
 
-RAY_HEAD = "ray://ray-head-svc:10001"
-TILE_SIZE = 512
+RAY_HEAD = "ray://ray-cluster-head-svc:10001"
+TILE_SIZE = 1024
 NUM_WORKERS = 3
 
 
@@ -54,21 +55,41 @@ class SAM3Worker:
 
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         print(f"[SAM3Worker] Loading model on {self.device}...")
+        t0 = time.time()
         model = build_sam3_image_model(device=self.device, load_from_HF=True, eval_mode=True)
         self.processor = Sam3Processor(model)
-        print(f"[SAM3Worker] Ready on {self.device}")
+        print(f"[SAM3Worker] Ready on {self.device} (init: {time.time() - t0:.1f}s)")
 
     def segment_tile(self, tile: np.ndarray, row: int, col: int) -> dict:
+        import cv2
+        t0 = time.time()
         h, w = tile.shape[:2]
         state = self.processor.set_image(tile)
         box = [0, 0, w, h]
         result = self.processor.add_geometric_prompt(box=box, label=True, state=state)
+
+        masks = result.get("masks") if isinstance(result, dict) else getattr(result, "masks", None)
+        polygons = []
+        if masks is not None:
+            masks_np = masks.cpu().numpy() if hasattr(masks, "cpu") else np.array(masks)
+            for mask in masks_np:
+                if mask.ndim == 3:
+                    mask = mask[0]
+                binary = (mask > 0).astype(np.uint8)
+                contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                for contour in contours:
+                    if len(contour) >= 3:
+                        polygons.append((contour[:, 0, :] + [col, row]).tolist())
+
+        elapsed = time.time() - t0
+        print(f"[SAM3Worker] tile ({row},{col}) → {len(polygons)} polygones en {elapsed:.2f}s")
         return {
             "tile_row": row,
             "tile_col": col,
             "tile_h": h,
             "tile_w": w,
-            "result": result,
+            "polygons": polygons,
+            "inference_time": elapsed,
         }
 
 
@@ -85,19 +106,32 @@ def run(image_path: str):
     print(f"[INFO] {len(tiles)} tiles ({TILE_SIZE}x{TILE_SIZE})")
 
     num_gpus = 0 if os.environ.get("RAY_LOCAL") == "1" else 1
+    t_init = time.time()
     workers = [SAM3Worker.options(num_gpus=num_gpus).remote() for _ in range(NUM_WORKERS)]
+    ray.get([w.segment_tile.remote(tiles[0][0], tiles[0][1], tiles[0][2]) for w in workers])
+    print(f"[TIMING] Workers init + warmup : {time.time() - t_init:.1f}s")
 
-    futures = [
-        workers[i % NUM_WORKERS].segment_tile.remote(tile, row, col)
-        for i, (tile, row, col) in enumerate(tiles)
-    ]
-
-    results = ray.get(futures)
+    t_inference = time.time()
+    BATCH_SIZE = 6
+    results = []
+    for batch_start in range(0, len(tiles), BATCH_SIZE):
+        batch = tiles[batch_start:batch_start + BATCH_SIZE]
+        futures = [
+            workers[i % NUM_WORKERS].segment_tile.remote(tile, row, col)
+            for i, (tile, row, col) in enumerate(batch)
+        ]
+        batch_results = ray.get(futures)
+        results.extend(batch_results)
+        print(f"[INFO] Batch {batch_start // BATCH_SIZE + 1} : {len(batch_results)} tiles traitées")
 
     for r in results:
-        print(f"  Tile ({r['tile_row']:4d}, {r['tile_col']:4d}) → {type(r['result']).__name__}")
+        print(f"  Tile ({r['tile_row']:4d}, {r['tile_col']:4d}) → {len(r['polygons'])} polygones")
 
-    print(f"\n[SUCCES] {len(results)} tiles segmentées.")
+    total_polygons = sum(len(r["polygons"]) for r in results)
+    times = [r["inference_time"] for r in results]
+    print(f"\n[TIMING] Inférence totale : {time.time() - t_inference:.1f}s")
+    print(f"[TIMING] Par tile — min: {min(times):.2f}s  max: {max(times):.2f}s  moy: {sum(times)/len(times):.2f}s")
+    print(f"\n[SUCCES] {len(results)} tiles segmentées, {total_polygons} polygones extraits.")
     print(f"[INFO] GPS associé : {gps}")
     return results, gps
 
