@@ -91,5 +91,17 @@
 | Created Dockerfile.sam3 : Ray 2.54.0 + SAM3 + exif + Pillow on CUDA 12.6 | Done | 30min |
 | Created job-sam3-pipeline.yaml K8s manifest | Done | 15min |
 | Built and pushed ray-sam3 image to ghcr.io | Done | 30min |
-| Debug Ray () | In progress | - |
+| Debug Ray () | Done | - |
 | **Total** |    | 11h |
+
+---
+
+# Week 6
+
+| Task              | Status | Time |
+| :---------------- | :------: | ----: |
+| Debug and fix SAM3 pipeline on cluster (OOM, libGL, numpy conflict, Ray address) | Done | 2h |
+| Optimise pipeline : batch processing, polygon extraction in worker, timing instrumentation | Done | 1h |
+| Configure nodeAffinity on workers and job pod (L40S, A40, disk-pressure exclusion) | Done | 30min |
+| Benchmark 512x512 vs 1024x1024 tiles on cluster, analyse GPU scheduling constraints | Done | 1h |
+| **Total** |    | 4h30 |

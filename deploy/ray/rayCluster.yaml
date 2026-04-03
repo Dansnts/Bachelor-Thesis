@@ -36,6 +36,30 @@ spec:
       template:
         spec:
           runtimeClassName: nvidia
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                  - matchExpressions:
+                      - key: nvidia.com/gpu.present
+                        operator: In
+                        values:
+                          - "true"
+              preferredDuringSchedulingIgnoredDuringExecution:
+                - weight: 100
+                  preference:
+                    matchExpressions:
+                      - key: nvidia.com/gpu.product
+                        operator: In
+                        values:
+                          - NVIDIA-L40S
+                - weight: 50
+                  preference:
+                    matchExpressions:
+                      - key: nvidia.com/gpu.product
+                        operator: In
+                        values:
+                          - NVIDIA-A40
           imagePullSecrets:
             - name: ghcr-secret
           containers:

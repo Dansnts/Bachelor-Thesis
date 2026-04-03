@@ -13,7 +13,7 @@
 | 2 | 8h | Setup environnement dev (Python, Docker). Étude Ray et SAM3. Analyse stockage (MinIO, RustFS, CEPH). | Terminé |
 | 3 | 8h | Dockerfile SAM3 (CUDA 12.6). Inférence GPU validée sur K8s. Rédaction spécifications. | Terminé |
 | 4 | 8h | Cluster Ray manuel (head + 3 workers GPU). Wordcount MapReduce. Dog classifier 5000 images. Dashboard Ray via Ingress. | Terminé |
-| **5** | **8h** | **Intégration Ray + SAM3. Pipeline d'inférence distribué. Extraction GPS EXIF.** | En cours |
+| 5 | 8h | Intégration Ray + SAM3. Pipeline d'inférence distribué. Extraction GPS EXIF. | En cours |
 | 6 | 8h | Client boto3. Lecture images JPEG depuis MinIO. Découpage en tuiles (PIL). Tests S3 --> tuiles --> Ray --> SAM3. | |
 | 7 | 8h | Écriture résultats Parquet sur S3. Schéma : polygones + métadonnées GPS. Tests lecture analytique. | |
 | **8** | **8h** | **Finalisation cahier des charges. Intégration Label Studio : connexion MinIO S3 + push pré-annotations via API.** | **JALON : Remise cahier des charges (09 avril)** |

@@ -9,7 +9,7 @@
 - Label Studio data stored as JSON files, pictures stored on MinIO in the NearAI folder
 
 ## AI
-- SAM3 (Meta) — segmentation model
+- SAM3 (Meta) : segmentation model
 
 ## Data
 - Downsampling: reduce image size, use polygons instead of hand-drawn labels
@@ -323,3 +323,78 @@ K8s Node
 |-- GPU A2  |──> Prometheus ──> Grafana
 |-- GPU A3  |
 ```
+
+---
+
+# Week 6
+
+## SAM3 Pipeline : Benchmark
+
+All runs on a single image (4096×8192 px, 2.8 MB JPEG), 3 Ray workers on L40S and A40.
+
+### Run A : 512×512 tiles
+
+| Metric | Value |
+|--------|-------|
+| Tiles | 128 |
+| Workers | 3 (2× L40S on suchet, 1× A40 on node4) |
+| Worker init (cold) | ~71s |
+| Worker init (cached) | ~19s |
+| Inference time/tile : L40S | ~2.0s |
+| Inference time/tile : A40 | ~2.5s |
+| Inference time/tile : avg | 2.00s |
+| Total inference | 111.4s |
+| Polygons extracted | 146 |
+| **Total wall time** | **~1m50s** |
+
+### Run B : 1024×1024 tiles
+
+| Metric | Value |
+|--------|-------|
+| Tiles | 32 |
+| Workers | 3 (2× L40S on suchet, 1× A40 on node4) |
+| Inference time/tile : L40S | ~6.4s |
+| Inference time/tile : A40 | ~9.3s |
+| Inference time/tile : avg | 7.41s |
+| Total inference | 103.3s |
+| Polygons extracted | 49 |
+| **Total wall time** | **~1m43s** |
+
+### Analysis
+
+Larger tiles yield no meaningful time reduction (~8s gain) but cut polygon count by 3x. The total inference time is dominated by SAM3 itself, not by tile count. 512×512 tiles are retained for better segmentation quality.
+
+The L40S/A40 gap is visible: L40S processes a 1024-tile in 6.4s vs 9.3s on A40, a 1.45× ratio consistent with their FP16 tensor performance difference.
+
+At 3 workers and ~111s per image, processing 2000 images would take ~62 hours and 1000 of them will do more than a day.
+
+### GPU scheduling constraints
+
+The HEIG-VD cluster exposes 9 GPUs across three nodes:
+
+| Node | GPUs | Model | VRAM |
+|------|------|-------|------|
+| iict-suchet | 3 | NVIDIA L40S | 46 GB |
+| iict-k8s-node4-rad | 2 | NVIDIA A40 | 46 GB |
+| iict-chasseron | 4 | NVIDIA L4 | 23 GB |
+
+During testing, only 3 workers could be scheduled (2 on suchet, 1 on node4). The remaining GPUs were occupied by other namespaces... The scheduler reported `Insufficient nvidia.com/gpu` on suchet and node4 for additional workers.
+
+Chasseron was excluded for two reasons.
+- First, its L4 GPUs offer lower compute than L40S and A40.
+- Second, the node carried a `node.kubernetes.io/disk-pressure` taint during testing, which prevents pod scheduling and would have caused SIGTERM evictions at runtime.
+
+The disk-pressure taint is applied automatically by K8s when a node's disk usage crosses a threshold. Any workload scheduled on such a node risks eviction without warning. The pipeline must treat this taint as a hard exclusion.
+
+The `nodeAffinity` on worker pods targets L40S and A40 exclusively. The job driver pod doesn't requires GPU and runs without affinity constraints, relying on K8s to place it on a healthy node.
+
+
+### Conclusion
+
+Two paths exist to bring the batch duration under 24 hours.
+
+The first is downsampling: reducing image resolution before tiling cuts tile count and inference time proportionally, at the cost of segmentation detail. This is acceptable if the target annotations do not require sub-pixel precision.
+
+The second is accepting 1024x1024 tiles. With 32 tiles per image and ~7.4s per tile across 3 workers, inference per image drops to ~80s. At 2000 images that gives 44 hours : still over a day, but the polygon count drops from 146 to 49 per image, which reduces storage and Label Studio import volume.
+
+The preferred approach is downsampling combined with 512×512 tiles. It preserves segmentation quality and keeps the pipeline architecture unchanged.
