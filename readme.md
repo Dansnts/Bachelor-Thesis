@@ -76,7 +76,7 @@ TB/
 
 
 ## Cahier des charges
-[Cahier des charges](/docs/Specification/specifications.md)
+[Cahier des charges](/docs/Specification/cahier-des-charges.pdf)
 
 ## Notes
 [Notes](/docs/notes.md)
