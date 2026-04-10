@@ -105,3 +105,17 @@
 | Configure nodeAffinity on workers and job pod (L40S, A40, disk-pressure exclusion) | Done | 30min |
 | Benchmark 512x512 vs 1024x1024 tiles on cluster, analyse GPU scheduling constraints | Done | 1h |
 | **Total** |    | 4h30 |
+
+---
+
+# Week 7
+
+| Task              | Status | Time |
+| :---------------- | :------: | ----: |
+| Research downsampling strategies : analyse trade-offs between resolution reduction and segmentation quality | Done | 1h |
+| Implement downsampling preprocessing in sam3_pipeline.py : resize image before tiling, parametrise scale factor | Done | 1h30 |
+| Build test Docker images for local downsampling experiments | Done | 45min |
+| Run SAM3 pipeline locally : validate downsampling at multiple scale factors | Done | 2h |
+| Analyse results : compare polygon count and inference time vs full-resolution baseline | Done | 45min |
+| Reorganise project structure : consolidate all docs under docs/ (Specification, report), remove legacy folders (TB_CahierDesCharges_Typst, specifications, report, tools) | Done | 1h |
+| **Total** |    | 7h |
