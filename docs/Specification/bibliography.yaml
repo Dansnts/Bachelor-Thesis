@@ -1,0 +1,129 @@
+# ─── Papers ──────────────────────────────────────────────────────────────────
+
+mapreduce04:
+  type: Article
+  title: "MapReduce: Simplified Data Processing on Large Clusters"
+  author: ["Jeffrey Dean", "Sanjay Ghemawat"]
+  date: 2004
+  publisher:
+    name: "USENIX Association — OSDI 2004"
+
+ray18:
+  type: Article
+  title: "Ray: A Distributed Framework for Emerging AI Applications"
+  author:
+    - "Philipp Moritz"
+    - "Robert Nishihara"
+    - "Stephanie Wang"
+    - "Alexey Tumanov"
+    - "Richard Liaw"
+    - "Eric Liang"
+    - "Melih Elibol"
+    - "Zongheng Yang"
+    - "William Paul"
+    - "Michael I. Jordan"
+    - "Ion Stoica"
+  date: 2018
+  url: "https://www.usenix.org/system/files/osdi18-moritz.pdf"
+  publisher:
+    name: "USENIX Association — OSDI 2018"
+
+prometheus15:
+  type: Article
+  title: "Prometheus: A Next-Generation Monitoring System"
+  author: ["Björn Rabenstein", "Julius Volz"]
+  date: 2015
+  publisher:
+    name: "USENIX Association — SREcon Europe 2015"
+
+# ─── Modèle ──────────────────────────────────────────────────────────────────
+
+sam2-github:
+  type: Web
+  title: "SAM 2: Segment Anything in Images and Videos"
+  author: "Meta AI Research"
+  url: "https://github.com/facebookresearch/sam2"
+  date: 2024
+
+rey24:
+  type: Article
+  title: "Bridging the Gap between Data Lakes and RDBMSs: Efficient Query Processing with Parquet"
+  author: ["Alice Rey"]
+  date: 2024
+  publisher:
+    name: "CEUR Workshop Proceedings — EDBT/ICDT 2024"
+  url: "https://ceur-ws.org/Vol-3651/PhDW-3.pdf"
+
+# ─── Stockage ────────────────────────────────────────────────────────────────
+
+parquet:
+  type: Web
+  title: "Apache Parquet"
+  author: "Apache Software Foundation"
+  url: "https://parquet.apache.org/"
+
+pyarrow-parquet:
+  type: Web
+  title: "Reading and Writing the Apache Parquet Format"
+  author: "Apache Arrow"
+  url: "https://arrow.apache.org/docs/python/parquet.html"
+
+minio:
+  type: Web
+  title: "MinIO — High-Performance Object Storage"
+  author: "MinIO, Inc."
+  url: "https://min.io/"
+
+zarr-spec:
+  type: Web
+  title: "Zarr Storage Format Specification v3"
+  author: "Zarr Developers"
+  url: "https://zarr-specs.readthedocs.io/en/latest/v3/core/index.html"
+
+# ─── Traitement distribué ────────────────────────────────────────────────────
+
+ray-docs:
+  type: Web
+  title: "Ray Documentation — Core Concepts"
+  author: "Anyscale"
+  url: "https://docs.ray.io/en/latest/ray-core/walkthrough.html"
+
+kuberay:
+  type: Web
+  title: "KubeRay — Deploying Ray on Kubernetes"
+  author: "Ray Project"
+  url: "https://docs.ray.io/en/latest/cluster/kubernetes/getting-started.html"
+
+ray-parquet:
+  type: Web
+  title: "Ray Data — Working with Parquet"
+  author: "Anyscale"
+  url: "https://docs.ray.io/en/latest/data/working-with-parquet.html"
+
+# ─── Annotation ──────────────────────────────────────────────────────────────
+
+label-studio:
+  type: Web
+  title: "Label Studio — Open Source Data Labeling"
+  author: "HumanSignal, Inc."
+  url: "https://labelstud.io/"
+
+# ─── Observabilité ───────────────────────────────────────────────────────────
+
+loki-architecture:
+  type: Web
+  title: "Loki Architecture"
+  author: "Grafana Labs"
+  url: "https://grafana.com/docs/loki/latest/get-started/architecture/"
+
+grafana:
+  type: Web
+  title: "Grafana — Open Source Analytics and Monitoring"
+  author: "Grafana Labs"
+  url: "https://grafana.com/"
+
+dcgm-exporter:
+  type: Web
+  title: "DCGM Exporter — GPU Metrics for Prometheus"
+  author: "NVIDIA Corporation"
+  url: "https://github.com/NVIDIA/dcgm-exporter"

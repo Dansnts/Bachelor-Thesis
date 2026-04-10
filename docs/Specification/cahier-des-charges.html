@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+  </head>
+  <body>
+    <img src="data:image/svg+xml;base64,PHN2ZyB2aWV3Qm94PSIwIDAgMTM0OC41NyA0MjUuMTk3IiB3aWR0aD0iMTM0OC41NyIgaGVpZ2h0PSI0MjUuMTk3IiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIj4KICAgIDxnIGNsaXAtcGF0aD0idXJsKCNjMCkiPgogICAgICAgIDxwYXRoIGQ9Ik0wLDAgTC05My43NTYsMCBMLTkzLjc1NiwtMjguNjk2IEwtMjguNjk2LC0yOC42OTYgTC0yOC42MjQsLTMwLjE5NSBDLTM3LjM4OCwtNTUuMTU4IC01Ny40ODMsLTY5LjU4MSAtODkuMTcxLC02OS41ODEgQy0xMjUuNzg4LC02OS41ODEgLTE1My4zOTksLTQwLjIzOCAtMTUzLjM5OSwtMy4xMTggQy0xNTMuMzk5LDM1LjQ3NCAtMTI0LjY1LDY1LjkyOSAtODYuNTI5LDY1LjkyOSBDLTU3LjMwOCw2NS45MjkgLTM2LjQ5OCw1MS41ODggLTI0LjY3NiwyNS45NjUgTDIuMjA2LDM4LjM3NCBDLTE0LjQwNiw3NC4zNjUgLTQ1LjkxNyw5NC4xODMgLTg2LjUyOSw5NC4xODMgQy0xNDAuNjI1LDk0LjE4MyAtMTgzLjAwMyw1MS40NDEgLTE4My4wMDMsLTMuMTE4IEMtMTgzLjAwMywtNTYuMjMxIC0xNDEuNzg2LC05Ny44MzQgLTg5LjE3MSwtOTcuODM0IEMtNjEuNzEzLC05Ny44MzQgLTQwLjk3NywtODYuNzQ2IC0yNi4wMDEsLTY5LjQ2NSBMLTIzLjMwNCwtOTEuMDY5IEwwLC05MS4wNjkgTDAsLTIuNzE5IEwwLjE0OSwtMS44MjggTDAsLTEuODI4IFoiIGZpbGw9IiNlZTMyMjkiIHRyYW5zZm9ybT0ibWF0cml4KDEgMCAwIC0xIDM5Ni42Mzg4IDMxOC42MzYzKSIvPgogICAgICAgIDxwYXRoIGQ9Ik0wLDAgTC0xNDguMjc4LDAgTC0xNDguMjc4LDQ3LjMyOSBMLTE3LjA4LDQ3LjMyOSBMLTE3LjA4LDc0Ljc2OCBMLTE0OC4yNzgsNzQuNzY4IEwtMTQ4LjI3OCwxMjIuMDk2IEwwLDEyMi4wOTYgTDAsMTUwLjI5MiBMLTE3OC40ODcsMTUwLjI5MiBMLTE3OC40ODcsLTI4LjE5NiBMMCwtMjguMTk2IFoiIGZpbGw9IiNlZTMyMjkiIHRyYW5zZm9ybT0ibWF0cml4KDEgMCAwIC0xIDM5Ni42Mzg1IDE2My4zNTg0OSkiLz4KICAgICAgICA8cGF0aCBkPSJNMCwwIEwtMTE3LjgxNSwwIEwtMTE3LjgxNSw3My43NjEgTC0xNDguMDI0LDczLjc2MSBMLTE0OC4wMjQsLTEwNC43MjcgTC0xMTcuODE1LC0xMDQuNzI3IEwtMTE3LjgxNSwtMjguNDQ3IEwwLC0yOC40NDcgTDAsLTEwNC43MjcgTDMwLjQ2MywtMTA0LjcyNyBMMzAuNDYzLDczLjc2MSBMMCw3My43NjEgWiIgZmlsbD0iI2VlMzIyOSIgdHJhbnNmb3JtPSJtYXRyaXgoMSAwIDAgLTEgMTQ4LjAyNDggODYuODI3NjkpIi8+CiAgICAgICAgPHBhdGggZD0iTTAsMCBMMCwxMjEuNTk0IEw3NC4xMzksMTIxLjU5NCBMNzQuMTM5LDE1MC4wNDEgTC0xMDQuMzQ5LDE1MC4wNDEgTC0xMDQuMzQ5LDEyMS41OTQgTC0zMC4yMDksMTIxLjU5NCBMLTMwLjIwOSwwIEwtMTA0LjM0OSwwIEwtMTA0LjM0OSwtMjguNDQ3IEw3NC4xMzksLTI4LjQ0NyBMNzQuMTM5LDAgWiIgZmlsbD0iI2VlMzIyOSIgdHJhbnNmb3JtPSJtYXRyaXgoMSAwIDAgLTEgMTA0LjM0ODcgMzgxLjI1ODg4KSIvPgogICAgICAgIDxwYXRoIGQ9Ik0wLDAgTDEyLjA5NCwwIEwtNi41NDcsLTUxLjAyMSBMLTE4LjI3NSwtNTEuMDIxIEwtMzYuOTg2LDAgTC0yNC40NjMsMCBMLTEyLjE1OCwtMzUuOTAzIFoiIGZpbGw9IiNlZTMyMjkiIHRyYW5zZm9ybT0ibWF0cml4KDEgMCAwIC0xIDQ3My4yODgyIDEzLjA2NjQ5MSkiLz4KICAgICAgICA8cGF0aCBkPSJNMCwwIEM3Ljg0NywwIDE0LjI1Myw0LjUzNiAxNC4yNTMsMTQuNzUyIEMxNC4yNTMsMjQuOTY5IDcuODQ3LDI5LjU4MiAwLDI5LjU4MiBMLTYuNjE3LDI5LjU4MiBMLTYuNjE3LDAgWiBNLTE3Ljk4NywtMTAuNzIzIEwtMTcuOTg3LDQwLjI5OCBMMC41MDYsNDAuMjk4IEMxNS44MzUsNDAuMjk4IDI2LjEyMiwzMC41MSAyNi4xMjIsMTQuNzUyIEMyNi4xMjIsLTEuMDA1IDE1LjgzNSwtMTAuNzIzIDAuNDM2LC0xMC43MjMgWiIgZmlsbD0iI2VlMzIyOSIgdHJhbnNmb3JtPSJtYXRyaXgoMSAwIDAgLTEgNTEyLjc3MjMgNTMuMzY0NzkpIi8+CiAgICAgICAgPHBhdGggZD0iTTAsMCBMMCwyMC4yOTggTC0yMC4zNywyMC4yOTggTC0yMC4zNywwIEwtMzEuNzQyLDAgTC0zMS43NDIsNTEuMDMyIEwtMjAuMzcsNTEuMDMyIEwtMjAuMzcsMzEuMDIyIEwwLDMxLjAyMiBMMCw1MS4wMzIgTDExLjQ0NSw1MS4wMzIgTDExLjQ0NSwwIFoiIGZpbGw9IiNlZTMyMjkiIHRyYW5zZm9ybT0ibWF0cml4KDEgMCAwIC0xIDY4Ni4yNzcyIDY0LjE5OTI5KSIvPgogICAgICAgIDxwYXRoIGQ9Ik0wLDAgTDEyLjM4LDAgTDYuMjYyLDE3LjYzNSBaIE0xNS45NzksLTEwLjM2NSBMLTMuNzQzLC0xMC4zNjUgTC03LjQxNCwtMjAuNzI5IEwtMTkuMzYyLC0yMC43MjkgTC0wLjE0NCwzMC4zMDMgTDEzLjAyOCwzMC4zMDMgTDMyLjAzLC0yMC43MjkgTDE5LjY1LC0yMC43MjkgWiIgZmlsbD0iI2VlMzIyOSIgdHJhbnNmb3JtPSJtYXRyaXgoMSAwIDAgLTEgNzIzLjM0NTMgNDMuNDY5NzkpIi8+CiAgICAgICAgPHBhdGggZD0iTTAsMCBMMCwzMi42MDYgTDExLjM3MywzMi42MDYgTDExLjM3MywwLjkzNiBDMTEuMzczLC01LjI1NCAxNC44MjgsLTguMzUgMjAuMjI2LC04LjM1IEMyNS42MjQsLTguMzUgMjkuMDc5LC01LjI1NCAyOS4wNzksMC45MzYgTDI5LjA3OSwzMi42MDYgTDQwLjQ1MiwzMi42MDYgTDQwLjQ1MiwwIEM0MC40NTIsLTEyLjgxMiAzMS40NTQsLTE5LjU3OCAyMC4yMjYsLTE5LjU3OCBDOC45OTcsLTE5LjU3OCAwLC0xMi44MTIgMCwwIiBmaWxsPSIjZWUzMjI5IiB0cmFuc2Zvcm09Im1hdHJpeCgxIDAgMCAtMSA3NTkuNjkzMiA0NS43NzI5OSkiLz4KICAgICAgICA8cGF0aCBkPSJNMCwwIEwwLC00MC4xNjQgTC0xMS4zNzMsLTQwLjE2NCBMLTExLjM3MywwIEwtMjcuMDY0LDAgTC0yNy4wNjQsMTAuODY5IEwxNS43NjMsMTAuODY5IEwxNS43NjMsMCBaIiBmaWxsPSIjZWUzMjI5IiB0cmFuc2Zvcm09Im1hdHJpeCgxIDAgMCAtMSA4MzMuNjg1OSAyNC4wMzU2OSkiLz4KICAgICAgICA8cGF0aCBkPSJNMCwwIEwwLDUxLjAzMiBMMzIuMzE4LDUxLjAzMiBMMzIuMzE4LDQwLjMwOCBMMTEuMzczLDQwLjMwOCBMMTEuMzczLDMwLjU5IEwzMC4zNzUsMzAuNTkgTDMwLjM3NSwyMC41ODUgTDExLjM3MywyMC41ODUgTDExLjM3MywxMC43OTYgTDMyLjM5LDEwLjc5NiBMMzIuMzksMCBaIiBmaWxsPSIjZWUzMjI5IiB0cmFuc2Zvcm09Im1hdHJpeCgxIDAgMCAtMSA4NTYuNDMwNSA2NC4xOTkyOSkiLz4KICAgICAgICA8cGF0aCBkPSJNMCwwIEwtOS43MTcsMCBMLTIuMjMxLDkuNTAxIEwxMC43OTcsOS41MDEgWiBNLTE4Ljg1OCwtNTQuNjMxIEwtMTguODU4LC0zLjU5OSBMMTMuNDYsLTMuNTk5IEwxMy40NiwtMTQuMzI0IEwtNy40ODYsLTE0LjMyNCBMLTcuNDg2LC0yNC4wNDEgTDExLjUxNiwtMjQuMDQxIEwxMS41MTYsLTM0LjA0NiBMLTcuNDg2LC0zNC4wNDYgTC03LjQ4NiwtNDMuODM1IEwxMy41MzIsLTQzLjgzNSBMMTMuNTMyLC01NC42MzEgWiIgZmlsbD0iI2VlMzIyOSIgdHJhbnNmb3JtPSJtYXRyaXgoMSAwIDAgLTEgOTMzLjgwNTggOS41Njc5OTEpIi8+CiAgICAgICAgPHBhdGggZD0iTTAsMCBDMCwxNS45MDcgMTIuMDkyLDI2LjcwNCAyNi4zNDQsMjYuNzA0IEM0MS42NzUsMjYuNzA0IDQ4LjQ0MSwxNi44NDMgNTAuMDk3LDkuNTAxIEwzOS4zNzIsNi4xMTggQzM4LjU4LDkuNjQ1IDM1LjM0MSwxNS42MTkgMjYuMzQ0LDE1LjYxOSBDMTkuNTA2LDE1LjYxOSAxMS44MDQsMTAuNzI1IDExLjgwNCwwIEMxMS44MDQsLTkuNTczIDE4Ljg1OCwtMTUuMTE2IDI2LjQ4OCwtMTUuMTE2IEMzNS4zNDEsLTE1LjExNiAzOC44NjgsLTkuMjEzIDM5Ljg3NSwtNS41NDIgTDUwLjc0NCwtOC42MzggQzQ5LjA4OSwtMTUuNjkxIDQyLjMyMywtMjYuNDg4IDI2LjQ4OCwtMjYuNDg4IEMxMS44MDQsLTI2LjQ4OCAwLC0xNS45MDcgMCwwIiBmaWxsPSIjZWUzMjI5IiB0cmFuc2Zvcm09Im1hdHJpeCgxIDAgMCAtMSA5NTMuMTY4MyAzOC43OTEwOTIpIi8+CiAgICAgICAgPHBhdGggZD0iTTAsMCBDNy4wNTQsMCAxNC42ODQsNC43NSAxNC42ODQsMTUuNDAzIEMxNC42ODQsMjYuMDU2IDcuMDU0LDMwLjg3OCAwLDMwLjg3OCBDLTcuMTI2LDMwLjg3OCAtMTQuNzU2LDI2LjA1NiAtMTQuNzU2LDE1LjQwMyBDLTE0Ljc1Niw0Ljc1IC03LjEyNiwwIDAsMCBNMCw0MS45NjMgQzE0LjMyNCw0MS45NjMgMjYuNDg4LDMxLjUyNiAyNi40ODgsMTUuMzMxIEMyNi40ODgsLTAuNzkyIDE0LjMyNCwtMTEuMjI5IDAsLTExLjIyOSBDLTE0LjM5NiwtMTEuMjI5IC0yNi41NiwtMC43OTIgLTI2LjU2LDE1LjMzMSBDLTI2LjU2LDMxLjUyNiAtMTQuMzk2LDQxLjk2MyAwLDQxLjk2MyIgZmlsbD0iI2VlMzIyOSIgdHJhbnNmb3JtPSJtYXRyaXgoMSAwIDAgLTEgMTAzNC43OTA5IDU0LjA1MDM5MikiLz4KICAgICAgICA8cGF0aCBkPSJNMCwwIEwwLDUxLjAzMiBMMTEuMzczLDUxLjAzMiBMMTEuMzczLDEwLjg2OSBMMzMuMzk4LDEwLjg2OSBMMzMuMzk4LDAgWiIgZmlsbD0iI2VlMzIyOSIgdHJhbnNmb3JtPSJtYXRyaXgoMSAwIDAgLTEgMTA2OS44NDI3IDY0LjE5OTI5KSIvPgogICAgICAgIDxwYXRoIGQ9Ik0wLDAgTDAsNTEuMDMyIEwzMi4zMTgsNTEuMDMyIEwzMi4zMTgsNDAuMzA4IEwxMS4zNzMsNDAuMzA4IEwxMS4zNzMsMzAuNTkgTDMwLjM3NSwzMC41OSBMMzAuMzc1LDIwLjU4NSBMMTEuMzczLDIwLjU4NSBMMTEuMzczLDEwLjc5NiBMMzIuMzkxLDEwLjc5NiBMMzIuMzkxLDAgWiIgZmlsbD0iI2VlMzIyOSIgdHJhbnNmb3JtPSJtYXRyaXgoMSAwIDAgLTEgMTExMC4xNDk4IDY0LjE5OTI5KSIvPgogICAgICAgIDxwYXRoIGQ9Ik0wLDAgQzcuODQ2LDAgMTQuMjUyLDQuNTM1IDE0LjI1MiwxNC43NTYgQzE0LjI1MiwyNC45NzcgNy44NDYsMjkuNTgzIDAsMjkuNTgzIEwtNi42MjIsMjkuNTgzIEwtNi42MjIsMCBaIE0tMTcuOTk1LC0xMC43MjUgTC0xNy45OTUsNDAuMzA4IEwwLjUwNCw0MC4zMDggQzE1LjgzNSw0MC4zMDggMjYuMTI4LDMwLjUxOSAyNi4xMjgsMTQuNzU2IEMyNi4xMjgsLTEuMDA3IDE1LjgzNSwtMTAuNzI1IDAuNDMyLC0xMC43MjUgWiIgZmlsbD0iI2VlMzIyOSIgdHJhbnNmb3JtPSJtYXRyaXgoMSAwIDAgLTEgNjcyLjUyOTQgMTM5Ljg2NDc5KSIvPgogICAgICAgIDxwYXRoIGQ9Ik0wLDAgQzQuMzE5LDAgNi42OTQsLTMuNTI3IDYuNjk0LC03LjI3IEM2LjY5NCwtMTcuMjAzIC0wLjM2LC0yMC43MyAtNS4xMSwtMjEuMDkgTC01LjExLC0xNi4xOTUgQy0yLjU5MSwtMTUuOTA3IDAuNjQ4LC0xNC4wMzYgMS4wMDgsLTEwLjcyNSBDMC45MzYsLTEwLjc5NyAwLjA3MiwtMTEuMDEzIC0wLjU3NiwtMTEuMDEzIEMtNC4xNzUsLTExLjAxMyAtNi4xOSwtOC42MzggLTYuMTksLTUuNTQyIEMtNi4xOSwtMi41MiAtMy42NzEsMCAwLDAiIGZpbGw9IiNlZTMyMjkiIHRyYW5zZm9ybT0ibWF0cml4KDEgMCAwIC0xIDcxMS4zMjQ4IDk5LjE5Njg5KSIvPgogICAgICAgIDxwYXRoIGQ9Ik03MjYuMzY4LDMyNS42NCBMNzM3Ljg4NCwzMjUuNjQgTDczNy44ODQsMjc0LjYwNyBMNzI2LjM2OCwyNzQuNjA3IFoiIGZpbGw9IiNlZTMyMjkiIHRyYW5zZm9ybT0ibWF0cml4KDEgMCAwIC0xIDAgNDI1LjE5NykiLz4KICAgICAgICA8cGF0aCBkPSJNMCwwIEwtMjEuMDE4LDMzLjU0MiBMLTIxLjAxOCwwIEwtMzIuMzE4LDAgTC0zMi4zMTgsNTEuMDMzIEwtMTguNDk4LDUxLjAzMyBMMC42NDgsMjAuMDEgTDAuNjQ4LDUxLjAzMyBMMTIuMDIsNTEuMDMzIEwxMi4wMiwwIFoiIGZpbGw9IiNlZTMyMjkiIHRyYW5zZm9ybT0ibWF0cml4KDEgMCAwIC0xIDc4MS43MTgxIDE1MC41ODk1KSIvPgogICAgICAgIDxwYXRoIGQ9Ik0wLDAgTC0wLjcyLDUuMTgzIEMtMi45NTEsMS45NDMgLTcuNzc0LC0xLjA4IC0xNS4wNDMsLTEuMDggQy0yOS4yMjMsLTEuMDggLTQwLjg4NCw5LjM1NyAtNDAuODg0LDI1LjQ4IEMtNDAuODg0LDQxLjUzMSAtMjguNzE5LDUyLjExMiAtMTQuMzI0LDUyLjExMiBDMC4yODgsNTIuMTEyIDcuMDU0LDQzLjQ3NSA5LjI4NSwzNi4zNDkgTC0xLjY1NiwzMi41MzQgQy0yLjQ0NywzNS43MDEgLTUuODMsNDEuNDU5IC0xNC4zMjQsNDEuNDU5IEMtMjEuMjM0LDQxLjQ1OSAtMjkuMzY3LDM2Ljg1MyAtMjkuMzY3LDI1LjQ4IEMtMjkuMzY3LDE0LjgyOCAtMjIuMzEzLDkuMjg1IC0xNC4wMzYsOS4yODUgQy01LjYxNSw5LjI4NSAtMi4wODcsMTQuNzU1IC0xLjQ0LDE3LjYzNSBMLTE2Ljc3MSwxNy42MzUgTC0xNi43NzEsMjcuMjggTDkuMjEzLDI3LjI4IEw5LjIxMywwIFoiIGZpbGw9IiNlZTMyMjkiIHRyYW5zZm9ybT0ibWF0cml4KDEgMCAwIC0xIDg0My4xODU5IDE1MC41ODk1KSIvPgogICAgICAgIDxwYXRoIGQ9Ik0wLDAgTC05LjcxNywwIEwtMi4yMzEsOS41MDEgTDEwLjc5Nyw5LjUwMSBaIE0tMTguODU4LC01NC42MzEgTC0xOC44NTgsLTMuNTk5IEwxMy40NiwtMy41OTkgTDEzLjQ2LC0xNC4zMjQgTC03LjQ4NiwtMTQuMzI0IEwtNy40ODYsLTI0LjA0MSBMMTEuNTE3LC0yNC4wNDEgTDExLjUxNywtMzQuMDQ2IEwtNy40ODYsLTM0LjA0NiBMLTcuNDg2LC00My44MzQgTDEzLjUzMiwtNDMuODM0IEwxMy41MzIsLTU0LjYzMSBaIiBmaWxsPSIjZWUzMjI5IiB0cmFuc2Zvcm09Im1hdHJpeCgxIDAgMCAtMSA4ODAuOTAxIDk1Ljk1ODA5KSIvPgogICAgICAgIDxwYXRoIGQ9Ik0wLDAgTC0yMS4wMTgsMzMuNTQyIEwtMjEuMDE4LDAgTC0zMi4zMTgsMCBMLTMyLjMxOCw1MS4wMzMgTC0xOC40OTgsNTEuMDMzIEwwLjY0OCwyMC4wMSBMMC42NDgsNTEuMDMzIEwxMi4wMiw1MS4wMzMgTDEyLjAyLDAgWiIgZmlsbD0iI2VlMzIyOSIgdHJhbnNmb3JtPSJtYXRyaXgoMSAwIDAgLTEgOTM2LjE3OTMgMTUwLjU4OTUpIi8+CiAgICAgICAgPHBhdGggZD0iTTk1OS43MTUsMzI1LjY0IEw5NzEuMjMyLDMyNS42NCBMOTcxLjIzMiwyNzQuNjA3IEw5NTkuNzE1LDI3NC42MDcgWiIgZmlsbD0iI2VlMzIyOSIgdHJhbnNmb3JtPSJtYXRyaXgoMSAwIDAgLTEgMCA0MjUuMTk3KSIvPgogICAgICAgIDxwYXRoIGQ9Ik0wLDAgTDAsNTEuMDMzIEwzMi4zMTgsNTEuMDMzIEwzMi4zMTgsNDAuMzA4IEwxMS4zNzMsNDAuMzA4IEwxMS4zNzMsMzAuNTkxIEwzMC4zNzUsMzAuNTkxIEwzMC4zNzUsMjAuNTg1IEwxMS4zNzMsMjAuNTg1IEwxMS4zNzMsMTAuNzk3IEwzMi4zOTEsMTAuNzk3IEwzMi4zOTEsMCBaIiBmaWxsPSIjZWUzMjI5IiB0cmFuc2Zvcm09Im1hdHJpeCgxIDAgMCAtMSA5ODIuNzQ2OSAxNTAuNTg5NSkiLz4KICAgICAgICA8cGF0aCBkPSJNMCwwIEM0LjY3OSwwIDcuMTk4LDIuNTkyIDcuMTk4LDYuMTkgQzcuMTk4LDEwLjAwNSA0LjY3OSwxMi4zODEgMCwxMi4zODEgTC02LjY5NCwxMi4zODEgTC02LjY5NCwwIFogTS0yLjY2MywtOS43ODkgTC02LjY5NCwtOS43ODkgTC02LjY5NCwtMjguNzkxIEwtMTguMDY2LC0yOC43OTEgTC0xOC4wNjYsMjIuMjQyIEwyLjE1OSwyMi4yNDIgQzEyLjIzNiwyMi4yNDIgMTguNzE0LDE1LjMzMiAxOC43MTQsNi4yNjIgQzE4LjcxNCwtMC42NDcgMTQuODk5LC01LjkwMiA4LjYzNywtOC4xMzMgTDE5LjAwMiwtMjguNzkxIEw2LjQ3OCwtMjguNzkxIFoiIGZpbGw9IiNlZTMyMjkiIHRyYW5zZm9ybT0ibWF0cml4KDEgMCAwIC0xIDEwNDIuNjMyMiAxMjEuNzk4MzkpIi8+CiAgICAgICAgPHBhdGggZD0iTTEwNzAuMTk5LDMyNS42NCBMMTA4MS43MTYsMzI1LjY0IEwxMDgxLjcxNiwyNzQuNjA3IEwxMDcwLjE5OSwyNzQuNjA3IFoiIGZpbGw9IiNlZTMyMjkiIHRyYW5zZm9ybT0ibWF0cml4KDEgMCAwIC0xIDAgNDI1LjE5NykiLz4KICAgICAgICA8cGF0aCBkPSJNMCwwIEwwLDUxLjAzMyBMMzIuMzE4LDUxLjAzMyBMMzIuMzE4LDQwLjMwOCBMMTEuMzczLDQwLjMwOCBMMTEuMzczLDMwLjU5MSBMMzAuMzc1LDMwLjU5MSBMMzAuMzc1LDIwLjU4NSBMMTEuMzczLDIwLjU4NSBMMTEuMzczLDEwLjc5NyBMMzIuMzkxLDEwLjc5NyBMMzIuMzkxLDAgWiIgZmlsbD0iI2VlMzIyOSIgdHJhbnNmb3JtPSJtYXRyaXgoMSAwIDAgLTEgMTA5My4yMzA4IDE1MC41ODk1KSIvPgogICAgICAgIDxwYXRoIGQ9Ik0wLDAgTDAsNTEuMDMzIEwzMi4zMTgsNTEuMDMzIEwzMi4zMTgsNDAuMzA4IEwxMS4zNzMsNDAuMzA4IEwxMS4zNzMsMzAuNTkxIEwzMC4zNzUsMzAuNTkxIEwzMC4zNzUsMjAuNTg2IEwxMS4zNzMsMjAuNTg2IEwxMS4zNzMsMTAuNzk3IEwzMi4zOSwxMC43OTcgTDMyLjM5LDAgWiIgZmlsbD0iI2VlMzIyOSIgdHJhbnNmb3JtPSJtYXRyaXgoMSAwIDAgLTEgNjU0LjUzNDggMjM2Ljk3OTU4KSIvPgogICAgICAgIDxwYXRoIGQ9Ik0wLDAgTDAsLTQwLjE2NCBMLTExLjM3MiwtNDAuMTY0IEwtMTEuMzcyLDAgTC0yNy4wNjQsMCBMLTI3LjA2NCwxMC44NjkgTDE1Ljc2MywxMC44NjkgTDE1Ljc2MywwIFoiIGZpbGw9IiNlZTMyMjkiIHRyYW5zZm9ybT0ibWF0cml4KDEgMCAwIC0xIDcxOC44ODI0IDE5Ni44MTU0OSkiLz4KICAgICAgICA8cGF0aCBkPSJNMCwwIEM3Ljg0NiwwIDE0LjI1Miw0LjUzNSAxNC4yNTIsMTQuNzU1IEMxNC4yNTIsMjQuOTc2IDcuODQ2LDI5LjU4MyAwLDI5LjU4MyBMLTYuNjIyLDI5LjU4MyBMLTYuNjIyLDAgWiBNLTE3Ljk5NSwtMTAuNzI1IEwtMTcuOTk1LDQwLjMwOCBMMC41MDQsNDAuMzA4IEMxNS44MzUsNDAuMzA4IDI2LjEyOCwzMC41MTkgMjYuMTI4LDE0Ljc1NSBDMjYuMTI4LC0xLjAwOCAxNS44MzUsLTEwLjcyNSAwLjQzMiwtMTAuNzI1IFoiIGZpbGw9IiNlZTMyMjkiIHRyYW5zZm9ybT0ibWF0cml4KDEgMCAwIC0xIDc3NC40NDk4IDIyNi4yNTQ0OSkiLz4KICAgICAgICA8cGF0aCBkPSJNMCwwIEwwLDUxLjAzMyBMMzIuMzE4LDUxLjAzMyBMMzIuMzE4LDQwLjMwOCBMMTEuMzczLDQwLjMwOCBMMTEuMzczLDMwLjU5MSBMMzAuMzc1LDMwLjU5MSBMMzAuMzc1LDIwLjU4NiBMMTEuMzczLDIwLjU4NiBMMTEuMzczLDEwLjc5NyBMMzIuMzksMTAuNzk3IEwzMi4zOSwwIFoiIGZpbGw9IiNlZTMyMjkiIHRyYW5zZm9ybT0ibWF0cml4KDEgMCAwIC0xIDgwOS4yODYzIDIzNi45Nzk1OCkiLz4KICAgICAgICA8cGF0aCBkPSJNMCwwIEwtMC43Miw1LjE4MyBDLTIuOTUxLDEuOTQ0IC03Ljc3NCwtMS4wOCAtMTUuMDQ0LC0xLjA4IEMtMjkuMjIzLC0xLjA4IC00MC44ODQsOS4zNTcgLTQwLjg4NCwyNS40OCBDLTQwLjg4NCw0MS41MzIgLTI4LjcxOSw1Mi4xMTIgLTE0LjMyNCw1Mi4xMTIgQzAuMjg4LDUyLjExMiA3LjA1NCw0My40NzUgOS4yODUsMzYuMzQ5IEwtMS42NTYsMzIuNTM0IEMtMi40NDcsMzUuNzAxIC01LjgzMSw0MS40NTkgLTE0LjMyNCw0MS40NTkgQy0yMS4yMzQsNDEuNDU5IC0yOS4zNjcsMzYuODUzIC0yOS4zNjcsMjUuNDggQy0yOS4zNjcsMTQuODI4IC0yMi4zMTMsOS4yODYgLTE0LjAzNiw5LjI4NiBDLTUuNjE1LDkuMjg2IC0yLjA4NywxNC43NTYgLTEuNDQsMTcuNjM1IEwtMTYuNzcxLDE3LjYzNSBMLTE2Ljc3MSwyNy4yOCBMOS4yMTMsMjcuMjggTDkuMjEzLDAgWiIgZmlsbD0iI2VlMzIyOSIgdHJhbnNmb3JtPSJtYXRyaXgoMSAwIDAgLTEgOTA1LjczNiAyMzYuOTc5NTgpIi8+CiAgICAgICAgPHBhdGggZD0iTTAsMCBMMCw1MS4wMzMgTDMyLjMxOCw1MS4wMzMgTDMyLjMxOCw0MC4zMDggTDExLjM3Myw0MC4zMDggTDExLjM3MywzMC41OTEgTDMwLjM3NSwzMC41OTEgTDMwLjM3NSwyMC41ODYgTDExLjM3MywyMC41ODYgTDExLjM3MywxMC43OTcgTDMyLjM5LDEwLjc5NyBMMzIuMzksMCBaIiBmaWxsPSIjZWUzMjI5IiB0cmFuc2Zvcm09Im1hdHJpeCgxIDAgMCAtMSA5MjQuNTkyNCAyMzYuOTc5NTgpIi8+CiAgICAgICAgPHBhdGggZD0iTTAsMCBDLTAuMzYsMi4zNzUgLTIuMzAzLDYuNDA2IC04LjQ5NCw2LjQwNiBDLTEyLjc0LDYuNDA2IC0xNS40NzYsMy43NDMgLTE1LjQ3NiwwLjkzNiBDLTE1LjQ3NiwtMS41MTIgLTEzLjk2NCwtMy4zMTEgLTEwLjQzNywtMy45NTggTC0zLjU5OSwtNS4yNTQgQzYuMTE4LC03LjA1NCAxMS4xNTYsLTEzLjMxNiAxMS4xNTYsLTIwLjU4NSBDMTEuMTU2LC0yOC41NzUgNC40NjIsLTM2LjcwOSAtNy43MDIsLTM2LjcwOSBDLTIxLjgxLC0zNi43MDkgLTI3Ljg1NSwtMjcuNTY4IC0yOC41NzYsLTIwLjM3IEwtMTguMTM5LC0xNy44NTEgQy0xNy43MDcsLTIyLjUyOSAtMTQuNTQsLTI2LjYzMiAtNy41NTgsLTI2LjYzMiBDLTMuMDk1LC0yNi42MzIgLTAuMzYsLTI0LjQ3MiAtMC4zNiwtMjEuMzA2IEMtMC4zNiwtMTguNzE0IC0yLjQ0NywtMTYuODQzIC01LjgzMSwtMTYuMTk1IEwtMTIuODEzLC0xNC44OTkgQy0yMS40NSwtMTMuMjQ0IC0yNi43MDQsLTcuNDg2IC0yNi43MDQsMC4wNzIgQy0yNi43MDQsOS43MTcgLTE4LjIxLDE2LjQ4MyAtOC40MjEsMTYuNDgzIEM0LjMxOCwxNi40ODMgOS4xNDEsOC44NTQgMTAuMjIxLDIuODc5IFoiIGZpbGw9IiNlZTMyMjkiIHRyYW5zZm9ybT0ibWF0cml4KDEgMCAwIC0xIDk5MS41MzE2IDIwMS4zNTAxOSkiLz4KICAgICAgICA8cGF0aCBkPSJNMCwwIEwwLC00MC4xNjQgTC0xMS4zNzMsLTQwLjE2NCBMLTExLjM3MywwIEwtMjcuMDY0LDAgTC0yNy4wNjQsMTAuODY5IEwxNS43NjMsMTAuODY5IEwxNS43NjMsMCBaIiBmaWxsPSIjZWUzMjI5IiB0cmFuc2Zvcm09Im1hdHJpeCgxIDAgMCAtMSAxMDMzLjQyMjIgMTk2LjgxNTQ5KSIvPgogICAgICAgIDxwYXRoIGQ9Ik0xMDU2LjE2NywyMzkuMjUxIEwxMDY3LjY4NCwyMzkuMjUxIEwxMDY3LjY4NCwxODguMjE4IEwxMDU2LjE2NywxODguMjE4IFoiIGZpbGw9IiNlZTMyMjkiIHRyYW5zZm9ybT0ibWF0cml4KDEgMCAwIC0xIDAgNDI1LjE5NykiLz4KICAgICAgICA8cGF0aCBkPSJNMCwwIEM3LjA1NCwwIDE0LjY4NCw0Ljc1MSAxNC42ODQsMTUuNDAzIEMxNC42ODQsMjYuMDU2IDcuMDU0LDMwLjg3OSAwLDMwLjg3OSBDLTcuMTI2LDMwLjg3OSAtMTQuNzU1LDI2LjA1NiAtMTQuNzU1LDE1LjQwMyBDLTE0Ljc1NSw0Ljc1MSAtNy4xMjYsMCAwLDAgTTAsNDEuOTYzIEMxNC4zMjQsNDEuOTYzIDI2LjQ4OCwzMS41MjYgMjYuNDg4LDE1LjMzMiBDMjYuNDg4LC0wLjc5MiAxNC4zMjQsLTExLjIyOSAwLC0xMS4yMjkgQy0xNC4zOTYsLTExLjIyOSAtMjYuNTYsLTAuNzkyIC0yNi41NiwxNS4zMzIgQy0yNi41NiwzMS41MjYgLTE0LjM5Niw0MS45NjMgMCw0MS45NjMiIGZpbGw9IiNlZTMyMjkiIHRyYW5zZm9ybT0ibWF0cml4KDEgMCAwIC0xIDExMDIuODA4IDIyNi44MzA2OSkiLz4KICAgICAgICA8cGF0aCBkPSJNMCwwIEwtMjEuMDE4LDMzLjU0MiBMLTIxLjAxOCwwIEwtMzIuMzE4LDAgTC0zMi4zMTgsNTEuMDMzIEwtMTguNDk5LDUxLjAzMyBMMC42NDgsMjAuMDEgTDAuNjQ4LDUxLjAzMyBMMTIuMDIxLDUxLjAzMyBMMTIuMDIxLDAgWiIgZmlsbD0iI2VlMzIyOSIgdHJhbnNmb3JtPSJtYXRyaXgoMSAwIDAgLTEgMTE3MC4xNzgxIDIzNi45Nzk1OCkiLz4KICAgICAgICA8cGF0aCBkPSJNMCwwIEM3Ljg0NiwwIDE0LjI1Miw0LjUzNSAxNC4yNTIsMTQuNzU1IEMxNC4yNTIsMjQuOTc3IDcuODQ2LDI5LjU4MyAwLDI5LjU4MyBMLTYuNjIyLDI5LjU4MyBMLTYuNjIyLDAgWiBNLTE3Ljk5NSwtMTAuNzI1IEwtMTcuOTk1LDQwLjMwOCBMMC41MDQsNDAuMzA4IEMxNS44MzUsNDAuMzA4IDI2LjEyOCwzMC41MTkgMjYuMTI4LDE0Ljc1NSBDMjYuMTI4LC0xLjAwOCAxNS44MzUsLTEwLjcyNSAwLjQzMiwtMTAuNzI1IFoiIGZpbGw9IiNlZTMyMjkiIHRyYW5zZm9ybT0ibWF0cml4KDEgMCAwIC0xIDY3Mi41Mjk0IDMxMi42NDQ2KSIvPgogICAgICAgIDxwYXRoIGQ9Ik0wLDAgTDAsMzIuNjA2IEwxMS4zNzMsMzIuNjA2IEwxMS4zNzMsMC45MzYgQzExLjM3MywtNS4yNTQgMTQuODI4LC04LjM1IDIwLjIyNiwtOC4zNSBDMjUuNjI0LC04LjM1IDI5LjA3OSwtNS4yNTQgMjkuMDc5LDAuOTM2IEwyOS4wNzksMzIuNjA2IEw0MC40NTIsMzIuNjA2IEw0MC40NTIsMCBDNDAuNDUyLC0xMi44MTIgMzEuNDU0LC0xOS41NzggMjAuMjI2LC0xOS41NzggQzguOTk3LC0xOS41NzggMCwtMTIuODEyIDAsMCIgZmlsbD0iI2VlMzIyOSIgdHJhbnNmb3JtPSJtYXRyaXgoMSAwIDAgLTEgNzA2Ljg2MjIgMzA0Ljk0MykiLz4KICAgICAgICA8cGF0aCBkPSJNMCwwIEMwLDE1LjkwNyAxMi4wOTIsMjYuNzA0IDI2LjM0NCwyNi43MDQgQzQxLjY3NSwyNi43MDQgNDguNDQxLDE2Ljg0MyA1MC4wOTcsOS41MDEgTDM5LjM3Miw2LjExOCBDMzguNTgsOS42NDUgMzUuMzQxLDE1LjYxOSAyNi4zNDQsMTUuNjE5IEMxOS41MDYsMTUuNjE5IDExLjgwNCwxMC43MjUgMTEuODA0LDAgQzExLjgwNCwtOS41NzMgMTguODU4LC0xNS4xMTUgMjYuNDg4LC0xNS4xMTUgQzM1LjM0MSwtMTUuMTE1IDM4Ljg2OCwtOS4yMTMgMzkuODc2LC01LjU0MiBMNTAuNzQ0LC04LjYzNyBDNDkuMDg5LC0xNS42OTEgNDIuMzIzLC0yNi40ODggMjYuNDg4LC0yNi40ODggQzExLjgwNCwtMjYuNDg4IDAsLTE1LjkwNyAwLDAiIGZpbGw9IiNlZTMyMjkiIHRyYW5zZm9ybT0ibWF0cml4KDEgMCAwIC0xIDc3Mi4wNzMxIDI5Ny45NjEpIi8+CiAgICAgICAgPHBhdGggZD0iTTAsMCBMMTIuMzgsMCBMNi4yNjIsMTcuNjM0IFogTTE1Ljk3OSwtMTAuMzY1IEwtMy43NDMsLTEwLjM2NSBMLTcuNDE0LC0yMC43MyBMLTE5LjM2MiwtMjAuNzMgTC0wLjE0NCwzMC4zMDIgTDEzLjAyOCwzMC4zMDIgTDMyLjAzLC0yMC43MyBMMTkuNjUsLTIwLjczIFoiIGZpbGw9IiNlZTMyMjkiIHRyYW5zZm9ybT0ibWF0cml4KDEgMCAwIC0xIDg0My4yNTk5IDMwMi42MzkyKSIvPgogICAgICAgIDxwYXRoIGQ9Ik0wLDAgTC0yMS4wMTgsMzMuNTQyIEwtMjEuMDE4LDAgTC0zMi4zMTgsMCBMLTMyLjMxOCw1MS4wMzIgTC0xOC40OTgsNTEuMDMyIEwwLjY0OCwyMC4wMSBMMC42NDgsNTEuMDMyIEwxMi4wMjEsNTEuMDMyIEwxMi4wMjEsMCBaIiBmaWxsPSIjZWUzMjI5IiB0cmFuc2Zvcm09Im1hdHJpeCgxIDAgMCAtMSA5MTMuOTQxMyAzMjMuMzY5MikiLz4KICAgICAgICA8cGF0aCBkPSJNMCwwIEwwLC00MC4xNjQgTC0xMS4zNzMsLTQwLjE2NCBMLTExLjM3MywwIEwtMjcuMDY0LDAgTC0yNy4wNjQsMTAuODY4IEwxNS43NjMsMTAuODY4IEwxNS43NjMsMCBaIiBmaWxsPSIjZWUzMjI5IiB0cmFuc2Zvcm09Im1hdHJpeCgxIDAgMCAtMSA5NjAuMDA1NyAyODMuMjA1MikiLz4KICAgICAgICA8cGF0aCBkPSJNMCwwIEM3LjA1NCwwIDE0LjY4NCw0Ljc1IDE0LjY4NCwxNS40MDMgQzE0LjY4NCwyNi4wNTYgNy4wNTQsMzAuODc4IDAsMzAuODc4IEMtNy4xMjYsMzAuODc4IC0xNC43NTYsMjYuMDU2IC0xNC43NTYsMTUuNDAzIEMtMTQuNzU2LDQuNzUgLTcuMTI2LDAgMCwwIE0wLDQxLjk2MyBDMTQuMzI0LDQxLjk2MyAyNi40ODgsMzEuNTI2IDI2LjQ4OCwxNS4zMzEgQzI2LjQ4OCwtMC43OTIgMTQuMzI0LC0xMS4yMjkgMCwtMTEuMjI5IEMtMTQuMzk2LC0xMS4yMjkgLTI2LjU2LC0wLjc5MiAtMjYuNTYsMTUuMzMxIEMtMjYuNTYsMzEuNTI2IC0xNC4zOTYsNDEuOTYzIDAsNDEuOTYzIiBmaWxsPSIjZWUzMjI5IiB0cmFuc2Zvcm09Im1hdHJpeCgxIDAgMCAtMSAxMDA0Ljk5MjEgMzEzLjIyMDI4KSIvPgogICAgICAgIDxwYXRoIGQ9Ik0wLDAgTC0yMS4wMTgsMzMuNTQyIEwtMjEuMDE4LDAgTC0zMi4zMTgsMCBMLTMyLjMxOCw1MS4wMzIgTC0xOC40OTksNTEuMDMyIEwwLjY0OCwyMC4wMSBMMC42NDgsNTEuMDMyIEwxMi4wMjEsNTEuMDMyIEwxMi4wMjEsMCBaIiBmaWxsPSIjZWUzMjI5IiB0cmFuc2Zvcm09Im1hdHJpeCgxIDAgMCAtMSAxMDcyLjM2MjIgMzIzLjM2OTIpIi8+CiAgICAgICAgPHBhdGggZD0iTTAsMCBDNy44NDYsMCAxNC4yNTIsNC41MzQgMTQuMjUyLDE0Ljc1NSBDMTQuMjUyLDI0Ljk3NiA3Ljg0NiwyOS41ODMgMCwyOS41ODMgTC02LjYyMiwyOS41ODMgTC02LjYyMiwwIFogTS0xNy45OTUsLTEwLjcyNSBMLTE3Ljk5NSw0MC4zMDggTDAuNTA0LDQwLjMwOCBDMTUuODM1LDQwLjMwOCAyNi4xMjgsMzAuNTE5IDI2LjEyOCwxNC43NTUgQzI2LjEyOCwtMS4wMDggMTUuODM1LC0xMC43MjUgMC40MzIsLTEwLjcyNSBaIiBmaWxsPSIjZWUzMjI5IiB0cmFuc2Zvcm09Im1hdHJpeCgxIDAgMCAtMSA2NzIuNTI5NCAzOTkuMDM0MykiLz4KICAgICAgICA8cGF0aCBkPSJNMCwwIEwwLDUxLjAzMyBMMzIuMzE4LDUxLjAzMyBMMzIuMzE4LDQwLjMwOCBMMTEuMzcyLDQwLjMwOCBMMTEuMzcyLDMwLjU5MSBMMzAuMzc1LDMwLjU5MSBMMzAuMzc1LDIwLjU4NiBMMTEuMzcyLDIwLjU4NiBMMTEuMzcyLDEwLjc5NyBMMzIuMzksMTAuNzk3IEwzMi4zOSwwIFoiIGZpbGw9IiNlZTMyMjkiIHRyYW5zZm9ybT0ibWF0cml4KDEgMCAwIC0xIDcwNy4zNjYxIDQwOS43NTk0KSIvPgogICAgICAgIDxwYXRoIGQ9Ik0wLDAgTDEyLjA5MiwwIEwtNi41NSwtNTEuMDMzIEwtMTguMjgyLC01MS4wMzMgTC0zNi45OTcsMCBMLTI0LjQ3MywwIEwtMTIuMTY1LC0zNS45MTcgWiIgZmlsbD0iI2VlMzIyOSIgdHJhbnNmb3JtPSJtYXRyaXgoMSAwIDAgLTEgNzk1LjQ2NjkgMzU4LjcyNjYpIi8+CiAgICAgICAgPHBhdGggZD0iTTAsMCBMMTIuMzgsMCBMNi4yNjIsMTcuNjM1IFogTTE1Ljk3OSwtMTAuMzY1IEwtMy43NDMsLTEwLjM2NSBMLTcuNDE0LC0yMC43MyBMLTE5LjM2MiwtMjAuNzMgTC0wLjE0NCwzMC4zMDMgTDEzLjAyOCwzMC4zMDMgTDMyLjAzLC0yMC43MyBMMTkuNjUsLTIwLjczIFoiIGZpbGw9IiNlZTMyMjkiIHRyYW5zZm9ybT0ibWF0cml4KDEgMCAwIC0xIDgyMy45Njk4IDM4OS4wMjk0KSIvPgogICAgICAgIDxwYXRoIGQ9Ik0wLDAgTDAsMzIuNjA2IEwxMS4zNzMsMzIuNjA2IEwxMS4zNzMsMC45MzYgQzExLjM3MywtNS4yNTUgMTQuODI4LC04LjM1IDIwLjIyNiwtOC4zNSBDMjUuNjI1LC04LjM1IDI5LjA3OSwtNS4yNTUgMjkuMDc5LDAuOTM2IEwyOS4wNzksMzIuNjA2IEw0MC40NTIsMzIuNjA2IEw0MC40NTIsMCBDNDAuNDUyLC0xMi44MTMgMzEuNDU1LC0xOS41NzggMjAuMjI2LC0xOS41NzggQzguOTk3LC0xOS41NzggMCwtMTIuODEzIDAsMCIgZmlsbD0iI2VlMzIyOSIgdHJhbnNmb3JtPSJtYXRyaXgoMSAwIDAgLTEgODYwLjMxNzUgMzkxLjMzMjU4KSIvPgogICAgICAgIDxwYXRoIGQ9Ik0wLDAgQzcuODQ2LDAgMTQuMjUxLDQuNTM0IDE0LjI1MSwxNC43NTUgQzE0LjI1MSwyNC45NzYgNy44NDYsMjkuNTgzIDAsMjkuNTgzIEwtNi42MjIsMjkuNTgzIEwtNi42MjIsMCBaIE0tMTcuOTk1LC0xMC43MjUgTC0xNy45OTUsNDAuMzA4IEwwLjUwNCw0MC4zMDggQzE1LjgzNSw0MC4zMDggMjYuMTI4LDMwLjUxOSAyNi4xMjgsMTQuNzU1IEMyNi4xMjgsLTEuMDA4IDE1LjgzNSwtMTAuNzI1IDAuNDMyLC0xMC43MjUgWiIgZmlsbD0iI2VlMzIyOSIgdHJhbnNmb3JtPSJtYXRyaXgoMSAwIDAgLTEgOTI5Ljc3NTggMzk5LjAzNDMpIi8+CiAgICA8L2c+CiAgICA8ZGVmcyBpZD0iY2xpcC1wYXRoIj4KICAgICAgICA8Y2xpcFBhdGggaWQ9ImMwIj4KICAgICAgICAgICAgPHBhdGggZD0iTTAsLTAuMDAwMDA5MDMzMjAzIEwxMzQ4LjU3MiwtMC4wMDAwMDkwMzMyMDMgTDEzNDguNTcyLDQyNS4xOTcgTDAsNDI1LjE5NyBaIi8+CiAgICAgICAgPC9jbGlwUGF0aD4KICAgIDwvZGVmcz4KPC9zdmc+Cg==" style="width: 170.07874015748033pt">
+    <p><em>Ce document a été mis en forme à l’aide d’outils d’intelligence artificielle (Claude, Anthropic). Le contenu, les décisions techniques et les choix architecturaux sont ceux de l’auteur.</em></p>
+    <nav role="doc-toc">
+      <h2>Table des matières</h2>
+      <p><br></p>
+      <ol style="list-style-type: none">
+        <li>
+          <p><strong><span style="text-decoration: underline"><a href="#loc-1"><span class="prefix">1</span> Résumé</a></span></strong></p>
+        </li>
+        <li>
+          <div>
+            <p><strong><span style="text-decoration: underline"><a href="#loc-2"><span class="prefix">2</span> Introduction</a></span></strong></p>
+          </div>
+          <ol style="list-style-type: none">
+            <li><span style="text-decoration: underline"><a href="#loc-3"><span class="prefix">2.1</span> Contexte</a></span></li>
+            <li><span style="text-decoration: underline"><a href="#loc-4"><span class="prefix">2.2</span> Problématique</a></span></li>
+            <li><span style="text-decoration: underline"><a href="#loc-5"><span class="prefix">2.3</span> Périmètre du travail</a></span></li>
+          </ol>
+        </li>
+        <li>
+          <div>
+            <p><strong><span style="text-decoration: underline"><a href="#loc-6"><span class="prefix">3</span> Objectifs</a></span></strong></p>
+          </div>
+          <ol style="list-style-type: none">
+            <li><span style="text-decoration: underline"><a href="#loc-7"><span class="prefix">3.1</span> Objectif principal</a></span></li>
+            <li><span style="text-decoration: underline"><a href="#loc-8"><span class="prefix">3.2</span> Objectifs secondaires</a></span></li>
+            <li><span style="text-decoration: underline"><a href="#loc-9"><span class="prefix">3.3</span> Hors périmètre</a></span></li>
+          </ol>
+        </li>
+        <li>
+          <div>
+            <p><strong><span style="text-decoration: underline"><a href="#loc-10"><span class="prefix">4</span> Exigences</a></span></strong></p>
+          </div>
+          <ol style="list-style-type: none">
+            <li><span style="text-decoration: underline"><a href="#loc-11"><span class="prefix">4.1</span> Exigences fonctionnelles</a></span></li>
+            <li><span style="text-decoration: underline"><a href="#loc-12"><span class="prefix">4.2</span> Exigences non fonctionnelles</a></span></li>
+          </ol>
+        </li>
+        <li>
+          <div>
+            <p><strong><span style="text-decoration: underline"><a href="#loc-13"><span class="prefix">5</span> Architecture du système</a></span></strong></p>
+          </div>
+          <ol style="list-style-type: none">
+            <li><span style="text-decoration: underline"><a href="#loc-14"><span class="prefix">5.1</span> Vue d’ensemble</a></span></li>
+            <li><span style="text-decoration: underline"><a href="#loc-15"><span class="prefix">5.2</span> Flux de traitement : Scénario A (batch)</a></span></li>
+            <li><span style="text-decoration: underline"><a href="#loc-16"><span class="prefix">5.3</span> Flux de traitement : Scénario B (on-demand)</a></span></li>
+            <li><span style="text-decoration: underline"><a href="#loc-17"><span class="prefix">5.4</span> Composants</a></span></li>
+          </ol>
+        </li>
+        <li>
+          <div>
+            <p><strong><span style="text-decoration: underline"><a href="#loc-18"><span class="prefix">6</span> Technologies retenues</a></span></strong></p>
+          </div>
+          <ol style="list-style-type: none">
+            <li><span style="text-decoration: underline"><a href="#loc-19"><span class="prefix">6.1</span> Traitement distribué : Ray</a></span></li>
+            <li><span style="text-decoration: underline"><a href="#loc-20"><span class="prefix">6.2</span> Découpage des images</a></span></li>
+            <li><span style="text-decoration: underline"><a href="#loc-21"><span class="prefix">6.3</span> Stockage objet : MinIO</a></span></li>
+            <li><span style="text-decoration: underline"><a href="#loc-22"><span class="prefix">6.4</span> Format de sortie : Parquet</a></span></li>
+            <li><span style="text-decoration: underline"><a href="#loc-23"><span class="prefix">6.5</span> Observabilité</a></span></li>
+            <li><span style="text-decoration: underline"><a href="#loc-24"><span class="prefix">6.6</span> Orchestration : Kubernetes</a></span></li>
+            <li><span style="text-decoration: underline"><a href="#loc-25"><span class="prefix">6.7</span> Modèle : SAM3</a></span></li>
+          </ol>
+        </li>
+        <li>
+          <div>
+            <p><strong><span style="text-decoration: underline"><a href="#loc-26"><span class="prefix">7</span> Planning et livrables</a></span></strong></p>
+          </div>
+          <ol style="list-style-type: none">
+            <li><span style="text-decoration: underline"><a href="#loc-27"><span class="prefix">7.1</span> Jalons officiels HEIG</a></span></li>
+            <li><span style="text-decoration: underline"><a href="#loc-28"><span class="prefix">7.2</span> Livrables</a></span></li>
+            <li><span style="text-decoration: underline"><a href="#loc-29"><span class="prefix">7.3</span> Risques et mitigations</a></span></li>
+          </ol>
+        </li>
+        <li>
+          <p><strong><span style="text-decoration: underline"><a href="#loc-30"><span class="prefix">8</span> Glossaire</a></span></strong></p>
+        </li>
+        <li>
+          <p><strong><span style="text-decoration: underline"><a href="#loc-31">Bibliographie</a></span></strong></p>
+        </li>
+      </ol>
+    </nav>
+    <h2 id="loc-1">1 Résumé</h2>
+    <p><br></p>
+    <p>Ce TB vise à implémenter la conception et le déploiement d’une pipeline distribuée d’annotation automatique d’images géospatiales.</p>
+    <p>La pipeline exploite SAM3 pour la segmentation et Ray pour distribuer le traitement sur les GPUs du cluster Kubernetes de la HEIG-VD. Les images JPEG sont lues depuis le serveur MinIO, découpées en tuiles et traitées en parallèle par des workers Ray. Les métadonnées GPS extraites de l’EXIF sont associées aux polygones produits puis stockés au format Parquet sur S3. Une couche d’observabilité basée sur Prometheus, Loki et Grafana permet de surveiller l’état du cluster et d’identifier les incidents ou soucis de performances.</p>
+    <h2 id="loc-2">2 Introduction</h2>
+    <p><br></p>
+    <h3 id="loc-3">2.1 Contexte</h3>
+    <p>La HEIG-VD dispose d’un cluster Kubernetes équipé de GPUs permettant d’exécuter des charges de calcul intensif. Dans le cadre de projets liés à l’analyse d’images géospatiales (images satellitaires ou aériennes), il est nécessaire de disposer d’une pipeline automatisée capable de traiter de grands volumes de données.</p>
+    <p>Les images sont stockées sur un serveur MinIO compatible S3. Les annotations sont gérées via Label Studio. Le modèle SAM3 est utilisé pour la segmentation automatique.</p>
+    <h3 id="loc-4">2.2 Problématique</h3>
+    <p>Le traitement de grands volumes d’images à haute résolution pose des problèmes de performance et de scalabilité sur les infrastructures.</p>
+    <p>Voici une liste des contraintes :</p>
+    <ul>
+      <li>Les images sont volumineuses et ne peuvent pas être chargées entièrement en mémoire.</li>
+      <li>Le modèle SAM3 requiert un GPU pour fonctionner dans des délais acceptables.</li>
+      <li>Les résultats de segmentation sont des polygones géospatiaux qui doivent être stockés et interrogeables efficacement.</li>
+      <li>La solution doit être déployable sur le cluster existant et scalable horizontalement.</li>
+    </ul>
+    <h3 id="loc-5">2.3 Périmètre du travail</h3>
+    <p>Ce cahier des charges définit le périmètre, les objectifs, les exigences et l’architecture de la pipeline à développer. Il constitue le document de référence entre l’étudiant et le professeur responsable.</p>
+    <h2 id="loc-6">3 Objectifs</h2>
+    <p><br></p>
+    <h3 id="loc-7">3.1 Objectif principal</h3>
+    <p>Concevoir, implémenter et déployer une pipeline distribuée d’annotation automatique d’images géospatiales, capable d’exploiter les ressources GPU du cluster Kubernetes de la HEIG-VD.</p>
+    <h3 id="loc-8">3.2 Objectifs secondaires</h3>
+    <ol>
+      <li>
+        <p><strong>Analyse du stockage objet</strong> — Documenter l’évaluation des alternatives à MinIO (RustFS, CEPH) et justifier le choix retenu au regard des contraintes de licence, de maturité et d’intégration avec l’infrastructure existante.</p>
+      </li>
+      <li>
+        <p><strong>Traitement distribué des images</strong> — Mettre en place une pipeline Ray distribuant le traitement des images sur plusieurs GPUs en parallèle.</p>
+      </li>
+      <li>
+        <p><strong>Optimisation du chargement des images</strong> — Découper les images en tuiles en mémoire avant inférence. Intégrer ZARR comme amélioration optionnelle si les volumes ou les formats d’images le justifient.</p>
+      </li>
+      <li>
+        <p><strong>Persistance des résultats</strong> — Stocker les polygones issus de la segmentation au format Parquet sur le stockage S3.</p>
+      </li>
+      <li>
+        <p><strong>Intégration avec Label Studio</strong> — Pousser les pré-annotations produites par SAM3 vers Label Studio via son API REST. Les images restent sur MinIO, connecté à Label Studio comme source S3. Seuls les polygones transitent, convertis au format Label Studio depuis le Parquet.</p>
+      </li>
+      <li>
+        <p><strong>Déploiement sur Kubernetes</strong> — Packager et déployer la pipeline sous forme de manifestes Kubernetes.</p>
+      </li>
+      <li>
+        <p><strong>Observabilité</strong> — Mettre en place un système de monitoring couvrant l’état du cluster, l’utilisation des GPUs et les logs des workers, afin de permettre l’identification des goulots d’étranglement.</p>
+      </li>
+    </ol>
+    <h3 id="loc-9">3.3 Hors périmètre</h3>
+    <p>Les éléments suivants sont explicitement hors du périmètre de ce travail.</p>
+    <ul>
+      <li>Le réentraînement ou la modification du modèle SAM3.</li>
+      <li>Le développement d’une interface utilisateur de visualisation.</li>
+      <li>La gestion de la sécurité et des accès au cluster, supposée existante.</li>
+    </ul>
+    <h2 id="loc-10">4 Exigences</h2>
+    <p><br></p>
+    <h3 id="loc-11">4.1 Exigences fonctionnelles</h3>
+    <figure>
+      <table>
+        <thead>
+          <tr>
+            <th><strong>Description</strong></th>
+            <th><strong>Priorité</strong></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Le système lit des images JPEG depuis un stockage S3.</td>
+            <td>Haute</td>
+          </tr>
+          <tr>
+            <td>Le système découpe chaque image en tuiles avant inférence.</td>
+            <td>Haute</td>
+          </tr>
+          <tr>
+            <td>Le système exécute SAM3 sur chaque tuile d’image.</td>
+            <td>Haute</td>
+          </tr>
+          <tr>
+            <td>Le système distribue le traitement sur plusieurs workers Ray.</td>
+            <td>Haute</td>
+          </tr>
+          <tr>
+            <td>Le système extrait les métadonnées GPS de l’EXIF et les associe aux résultats.</td>
+            <td>Haute</td>
+          </tr>
+          <tr>
+            <td>Le système stocke les polygones de segmentation au format Parquet sur S3.</td>
+            <td>Haute</td>
+          </tr>
+          <tr>
+            <td>Le système gère les erreurs par image sans interrompre la pipeline.</td>
+            <td>Haute</td>
+          </tr>
+          <tr>
+            <td>Le système produit un rapport de traitement (nombre d’images, durée, erreurs).</td>
+            <td>Moyenne</td>
+          </tr>
+          <tr>
+            <td>Le système exporte les annotations vers Label Studio.</td>
+            <td>Moyenne</td>
+          </tr>
+          <tr>
+            <td>Le système expose des métriques de traitement consultables via Grafana.</td>
+            <td>Moyenne</td>
+          </tr>
+          <tr>
+            <td>Le système agrège les logs des workers et les rend consultables.</td>
+            <td>Moyenne</td>
+          </tr>
+          <tr>
+            <td>Le système convertit les images au format ZARR pour un accès par tuiles depuis S3.</td>
+            <td>Basse</td>
+          </tr>
+        </tbody>
+      </table>
+      <figcaption>Tableau 1. – Exigences fonctionnelles</figcaption>
+    </figure>
+    <h3 id="loc-12">4.2 Exigences non fonctionnelles</h3>
+    <figure>
+      <table>
+        <thead>
+          <tr>
+            <th><strong>Description</strong></th>
+            <th><strong>Priorité</strong></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>La pipeline est déployable sur le cluster Kubernetes de la HEIG-VD.</td>
+            <td>Haute</td>
+          </tr>
+          <tr>
+            <td>Le système exploite les GPUs disponibles sur le cluster.</td>
+            <td>Haute</td>
+          </tr>
+          <tr>
+            <td>Le traitement d’un lot d’images est scalable horizontalement.</td>
+            <td>Haute</td>
+          </tr>
+          <tr>
+            <td>Les composants sont conteneurisés avec Docker.</td>
+            <td>Haute</td>
+          </tr>
+          <tr>
+            <td>Le code source est versionné sur Git et documenté.</td>
+            <td>Haute</td>
+          </tr>
+          <tr>
+            <td>Le stockage objet retenu est compatible avec le protocole S3.</td>
+            <td>Haute</td>
+          </tr>
+          <tr>
+            <td>Le système ne charge pas plus d’une image à la fois par worker.</td>
+            <td>Haute</td>
+          </tr>
+        </tbody>
+      </table>
+      <figcaption>Tableau 2. – Exigences non fonctionnelles</figcaption>
+    </figure>
+    <h2 id="loc-13">5 Architecture du système</h2>
+    <p><br></p>
+    <h3 id="loc-14">5.1 Vue d’ensemble</h3>
+    <p>La pipeline est composé de cinq couches fonctionnelles.</p>
+    <ol>
+      <li>La couche <strong>stockage</strong> centralise les images brutes, les résultats Parquet et les logs sur MinIO via le protocole S3.</li>
+      <li>La couche <strong>prétraitement</strong> charge chaque image, en extrait les métadonnées GPS de l’EXIF et la découpe en tuiles.</li>
+      <li>La couche <strong>traitement distribué</strong> orchestre l’exécution de SAM3 sur les tuiles via des workers Ray dotés d’un GPU chacun.</li>
+      <li>La couche <strong>persistance</strong> écrit les polygones avec leurs métadonnées géographiques au format Parquet sur S3.</li>
+      <li>La couche <strong>observabilité</strong> collecte métriques et logs en continu pour rendre l’état du cluster visible dans Grafana.</li>
+    </ol>
+    <h3 id="loc-15">5.2 Flux de traitement : Scénario A (batch)</h3>
+    <p>Le scénario principal traite un lot d’images en mode batch.</p>
+    <ol>
+      <li>L’utilisateur soumet un lot d’images stockées sur MinIO.</li>
+      <li>Chaque image est téléchargée, ses métadonnées GPS sont extraites de l’EXIF et elle est découpée en tuiles.</li>
+      <li>Ray distribue les tuiles sur les workers GPU disponibles.</li>
+      <li>Chaque worker exécute SAM3 sur ses tuiles et produit des polygones de segmentation.</li>
+      <li>Les polygones sont agrégés avec leurs métadonnées géographiques et écrits au format Parquet sur S3.</li>
+      <li>Un rapport de traitement est généré (images traitées, durée, erreurs).</li>
+    </ol>
+    <h3 id="loc-16">5.3 Flux de traitement : Scénario B (on-demand)</h3>
+    <p>Le scénario secondaire traite une image unique avec une réponse proche du temps réel.</p>
+    <ol>
+      <li>L’utilisateur soumet une image via l’API de la pipeline.</li>
+      <li>La pipeline exécute SAM3 sur l’image et extrait les métadonnées GPS de l’EXIF.</li>
+      <li>Le résultat est retourné à l’utilisateur et stocké sur S3.</li>
+    </ol>
+    <h3 id="loc-17">5.4 Composants</h3>
+    <figure>
+      <table>
+        <thead>
+          <tr>
+            <th><strong>Composant</strong></th>
+            <th><strong>Technologie</strong></th>
+            <th><strong>Rôle</strong></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Stockage objet</td>
+            <td>MinIO</td>
+            <td>Stockage des images brutes et des résultats Parquet</td>
+          </tr>
+          <tr>
+            <td>Traitement distribué</td>
+            <td>Ray</td>
+            <td>Distribution des tâches d’inférence sur les workers GPU</td>
+          </tr>
+          <tr>
+            <td>Modèle IA</td>
+            <td>SAM3</td>
+            <td>Segmentation automatique des images</td>
+          </tr>
+          <tr>
+            <td>Format de sortie</td>
+            <td>Parquet</td>
+            <td>Stockage colonnaire des polygones de segmentation</td>
+          </tr>
+          <tr>
+            <td>Orchestration</td>
+            <td>Kubernetes</td>
+            <td>Déploiement et gestion du cycle de vie des pods</td>
+          </tr>
+          <tr>
+            <td>Annotation</td>
+            <td>Label Studio</td>
+            <td>Validation humaine des annotations produites</td>
+          </tr>
+          <tr>
+            <td>Métriques cluster et GPU</td>
+            <td>Prometheus + DCGM Exporter</td>
+            <td>Scrape des métriques Ray et GPU</td>
+          </tr>
+          <tr>
+            <td>Métriques jobs éphémères</td>
+            <td>Pushgateway</td>
+            <td>Réception des métriques des Ray Jobs avant leur arrêt</td>
+          </tr>
+          <tr>
+            <td>Logs</td>
+            <td>Promtail + Loki</td>
+            <td>Collecte et agrégation des logs des pods K8s</td>
+          </tr>
+          <tr>
+            <td>Visualisation</td>
+            <td>Grafana</td>
+            <td>Dashboards métriques et logs</td>
+          </tr>
+        </tbody>
+      </table>
+      <figcaption>Tableau 3. – Composants de la pipeline</figcaption>
+    </figure>
+    <h2 id="loc-18">6 Technologies retenues</h2>
+    <p><br></p>
+    <h3 id="loc-19">6.1 Traitement distribué : Ray</h3>
+    <p>Ray est un framework Python de calcul distribué orienté workloads GPU et IA. Contrairement à Spark, conçu pour les données structurées, Ray distribue nativement des inférences de modèles sur GPU. Le pattern Actor permet de charger un modèle une seule fois par worker et de le réutiliser sur de nombreuses tâches, évitant les rechargements coûteux en mémoire.</p>
+    <h3 id="loc-20">6.2 Découpage des images</h3>
+    <p>Les images sources sont au format JPEG. Ce format ne supporte pas la lecture partielle. La pipeline charge chaque image en mémoire et la découpe en tuiles avant de les distribuer aux workers Ray. Cette approche est suffisante pour les volumes observés (2.8 MB par image).</p>
+    <p>ZARR est évalué comme amélioration optionnelle. Il permettrait une lecture par tuiles directement depuis S3 sans chargement complet, utile si les images sources deviennent significativement plus volumineuses ou si le format change.</p>
+    <h3 id="loc-21">6.3 Stockage objet : MinIO</h3>
+    <p>MinIO est conservé comme solution de stockage pour la durée du TB. L’analyse des alternatives (RustFS, CEPH) est documentée dans <code>docs/storage-analysis.md</code>. La pipeline ne dépend de MinIO qu’à travers le protocole S3. Changer de solution de stockage revient à modifier uniquement la configuration de l’endpoint.</p>
+    <h3 id="loc-22">6.4 Format de sortie : Parquet</h3>
+    <p>Parquet est un format de stockage colonnaire adapté aux résultats produits en batch. Il permet des requêtes analytiques efficaces sur les polygones (filtrage par score de confiance, par zone géographique) sans charger l’ensemble du fichier en mémoire.</p>
+    <h3 id="loc-23">6.5 Observabilité</h3>
+    <p>Ray expose nativement des métriques au format Prometheus. DCGM Exporter ajoute les métriques GPU (utilisation, mémoire, température). Les Ray Jobs sont éphémères : ils meurent avant que Prometheus puisse les scraper. Le Pushgateway résout ce problème. Chaque job pousse ses métriques finales avant de s’arrêter.</p>
+    <p>Promtail tourne comme DaemonSet sur chaque node K8s. Il collecte les logs de tous les pods et les envoie à Loki. Loki stocke ces logs sur MinIO, sans infrastructure supplémentaire. Grafana affiche métriques et logs dans la même interface, ce qui permet de corréler un incident visible sur une courbe avec les logs correspondants.</p>
+    <h3 id="loc-24">6.6 Orchestration : Kubernetes</h3>
+    <p>Le cluster Kubernetes de la HEIG-VD est l’environnement cible. La pipeline est packagé sous forme de manifestes Kubernetes via l’opérateur KubeRay.</p>
+    <h3 id="loc-25">6.7 Modèle : SAM3</h3>
+    <p>SAM3 (Segment Anything Model v3) est le modèle de segmentation retenu. Il est utilisé en inférence uniquement, sans réentraînement.</p>
+    <h2 id="loc-26">7 Planning et livrables</h2>
+    <p><br></p>
+    <h3 id="loc-27">7.1 Jalons officiels HEIG</h3>
+    <figure>
+      <table>
+        <thead>
+          <tr>
+            <th><strong>Date</strong></th>
+            <th><strong>Jalon</strong></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>16 février 2026</td>
+            <td>Début du TB</td>
+          </tr>
+          <tr>
+            <td><strong>09 avril 2026</strong></td>
+            <td><strong>Remise cahier des charges</strong></td>
+          </tr>
+          <tr>
+            <td><strong>20 mai 2026 avant 15h00</strong></td>
+            <td><strong>Remise rapport intermédiaire</strong></td>
+          </tr>
+          <tr>
+            <td>29 mai 2026</td>
+            <td>Note rapport intermédiaire</td>
+          </tr>
+          <tr>
+            <td>15 juin – 23 juillet 2026</td>
+            <td>TB à plein temps</td>
+          </tr>
+          <tr>
+            <td><strong>23 juillet 2026 avant 11h00</strong></td>
+            <td><strong>Remise rapport final + résumé (GAPS)</strong></td>
+          </tr>
+          <tr>
+            <td>24 août – 11 septembre 2026</td>
+            <td>Soutenance</td>
+          </tr>
+        </tbody>
+      </table>
+      <figcaption>Tableau 4. – Jalons officiels</figcaption>
+    </figure>
+    <h3 id="loc-28">7.2 Livrables</h3>
+    <ol>
+      <li><strong>Cahier des charges</strong> : 09 avril 2026</li>
+      <li><strong>Rapport intermédiaire</strong> : 20 mai 2026</li>
+      <li><strong>Code source</strong> : Repository Git (Ray, SAM3, MinIO, Parquet, K8s)</li>
+      <li><strong>Rapport de Bachelor</strong> : 23 juillet 2026</li>
+      <li><strong>Résumé publiable</strong> : 23 juillet 2026</li>
+      <li><strong>Présentation orale</strong> : août/septembre 2026</li>
+    </ol>
+    <h3 id="loc-29">7.3 Risques et mitigations</h3>
+    <figure>
+      <table>
+        <thead>
+          <tr>
+            <th><strong>Risque</strong></th>
+            <th><strong>Impact</strong></th>
+            <th><strong>Mitigation</strong></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>SAM3 trop lent sur GPU</td>
+            <td>Critique</td>
+            <td>Optimisation ONNX, quantisation, réduction de résolution</td>
+          </tr>
+          <tr>
+            <td>Cluster K8s HEIG indisponible avant juin</td>
+            <td>Critique</td>
+            <td>Développement local avec Minikube</td>
+          </tr>
+          <tr>
+            <td>Images trop volumineuses pour la mémoire</td>
+            <td>Faible</td>
+            <td>Downsampling ou intégration de ZARR</td>
+          </tr>
+          <tr>
+            <td>Fichiers Parquet trop fragmentés sur S3</td>
+            <td>Faible</td>
+            <td>Agrégation en fin de batch, partitionnement par lot</td>
+          </tr>
+        </tbody>
+      </table>
+      <figcaption>Tableau 5. – Risques et mitigations</figcaption>
+    </figure>
+    <h2 id="loc-30">8 Glossaire</h2>
+    <p><br></p>
+    <figure>
+      <table>
+        <thead>
+          <tr>
+            <th><strong>Terme</strong></th>
+            <th><strong>Définition</strong></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Kubernetes</strong></td>
+            <td>Système d’orchestration de conteneurs open-source</td>
+          </tr>
+          <tr>
+            <td><strong>KubeRay</strong></td>
+            <td>Opérateur Kubernetes pour déployer des clusters Ray</td>
+          </tr>
+          <tr>
+            <td><strong>Ray</strong></td>
+            <td>Framework Python de calcul distribué, optimisé pour les workloads GPU</td>
+          </tr>
+          <tr>
+            <td><strong>SAM3</strong></td>
+            <td>Segment Anything Model v3 : modèle de segmentation d’images de Meta AI</td>
+          </tr>
+          <tr>
+            <td><strong>ZARR</strong></td>
+            <td>Format N-dimensionnel orienté chunking, évalué comme optimisation optionnelle</td>
+          </tr>
+          <tr>
+            <td><strong>EXIF</strong></td>
+            <td>Métadonnées embarquées dans les fichiers image, contenant notamment les coordonnées GPS</td>
+          </tr>
+          <tr>
+            <td><strong>MinIO</strong></td>
+            <td>Serveur de stockage objet compatible S3</td>
+          </tr>
+          <tr>
+            <td><strong>Parquet</strong></td>
+            <td>Format de stockage colonnaire optimisé pour les requêtes analytiques</td>
+          </tr>
+          <tr>
+            <td><strong>Label Studio</strong></td>
+            <td>Plateforme open-source d’annotation de données pour le machine learning</td>
+          </tr>
+          <tr>
+            <td><strong>Pod</strong></td>
+            <td>Unité de déploiement atomique dans Kubernetes</td>
+          </tr>
+          <tr>
+            <td><strong>S3</strong></td>
+            <td>Protocole de stockage objet défini par Amazon Web Services</td>
+          </tr>
+          <tr>
+            <td><strong>GPU</strong></td>
+            <td>Graphics Processing Unit</td>
+          </tr>
+          <tr>
+            <td><strong>Actor</strong></td>
+            <td>Abstraction Ray permettant de charger un modèle une fois et de le réutiliser sur plusieurs tâches</td>
+          </tr>
+          <tr>
+            <td><strong>Prometheus</strong></td>
+            <td>Système de collecte de métriques par scraping, modèle pull</td>
+          </tr>
+          <tr>
+            <td><strong>DCGM Exporter</strong></td>
+            <td>Exporteur NVIDIA exposant les métriques GPU vers Prometheus</td>
+          </tr>
+          <tr>
+            <td><strong>Pushgateway</strong></td>
+            <td>Composant Prometheus recevant les métriques des jobs éphémères</td>
+          </tr>
+          <tr>
+            <td><strong>Promtail</strong></td>
+            <td>Agent de collecte de logs, tourne sur chaque node K8s</td>
+          </tr>
+          <tr>
+            <td><strong>Loki</strong></td>
+            <td>Agrégateur de logs compatible S3, intégré à Grafana</td>
+          </tr>
+          <tr>
+            <td><strong>Grafana</strong></td>
+            <td>Interface de visualisation des métriques et des logs</td>
+          </tr>
+        </tbody>
+      </table>
+      <figcaption>Tableau 6. – Glossaire</figcaption>
+    </figure>
+    <section role="doc-bibliography">
+      <h2 id="loc-31">Bibliographie</h2>
+      <p><br></p>
+      <ul style="list-style-type: none">
+        <li><span class="prefix">[1]</span> Jeffrey Dean et Sanjay Ghemawat, « MapReduce: Simplified Data Processing on Large Clusters », 2004, <em>USENIX Association — OSDI 2004</em>.</li>
+        <li><span class="prefix">[2]</span> Philipp Moritz <em>et al.</em>, « Ray: A Distributed Framework for Emerging AI Applications », 2018, <em>USENIX Association — OSDI 2018</em>. [En ligne].<span style="white-space: pre-wrap">&#x20;&#x20;</span>Disponible sur: <span style="text-decoration: underline"><a href="https://www.usenix.org/system/files/osdi18-moritz.pdf">https://www.usenix.org/system/files/osdi18-moritz.pdf</a></span></li>
+        <li><span class="prefix">[3]</span> Björn Rabenstein et Julius Volz, « Prometheus: A Next-Generation Monitoring System », 2015, <em>USENIX Association — SREcon Europe 2015</em>.</li>
+        <li><span class="prefix">[4]</span> Meta AI Research, « SAM 2: Segment Anything in Images and Videos ». [En ligne]. Disponible sur: <span style="text-decoration: underline"><a href="https://github.com/facebookresearch/sam2">https://github.com/facebookresearch/sam2</a></span></li>
+        <li><span class="prefix">[5]</span> Alice Rey, « Bridging the Gap between Data Lakes and RDBMSs: Efficient Query Processing with Parquet », 2024, <em>CEUR Workshop Proceedings — EDBT/ICDT 2024</em>. [En ligne].<span style="white-space: pre-wrap">&#x20;&#x20;</span>Disponible sur: <span style="text-decoration: underline"><a href="https://ceur-ws.org/Vol-3651/PhDW-3.pdf">https://ceur-ws.org/Vol-3651/PhDW-3.pdf</a></span></li>
+        <li><span class="prefix">[6]</span> Apache Software Foundation, « Apache Parquet ». [En ligne]. Disponible sur: <span style="text-decoration: underline"><a href="https://parquet.apache.org/">https://parquet.apache.org/</a></span></li>
+        <li><span class="prefix">[7]</span> Apache Arrow, « Reading and Writing the Apache Parquet Format ». [En ligne]. Disponible sur: <span style="text-decoration: underline"><a href="https://arrow.apache.org/docs/python/parquet.html">https://arrow.apache.org/docs/python/parquet.html</a></span></li>
+        <li><span class="prefix">[8]</span> I. MinIO, « MinIO — High-Performance Object Storage ». [En ligne]. Disponible sur: <span style="text-decoration: underline"><a href="https://min.io/">https://min.io/</a></span></li>
+        <li><span class="prefix">[9]</span> Zarr Developers, « Zarr Storage Format Specification v3 ». [En ligne]. Disponible sur: <span style="text-decoration: underline"><a href="https://zarr-specs.readthedocs.io/en/latest/v3/core/index.html">https://zarr-specs.readthedocs.io/en/latest/v3/core/index.html</a></span></li>
+        <li><span class="prefix">[10]</span> Anyscale, « Ray Documentation — Core Concepts ». [En ligne]. Disponible sur: <span style="text-decoration: underline"><a href="https://docs.ray.io/en/latest/ray-core/walkthrough.html">https://docs.ray.io/en/latest/ray-core/walkthrough.html</a></span></li>
+        <li><span class="prefix">[11]</span> Ray Project, « KubeRay — Deploying Ray on Kubernetes ». [En ligne]. Disponible sur: <span style="text-decoration: underline"><a href="https://docs.ray.io/en/latest/cluster/kubernetes/getting-started.html">https://docs.ray.io/en/latest/cluster/kubernetes/getting-started.html</a></span></li>
+        <li><span class="prefix">[12]</span> Anyscale, « Ray Data — Working with Parquet ». [En ligne]. Disponible sur: <span style="text-decoration: underline"><a href="https://docs.ray.io/en/latest/data/working-with-parquet.html">https://docs.ray.io/en/latest/data/working-with-parquet.html</a></span></li>
+        <li><span class="prefix">[13]</span> I. HumanSignal, « Label Studio — Open Source Data Labeling ». [En ligne]. Disponible sur: <span style="text-decoration: underline"><a href="https://labelstud.io/">https://labelstud.io/</a></span></li>
+        <li><span class="prefix">[14]</span> Grafana Labs, « Loki Architecture ». [En ligne]. Disponible sur: <span style="text-decoration: underline"><a href="https://grafana.com/docs/loki/latest/get-started/architecture/">https://grafana.com/docs/loki/latest/get-started/architecture/</a></span></li>
+        <li><span class="prefix">[15]</span> Grafana Labs, « Grafana — Open Source Analytics and Monitoring ». [En ligne]. Disponible sur: <span style="text-decoration: underline"><a href="https://grafana.com/">https://grafana.com/</a></span></li>
+        <li><span class="prefix">[16]</span> NVIDIA Corporation, « DCGM Exporter — GPU Metrics for Prometheus ». [En ligne]. Disponible sur: <span style="text-decoration: underline"><a href="https://github.com/NVIDIA/dcgm-exporter">https://github.com/NVIDIA/dcgm-exporter</a></span></li>
+      </ul>
+    </section>
+  </body>
+</html>
