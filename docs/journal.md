@@ -142,6 +142,7 @@
 | Analyse cost : rented GPUs (H100, Replicate) vs on-premise cluster | Done | 1h |
 | Meeting with Bertil       |   Done   | 25min |
 | Design pipeline architecture diagram (K8s cluster, Ray workers, MinIO, job-solo/batch flows) | Done | 1h30 |
-| Debug RayCluster : head not ready, 3rd worker pending (insufficient GPU) | Done | 30min |
-| Contact Shancli (SAM3 optimised image) and Olivier Lemer (GPU availability) | Done | 45min |
-| **Total** |    | 7h45 |
+| Debug RayCluster : head not ready, 3rd worker pending (insufficient GPU) | Done | 45min |
+| Contact Shancli (SAM3 optimised image) and Olivier Lemer (Workshop pictures/slides) | Done | 45min |
+| Read Parquet documentation | Done | 1h45min |
+| **Total** |    | 10h10 |
