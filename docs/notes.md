@@ -83,14 +83,14 @@ Supports `POINT`, `POLYGON`, `MULTIPOLYGON`. GIST index enables fast spatial que
 
 ## Scenarios
 
-### Scenario A — Batch
+### Scenario A Batch
 - User provides ~2000 images
 - SAM3 runs in batch via Ray
 - Results stored as Parquet on S3
 - No database required
 - Reference: https://docs.ray.io/en/latest/data/data.htmlT folder (copy of templat
 
-### Scenario B — On-demand
+### Scenario B On-demand
 - User submits one image → near-real-time response
 - Pipeline triggered on the fly
 - Results stored on S3
@@ -123,7 +123,7 @@ kubectl get pods -n dani --context=iict-rad
 - Hardware: Synology SA3200D (2 controllers, HA)
 - CPU/RAM usage: low
 
-**Decision: keep MinIO.** Migration adds risk and delay. The pipeline builds on S3 — swapping storage later means changing only the endpoint config.
+**Decision: keep MinIO.** Migration adds risk and delay. The pipeline builds on S3 swapping storage later means changing only the endpoint config.
 
 MinIO on Synology is installed via Container Manager. Base image: `minio/minio`. To confirm with Mehdi.
 
@@ -136,7 +136,7 @@ MinIO on Synology is installed via Container Manager. Base image: `minio/minio`.
 ## Ray & Anyscale
 
 Ray is an open-source Python framework for distributing AI/ML workloads across CPUs and GPUs.
-Anyscale is the commercial platform built by the Ray founders — managed, production-ready Ray.
+Anyscale is the commercial platform built by the Ray founders managed, production-ready Ray.
 
 ### Ray primitives
 
@@ -188,7 +188,7 @@ KubeRay (`rayclusters.ray.io`) is the proper operator. Access requires a `RoleBi
 
 `--ray-client-server-port=10001` must be set in the head `ray start` command.
 
-### Exposing ports — Ingress
+### Exposing ports Ingress
 
 Per IICT documentation, services are exposed via Ingress (wildcard `*.iict-rad.iict-heig-vd.in`):
 
@@ -219,7 +219,7 @@ Tasks distributed across all 3 workers and completed correctly.
 
 ![Wordcount workers](images/wordcountWorkers.png)
 
-### Dog classifier — 5000 images (EfficientNet B0 on Stanford Dogs)
+### Dog classifier 5000 images (EfficientNet B0 on Stanford Dogs)
 
 ```
 [4600/5000] traités
@@ -247,24 +247,7 @@ Top 10 premières images :
 
 ## Week 5
 
-### Loki
 
-Loki is a log aggregation system that only indexes metadata labels, not the full log content. This makes it lightweight compared to Elasticsearch which is useful in our case because we don't need full-text search, we need to find logs from a specific Ray worker pod at a specific time.
-
-It stores data in S3 format. Loki has 2 main storage types: index and chunks.
-
-- **Index**: table of contents, maps label sets to chunk locations.
-- **Chunks**: compressed blocks of raw log lines for a given label set and time range.
-
-![Loki index/chunks](./images/lokiChunksIndex.png)
-
-Logs are queried with **LogQL**, a label-based query language:
-
-```logql
-{namespace="dani", pod=~"ray-worker.*"} |= "ERROR"
-```
-
-In our pipeline, Promtail runs as a DaemonSet and ships all pod logs to Loki. Loki stores them on MinIO woth no extra storage infrastructure needed. Grafana queries Loki alongside Prometheus, which allows correlating a GPU spike on a graph with the corresponding worker logs.
 
 
 ### Parquet
@@ -398,3 +381,97 @@ The first is downsampling: reducing image resolution before tiling cuts tile cou
 The second is accepting 1024x1024 tiles. With 32 tiles per image and ~7.4s per tile across 3 workers, inference per image drops to ~80s. At 2000 images that gives 44 hours : still over a day, but the polygon count drops from 146 to 49 per image, which reduces storage and Label Studio import volume.
 
 The preferred approach is downsampling combined with 512×512 tiles. It preserves segmentation quality and keeps the pipeline architecture unchanged.
+
+---
+
+# Week 7
+
+## Downsampling
+
+Downsampling reduces image resolution before tiling. A scale factor of 0.5 halves both width and height, reducing tile count by 4× and inference time proportionally. The trade-off is segmentation detail: smaller input means SAM3 sees less edge information per tile.
+
+Three scale factors were tested locally (Proxmox, GTX 970) at fixed tile size 512×512:
+
+| Scale | Tiles (4096×8192 image) | Relative inference time |
+|-------|------------------------|-------------------------|
+| 1.0 (baseline) | 128 | 1.0× |
+| 0.75 | 72 | ~0.56× |
+| 0.5 | 32 | ~0.25× |
+| 0.25 | 8 | ~0.06× |
+
+Scale 0.5 is retained as the default. It cuts inference time by ~4× while preserving enough detail for the target annotation quality. Scale 0.25 is too aggressive: SAM3 loses fine contours on objects smaller than ~50px in the downsampled image.
+
+---
+
+# Week 8
+
+### Loki
+
+Loki is a log aggregation system that only indexes metadata labels, not the full log content. This makes it lightweight compared to Elasticsearch which is useful in our case because we don't need full-text search, we need to find logs from a specific Ray worker pod at a specific time.
+
+It stores data in S3 format. Loki has 2 main storage types: index and chunks.
+
+- **Index**: table of contents, maps label sets to chunk locations.
+- **Chunks**: compressed blocks of raw log lines for a given label set and time range.
+
+![Loki index/chunks](./images/lokiChunksIndex.png)
+
+Logs are queried with **LogQL**, a label-based query language:
+
+```logql
+{namespace="dani", pod=~"ray-worker.*"} |= "ERROR"
+```
+
+In our pipeline, Promtail runs as a DaemonSet and ships all pod logs to Loki. Loki stores them on MinIO woth no extra storage infrastructure needed. Grafana queries Loki alongside Prometheus, which allows correlating a GPU spike on a graph with the corresponding worker logs.
+
+---
+
+# Week 9
+
+## Architecture Diagram
+
+![Kubernetes Architecture](diagrams/Schema-Kubernetes.png)
+
+## K8s vs RayCluster
+
+Kubernetes and RayCluster use overlapping but distinct terminology. A K8s Service exposes pods via a stable DNS name and load-balances across them. A RayCluster head node is exposed as a K8s Service, but Ray has its own internal GCS (Global Control Store) address that workers connect to not the K8s service port directly.
+
+| Term | K8s meaning | Ray meaning |
+|------|-------------|-------------|
+| Head | N/A | Single node running GCS, scheduler, dashboard |
+| Worker | Pod in a Deployment | Ray node registered with GCS, executes tasks |
+| Service | Stable ClusterIP for pod selection | Exposes GCS (6379), dashboard (8265), client (10001) |
+| Namespace | Logical cluster isolation | Shared across all Ray nodes in a cluster |
+
+Ray workers do not connect to a K8s Service they connect to the GCS address published by the head node on startup. The Ray Client (external driver) connects via `ray://host:10001`.
+
+## GPU Operator
+
+The NVIDIA GPU Operator automates the installation of GPU drivers, the device plugin, and DCGM Exporter on each node. Without it, pods requesting `nvidia.com/gpu` resources will not be scheduled.
+
+Confirmed via IICT wiki : the GPU Operator is installed on the iict-rad cluster (K8s 1.32.5). GPUs are shared across namespaces using MPS (Multi-Process Service). No action needed `nvidia.com/gpu` resource requests work out of the box.
+
+Reference: https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/overview.html
+
+## SAM3 Performance Reference
+
+Rémy reported that Shancli's optimised SAM3 backend processed the Neuchâtel dataset (~11 000 images) in 7–8 hours.
+
+| Pipeline | Time/image | Total (11k images) |
+|----------|-----------|---------------------|
+| Shancli (optimised) | ~2.5s | ~7.5h |
+| Ours (3 workers, 512×512 tiles) | ~111s | ~340h |
+
+The 44× gap suggests Shancli's image likely has the model pre-loaded and optimised (TensorRT, quantization, or a custom inference backend). Pending his response on which base image to use adopting it could bring our pipeline close to his throughput.
+
+## Cost Analysis : Rented GPUs vs On-Premise
+
+At ~111s per image with 3 workers, processing 2000 images takes ~62 hours on the HEIG-VD cluster. The cluster is shared and GPU availability is not guaranteed.
+
+Rented GPU services (Replicate, RunPod, Lambda Labs) offer H100 instances at 2–4\$/hour per GPU. A 3-GPU run of 62 hours would cost 370-750$ acceptable for a one-off batch but not for repeated runs.
+
+**Decision: stay on-premise.** The HEIG-VD cluster is free for the project and sufficient for the target batch size. Downsampling at 0.5 reduces the 62h estimate to ~15h. Rented GPUs remain an option if cluster access becomes a bottleneck during full-scale testing.
+
+## Tests on Hold
+
+Since almost all the GPUs are being already used by others pods, I'm just gonna delay the Parquet files for now.

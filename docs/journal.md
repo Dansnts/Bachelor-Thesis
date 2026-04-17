@@ -119,3 +119,29 @@
 | Analyse results : compare polygon count and inference time vs full-resolution baseline | Done | 45min |
 | Reorganise project structure : consolidate all docs under docs/ (Specification, report), remove legacy folders (TB_CahierDesCharges_Typst, specifications, report, tools) | Done | 1h |
 | **Total** |    | 7h |
+
+---
+
+# Week 8
+
+| Task              | Status | Time |
+| :---------------- | :------: | ----: |
+| Analyse Loki and observalibity stack | Done | 4h |
+| **Total** |    | 4h |
+
+---
+
+# Week 9
+
+| Task              | Status | Time |
+| :---------------- | :------: | ----: |
+| Workstation data loss, recovery and environment rebuild | Done | 45min |
+| Re-read project state : pipeline architecture, benchmarks, open decisions | Done | 1h45 |
+| Study K8s vs RayCluster network abstraction : GCS address, service ports, client protocol | Done | 1h |
+| Verify GPU Operator installation on iict-rad cluster (confirmed via IICT wiki) | Done | 30min |
+| Analyse cost : rented GPUs (H100, Replicate) vs on-premise cluster | Done | 1h |
+| Meeting with Bertil       |   Done   | 25min |
+| Design pipeline architecture diagram (K8s cluster, Ray workers, MinIO, job-solo/batch flows) | Done | 1h30 |
+| Debug RayCluster : head not ready, 3rd worker pending (insufficient GPU) | Done | 30min |
+| Contact Shancli (SAM3 optimised image) and Olivier Lemer (GPU availability) | Done | 45min |
+| **Total** |    | 7h45 |
