@@ -60,6 +60,7 @@
 - [Getting started](https://docs.ray.io/en/latest/ray-overview/getting-started.html)
 - [Repo GitHub](https://github.com/ray-project/ray)
 - [Paper académique original — OSDI 2018](https://www.usenix.org/system/files/osdi18-moritz.pdf)
+- [Ray Glossary](https://docs-ray-io.translate.goog/en/latest/ray-references/glossary.html?_x_tr_sl=en&_x_tr_tl=fr&_x_tr_hl=fr&_x_tr_pto=sc)
 
 ### Installation
 - [Setup](https://docs.ray.io/en/latest/ray-overview/installation.html)

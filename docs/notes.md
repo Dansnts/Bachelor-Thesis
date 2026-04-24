@@ -475,3 +475,192 @@ Rented GPU services (Replicate, RunPod, Lambda Labs) offer H100 instances at 2�
 ## Tests on Hold
 
 Since almost all the GPUs are being already used by others pods, I'm just gonna delay the Parquet files for now.
+
+# Week 10
+
+## Pipeline SAM3 → Parquet → Label Studio : end-to-end run
+
+This week the full pipeline ran on the cluster for the first time and produced its first real output visible in Label Studio.
+
+### Output format change : JSON → Parquet
+
+The pipeline previously wrote one LabelStudio JSON file per image. Per the cahier des charges (section 6.4), the output was switched to Parquet stored on MinIO. Each row in the Parquet file represents one detected polygon:
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `image_key` | string | S3 object path |
+| `acquisition_id` | string | Parent folder name |
+| `label` | string | `sign` or `road_marking` |
+| `score` | float32 | SAM3 confidence score |
+| `points` | string | JSON-encoded polygon points (% of image dimensions) |
+| `original_width` | int32 | Source image width |
+| `original_height` | int32 | Source image height |
+| `latitude` | float64 | GPS decimal degrees from EXIF |
+| `longitude` | float64 | GPS decimal degrees from EXIF |
+
+GPS coordinates are extracted from image EXIF using the `exif` library. DMS (degrees/minutes/seconds) are converted to decimal degrees. Images without GPS data store `null`.
+
+Files are named `<acquisition_id>/<image_stem>.parquet` and written to the output S3 prefix with Snappy compression.
+
+### Docker image
+
+`Dockerfile.sam3` updated: added `pyarrow` to the pip install layer and fixed the `COPY` directive to copy `sam3_minio_pipeline.py`. Image pushed to `ghcr.io/nearai-interreg/ray-sam3:latest`.
+
+### HuggingFace model cache (PVC)
+
+SAM3 weights are 3.3 GB. Without a persistent cache every pod restart re-downloaded the model (~5 min overhead). A Longhorn PVC (`hf-cache`, 10 Gi, `ReadWriteOnce`) mounts at `/root/.cache/huggingface` on the worker pod. After the first run the weights are cached and subsequent runs skip the download.
+
+### CUDA visibility bug (local mode)
+
+In local Ray mode (`--local`), the Actor was created with `.options(num_gpus=0)` to skip GPU allocation. This had a side effect: Ray hid all CUDA devices from the process (`CUDA_VISIBLE_DEVICES=""`), causing `RuntimeError: No CUDA GPUs are available` even though the pod had a GPU.
+
+Fix: removed the `.options()` override. The `@ray.remote(num_gpus=1)` decorator handles allocation in both modes.
+
+### Ray worker environment variables
+
+Ray workers run in separate pods. They do not inherit environment variables from the driver job. MinIO credentials (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `S3_ENDPOINT_URL`) were missing from the worker spec, causing `NoCredentialsError` on every S3 call made inside an Actor.
+
+Fix: credentials added to `workerGroupSpecs[].template.spec.containers[].env` in `rayCluster.yaml`.
+
+### Cluster run results
+
+40 images processed across 2 Ray workers (3rd GPU occupied by another namespace). The autoscaler reported "max number of worker nodes reached" and stayed at 2.
+
+```
+Done: 40 images, 2230 detections avg ~111s/image
+```
+
+Parquet files written to `s3://nearai/dani/test/predictions/`.
+
+### Label Studio integration
+
+Label Studio was connected to MinIO as an S3 cloud storage source:
+
+- **Endpoint**: `https://storage-kubernetes.iict-heig-vd.in:9000`
+- **Bucket**: `nearai`
+- **Region**: `ch` (MinIO rejects `us-east-1`)
+- Pre-signed URLs enabled so images are served directly from MinIO to the browser.
+
+The Parquet output was converted to Label Studio import format for one sample image and imported manually. The labeling interface XML:
+
+```xml
+<View>
+  <Image name="image" value="$image"/>
+  <PolygonLabels name="label" toName="image">
+    <Label value="sign" background="#FF0000"/>
+    <Label value="road_marking" background="#FFFF00"/>
+  </PolygonLabels>
+</View>
+```
+
+The `from_name` field in result items must match the `name` attribute of `<PolygonLabels>` in the XML (`label`). The original JSON used `tag` which caused polygons to render grey without labels.
+
+### Equirectangular projection distortion
+
+The pipeline tiles the equirectangular panorama directly without any projection correction. Those images have increasing geometric distortion toward the top (zenith) and bottom (nadir) poles.
+
+**Decision: no correction implemented.** The target we are using now in the tests are classes like `sign` (road signs, mostly at horizon level) and `road_marking` (ground markings, visible in the lower-middle band). Both appear in the central vertical band (roughly 25–80% of image height), which corresponds to more or less than 30° elevation precisely where equirectangular distortion is weakest. The top of the image is sky and rooftops. The very bottom is occluded by the vehicle body.
+
+A projection correction like : equirectangular → rectilinear perspective patches via `py360convert` or `equilib`, then reproject polygon coordinates back, would add implementation complexity for marginal gain on these two classes. Noted as a known limitation and potential future improvement in the report. But we have now a few ideas to test during our benchmarks sessions.
+
+### First output in Label Studio
+
+![First SAM3 output in Label Studio](images/firstOutputLabelStudio.png)
+
+Red polygons: `sign`. Yellow polygons: `road_marking`. 78 detections on a single panoramic image (4096×8192 px).
+
+## Ray worker inheritance
+
+Workers don't inherit env vars from the driver. Any secret needed inside an Actor (S3 credentials, HF token) must be set explicitly in the worker pod spec via `secretKeyRef` in `rayCluster.yaml`.
+
+## GPU affinity
+
+Worker pods use `nodeAffinity` to prefer L40S (weight 100) over A40 (weight 50). The `runtimeClassName: nvidia` is required on the worker pod spec for the GPU device plugin to expose `nvidia.com/gpu`. The driver job has no GPU and runs without affinity constraints.
+
+## API
+
+REST API (HTTP/JSON), framework-agnostic. Likely implemented with FastAPI + Ray Serve. Valentin can consume these endpoints from any client (web app, Label Studio plugin, CLI).
+
+Three endpoints cover the two usage scenarios from the cahier des charges (Scenario A: batch, Scenario B: on-demand).
+
+### `POST /batch`
+
+Asynchronous. The client submits a set of images and gets back a `job_id` immediately. Processing happens in the background on the Ray cluster.
+
+**Request body:**
+```json
+{
+  "s3_input_uri": "s3://nearai/data/acquisitions/Samples/01_images/",
+  "s3_output_uri": "s3://nearai/dani/predictions/",
+  "labels": ["sign", "road_marking"],
+  "batch_size": 4
+}
+```
+
+**Response `202 Accepted`:**
+```json
+{
+  "job_id": "a3f2c1d9",
+  "status": "queued",
+  "submitted_at": "2026-04-24T10:32:00Z"
+}
+```
+
+The `job_id` is used to poll progress via `/status`.
+
+---
+
+### `GET /status/{job_id}`
+
+Synchronous. Returns the current state of a batch job. Valentin can poll this endpoint to update a progress bar or notify the user when processing is complete.
+
+**Response `200 OK`:**
+```json
+{
+  "job_id": "a3f2c1d9",
+  "status": "running",
+  "images_total": 40,
+  "images_done": 17,
+  "detections_so_far": 923,
+  "started_at": "2026-04-24T10:32:05Z",
+  "estimated_remaining_s": 1340
+}
+```
+
+Possible values for `status`: `queued`, `running`, `done`, `failed`.
+
+When `status` is `done`, the Parquet files are available at `s3_output_uri`.
+
+---
+
+### `POST /predict`
+
+Synchronous. Single-image on-demand prediction. Blocks until SAM3 returns results (typically 30–120 s depending on GPU availability). Intended for interactive use from Label Studio or a lightweight UI.
+
+**Request body:**
+```json
+{
+  "s3_image_uri": "s3://nearai/data/acquisitions/Samples/01_images/20251210-NeoCapture-bis_S001_Trimblemx50_000001.jpg",
+  "labels": ["sign", "road_marking"]
+}
+```
+
+**Response `200 OK`:**
+```json
+{
+  "image_key": "data/acquisitions/Samples/01_images/20251210-NeoCapture-bis_S001_Trimblemx50_000001.jpg",
+  "original_width": 8192,
+  "original_height": 4096,
+  "latitude": 46.9213,
+  "longitude": 6.9021,
+  "detections": [
+    {
+      "label": "sign",
+      "score": 0.91,
+      "points": [[42.05, 40.72], [42.08, 44.97], ["..."]]
+    }
+  ]
+}
+```
+
+Points are in percent of image dimensions, matching the Label Studio polygon format directly.

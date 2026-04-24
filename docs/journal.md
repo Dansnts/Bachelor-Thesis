@@ -113,6 +113,7 @@
 | Task              | Status | Time |
 | :---------------- | :------: | ----: |
 | Research downsampling strategies : analyse trade-offs between resolution reduction and segmentation quality | Done | 1h |
+| Meeting with Bertil | Done | 25min |
 | Implement downsampling preprocessing in sam3_pipeline.py : resize image before tiling, parametrise scale factor | Done | 1h30 |
 | Build test Docker images for local downsampling experiments | Done | 45min |
 | Run SAM3 pipeline locally : validate downsampling at multiple scale factors | Done | 2h |
@@ -146,3 +147,28 @@
 | Contact Shancli (SAM3 optimised image) and Olivier Lemer (Workshop pictures/slides) | Done | 45min |
 | Read Parquet documentation | Done | 1h45min |
 | **Total** |    | 10h10 |
+
+---
+
+# Week 10
+
+| Task              | Status | Time |
+| :---------------- | :------: | ----: |
+| Migration from our generic pipeline to a new one with Shancli's base and added s3 bucket conncetion (read images, and write JSON + Parquet) | Done | 1h30 |
+| Switch pipeline output format from LabelStudio JSON to Parquet (schema: image_key, acquisition_id, label, score, points, lat, lon) | Done | 1h40 |
+| Add GPS extraction from EXIF in pipeline (DMS --> decimal degrees via `exif` library) | Done | 30min |
+| Add `pyarrow` to Dockerfile.sam3, fix COPY directive, rebuild and push image | Done | 30min |
+| Create Longhorn PVC for HuggingFace model cache (10 Gi) eliminates 3.3 GB re-download on each pod restart | Done | 20min |
+| Debug CUDA visibility bug in local Ray mode (`.options(num_gpus=0)` was hiding all GPU devices) | Done | 45min |
+| Create K8s Job manifest for local mode testing (`job-sam3-ray-test.yaml` : 1 GPU, PVC mount, `--local`) | Done | 20min |
+| Fix missing MinIO credentials on Ray workers (env vars not inherited from driver added to `rayCluster.yaml` worker spec) | Done | 30min |
+| Run full pipeline on cluster : 40 images, 2 workers (3rd GPU occupied), 2230 detections, ~111s/image | Done | 1h |
+| Read Parquet output with DuckDB to verify schema and GPS data | Done | 15min |
+| Configure MinIO as S3 cloud storage in Label Studio (endpoint, bucket `nearai`, region `ch`) | Done | 30min |
+| Convert pipeline Parquet output to Label Studio import format (wrap result array in `data.image` + `predictions`) | Done | 30min |
+| Debug Label Studio import : fix `from_name` mismatch (`tag` --> `label`) to match labeling interface XML | Done | 20min |
+| Import first SAM3 results into Label Studio and verify polygons render correctly | Done | 20min |
+| Design API : 3 REST endpoints (`POST /batch`, `GET /status/{job_id}`, `POST /predict`) with full request/response schemas | Done | 45min |
+| Update notes.md : Week 10 full write-up (Parquet schema, CUDA bug, Ray worker env vars, Label Studio, projection decision) | Done | 20min |
+| Write first draft of TB report : 6 chapters (introduction, état de l'art, architecture, implémentation, résultats, conclusion) + bibliography | Done | 2h15 |
+| **Total** |    | 12h40 |
