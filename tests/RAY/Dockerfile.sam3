@@ -30,9 +30,11 @@ RUN pip install "ray[data,train,serve,default]==2.54.0" \
     exif \
     Pillow \
     opencv-python-headless \
-    "numpy>=1.26,<2"
+    "numpy>=1.26,<2" \
+    boto3 \
+    scipy \
+    pyarrow
 
-COPY RAY/sam3_pipeline.py ./
-COPY images/ ./images/
+COPY RAY/sam3_minio_pipeline.py ./
 
-CMD ["python3.12", "sam3_pipeline.py"]
+CMD ["python3.12", "sam3_minio_pipeline.py"]
