@@ -52,11 +52,11 @@
         Ce travail porte sur la conception et le déploiement d'un pipeline distribué
         d'annotation automatique d'images géospatiales. Le pipeline exploite SAM3 pour
         la segmentation et Ray pour distribuer le traitement sur les GPUs du cluster
-        Kubernetes de la HEIG-VD. Les images JPEG sont lues depuis MinIO, découpées en
-        tuiles et traitées en parallèle par des workers Ray. Les métadonnées GPS extraites
+        Kubernetes de la HEIG-VD. Les images sont lues depuis le service S3 sur MinIO, découpées en
+        patches et traitées en parallèle par des workers Ray. Les métadonnées GPS extraites
         de l'EXIF sont associées aux polygones produits, stockés au format Parquet sur S3.
         Une couche d'observabilité basée sur Prometheus, Loki et Grafana permet de surveiller
-        l'état du cluster et d'identifier les incidents.
+        l'état du cluster, ses performances et d'identifier les incidents.
       ]
     ),
     bibliography: (

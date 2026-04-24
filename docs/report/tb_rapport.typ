@@ -284,6 +284,9 @@ Toute utilisation, même partielle, de ce TB doit être faite dans le respect du
 // Set numbering for content
 #set heading(numbering: "1.1")
 
+// Paragraph spacing for content chapters
+#set par(leading: 0.65em, spacing: 1.2em, justify: true)
+
 /*
 | ------------------------------------
 | INSEREZ VOS CHAPITRES CI-DESSOUS
