@@ -4,7 +4,7 @@ metadata:
   name: ray-cluster
   namespace: dani
 spec:
-  rayVersion: '2.44.1'
+  rayVersion: '2.54.0'
 
   headGroupSpec:
     rayStartParams:
@@ -72,12 +72,24 @@ spec:
                     secretKeyRef:
                       name: hf-secret
                       key: HF_TOKEN
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: minio-secret
+                      key: access_key
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: minio-secret
+                      key: secret_key
+                - name: S3_ENDPOINT_URL
+                  value: https://storage-kubernetes.iict-heig-vd.in:9000
               resources:
                 limits:
                   nvidia.com/gpu: '1'
                   cpu: '8'
-                  memory: 16Gi
+                  memory: 32Gi
                 requests:
                   nvidia.com/gpu: '1'
-                  cpu: '8'
+                  cpu: '4'
                   memory: 16Gi
