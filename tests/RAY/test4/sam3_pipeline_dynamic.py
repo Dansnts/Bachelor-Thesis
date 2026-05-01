@@ -1,25 +1,21 @@
 # AI assistance
 """
-SAM3 distributed pipeline: Ray workers + MinIO I/O + Parquet output.
+SAM3 pipeline with dynamic work queue via ray.wait().
 
-Each Ray worker loads the SAM3 model once, then processes images pulled from
-MinIO, extracts GPS from EXIF, and writes results as Parquet to MinIO.
-
-Schema: image_key, acquisition_id, label, score, points, original_width,
-        original_height, latitude, longitude
+Difference vs sam3_minio_pipeline.py:
+- Round-robin assigns work upfront → slow image blocks a worker slot.
+- Here: workers pull next image as soon as they finish, no idle waiting.
 
 Usage:
-    # On cluster (connects to RayCluster head)
-    python sam3_minio_pipeline.py \
+    python sam3_pipeline_dynamic.py \
         --s3_uri s3://nearai/data/acquisitions/Samples/01_images/ \
-        --s3_output_uri s3://nearai/data/acquisitions/Samples/09_parquet/ \
+        --s3_output_uri s3://nearai/dani/test4/parquet/ \
         --labels sign,road_marking \
         --num_workers 2
 
-    # Local test (single GPU, no cluster)
-    python sam3_minio_pipeline.py --local \
+    python sam3_pipeline_dynamic.py --local \
         --s3_uri s3://nearai/data/acquisitions/Samples/01_images/ \
-        --s3_output_uri s3://nearai/dani/test/parquet/ \
+        --s3_output_uri s3://nearai/dani/test4/parquet/ \
         --labels sign \
         --num_workers 1
 """
@@ -28,14 +24,12 @@ import os
 import sys
 import io
 import json
-import math
-import uuid
+import time
 import logging
 import argparse
 from pathlib import Path
-from typing import List, Tuple, Optional
+from typing import List, Tuple
 
-import time
 import ray
 import torch
 import numpy as np
@@ -45,11 +39,11 @@ SAM3_CODEBASE = os.getenv("SAM3_CODEBASE", "/app/sam3")
 if SAM3_CODEBASE not in sys.path:
     sys.path.append(SAM3_CODEBASE)
 
-RAY_HEAD      = "ray://ray-cluster-head-svc:10001"
-PATCH_SIZE    = 1008
-PATCH_STRIDE  = 768
+RAY_HEAD       = "ray://ray-cluster-head-svc:10001"
+PATCH_SIZE     = 1008
+PATCH_STRIDE   = 768
 CONF_THRESHOLD = 0.5
-SUPPORTED_EXT = {'.jpg', '.jpeg', '.png', '.tiff', '.tif'}
+SUPPORTED_EXT  = {'.jpg', '.jpeg', '.png', '.tiff', '.tif'}
 
 log = logging.getLogger(__name__)
 
@@ -151,7 +145,6 @@ def get_acquisition_id(key: str) -> str:
 # ── SLIDING WINDOW ────────────────────────────────────────────────────────────
 
 def get_patch_positions(img_w: int, img_h: int) -> List[Tuple[int, int, int, int]]:
-    """Returns (x, y, w, h) positions with edge alignment."""
     def positions_1d(size: int) -> List[int]:
         pos = []
         x = 0
@@ -160,7 +153,6 @@ def get_patch_positions(img_w: int, img_h: int) -> List[Tuple[int, int, int, int
             x += PATCH_STRIDE
         pos.append(size - PATCH_SIZE if size > PATCH_SIZE else 0)
         return pos
-
     positions = []
     for y in positions_1d(img_h):
         for x in positions_1d(img_w):
@@ -196,7 +188,6 @@ def merge_masks(masks, coords_list, img_w, img_h, scores):
             mask = mask.astype(np.uint8)
         full[y:y+h, x:x+w] = np.maximum(full[y:y+h, x:x+w], mask)
         placed.append((mask, (x, y, w, h)))
-
     labeled, n = ndimage.label(full)
     results = []
     for i in range(1, n + 1):
@@ -252,12 +243,10 @@ class SAM3Worker:
             enable_segmentation=True,
             enable_inst_interactivity=True,
         )
-
         self.transform = ComposeAPI(transforms=[
             ToTensorAPI(),
             NormalizeAPI(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
         ])
-
         self.postprocessor = PostProcessImage(
             max_dets_per_img=-1,
             iou_type="segm",
@@ -267,7 +256,6 @@ class SAM3Worker:
             detection_threshold=CONF_THRESHOLD,
             to_cpu=True,
         )
-
         self.s3 = make_s3_client()
         logging.basicConfig(level=logging.INFO)
         self.log = logging.getLogger(__name__)
@@ -303,30 +291,30 @@ class SAM3Worker:
         return self.transform(dp), query_id_to_label
 
     def process(self, bucket: str, key: str, out_bucket: str, out_prefix: str, labels: List[str]) -> dict:
-        import time
         from sam3.train.data.collator import collate_fn_api as collate
         from sam3.model.utils.misc import copy_data_to_device
 
         t0 = time.time()
+        t_download = time.time()
         image, lat, lon = download_image(self.s3, bucket, key)
+        t_download = time.time() - t_download
+
         w, h = image.size
         acq_id = get_acquisition_id(key)
-
         patches = extract_patches(image)
 
-        # Build patch datapoints
         patch_data = []
         for patch_img, coords in patches:
             dp, qmap = self._make_datapoint(patch_img, labels)
             patch_data.append((dp, coords, qmap))
 
-        # Batched GPU inference
+        t_inference = time.time()
         all_detections = []
         for i in range(0, len(patch_data), self.batch_size):
-            batch = patch_data[i:i + self.batch_size]
-            dps     = [x[0] for x in batch]
-            coords  = [x[1] for x in batch]
-            qmaps   = [x[2] for x in batch]
+            batch  = patch_data[i:i + self.batch_size]
+            dps    = [x[0] for x in batch]
+            coords = [x[1] for x in batch]
+            qmaps  = [x[2] for x in batch]
 
             b = collate(dps, dict_key="dummy")["dummy"]
             b = copy_data_to_device(b, torch.device(self.device), non_blocking=True)
@@ -346,8 +334,8 @@ class SAM3Worker:
                         if s >= CONF_THRESHOLD:
                             m = (mask.float().cpu().numpy().squeeze() > 0.5).astype(np.uint8)
                             all_detections.append((m, c, s, label))
+        t_inference = time.time() - t_inference
 
-        # Merge patches → LabelStudio polygons
         label_groups = {}
         for mask, coords, score, label in all_detections:
             g = label_groups.setdefault(label, {'masks': [], 'coords': [], 'scores': []})
@@ -361,42 +349,93 @@ class SAM3Worker:
                 points = mask_to_polygon(mask, w, h)
                 if points:
                     rows.append({
-                        'image_key':      key,
-                        'acquisition_id': acq_id,
-                        'label':          label,
-                        'score':          float(score),
-                        'points':         json.dumps(points),
-                        'original_width': w,
+                        'image_key':       key,
+                        'acquisition_id':  acq_id,
+                        'label':           label,
+                        'score':           float(score),
+                        'points':          json.dumps(points),
+                        'original_width':  w,
                         'original_height': h,
-                        'latitude':       lat,
-                        'longitude':      lon,
+                        'latitude':        lat,
+                        'longitude':       lon,
                     })
 
-        # Upload Parquet
+        t_upload = time.time()
         stem = Path(key).stem
         rel = str(Path(key).parent).lstrip('/')
         out_key = f"{out_prefix.rstrip('/')}/{rel}/{stem}.parquet" if rel else f"{out_prefix.rstrip('/')}/{stem}.parquet"
         upload_parquet(self.s3, out_bucket, out_key, rows)
+        t_upload = time.time() - t_upload
 
         elapsed = time.time() - t0
-        self.log.info(f"{Path(key).name} → {len(rows)} detections in {elapsed:.1f}s")
-        return {'key': key, 'detections': len(rows), 'time': elapsed}
+        self.log.info(
+            f"{Path(key).name} | patches={len(patches)} detections={len(rows)} "
+            f"total={elapsed:.1f}s [download={t_download:.1f}s inference={t_inference:.1f}s upload={t_upload:.1f}s]"
+        )
+        return {
+            'key':        key,
+            'detections': len(rows),
+            'time':       elapsed,
+            't_download': t_download,
+            't_inference': t_inference,
+            't_upload':   t_upload,
+        }
+
+
+# ── DYNAMIC WORK QUEUE ────────────────────────────────────────────────────────
+
+def run_dynamic(workers, keys, in_bucket, out_bucket, out_prefix, labels):
+    """
+    Each worker gets 1 task at a time. As soon as it finishes it picks the next
+    key from the queue. No idle waiting caused by uneven image processing times.
+    """
+    queue = list(keys)
+    # future → worker_index
+    future_to_worker = {}
+
+    # seed: one task per worker
+    for i, worker in enumerate(workers):
+        if not queue:
+            break
+        key = queue.pop(0)
+        fut = worker.process.remote(in_bucket, key, out_bucket, out_prefix, labels)
+        future_to_worker[fut] = i
+
+    results = []
+    while future_to_worker:
+        done, _ = ray.wait(list(future_to_worker.keys()), num_returns=1)
+        fut = done[0]
+        worker_idx = future_to_worker.pop(fut)
+        result = ray.get(fut)
+        results.append(result)
+        log.info(
+            f"[worker {worker_idx}] {Path(result['key']).name} done "
+            f"({result['detections']} det, {result['time']:.1f}s) "
+            f"— {len(results)}/{len(keys)}"
+        )
+        # assign next image to the now-free worker
+        if queue:
+            key = queue.pop(0)
+            fut = workers[worker_idx].process.remote(in_bucket, key, out_bucket, out_prefix, labels)
+            future_to_worker[fut] = worker_idx
+
+    return results
 
 
 # ── MAIN ──────────────────────────────────────────────────────────────────────
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--s3_uri',        required=True,  help='s3://bucket/prefix/')
-    parser.add_argument('--s3_output_uri', required=True,  help='s3://bucket/prefix/')
-    parser.add_argument('--labels',        required=True,  help='comma-separated labels')
+    parser.add_argument('--s3_uri',        required=True)
+    parser.add_argument('--s3_output_uri', required=True)
+    parser.add_argument('--labels',        required=True)
     parser.add_argument('--batch_size',    type=int, default=4)
     parser.add_argument('--num_workers',   type=int, default=2)
     parser.add_argument('--resume',        action='store_true')
-    parser.add_argument('--local',         action='store_true', help='ray.init() without cluster')
+    parser.add_argument('--local',         action='store_true')
     args = parser.parse_args()
 
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
 
     labels     = [l.strip() for l in args.labels.split(',') if l.strip()]
     in_bucket,  in_prefix  = args.s3_uri[5:].split('/', 1)
@@ -419,30 +458,26 @@ def main():
         ray.shutdown()
         return
 
-    workers = [
-        SAM3Worker.remote(batch_size=args.batch_size)
-        for _ in range(args.num_workers)
-    ]
-
-    futures = [
-        workers[i % args.num_workers].process.remote(in_bucket, key, out_bucket, out_prefix, labels)
-        for i, key in enumerate(keys)
-    ]
+    workers = [SAM3Worker.remote(batch_size=args.batch_size) for _ in range(args.num_workers)]
 
     t_wall = time.time()
-    total_detections = 0
-    sum_worker_time = 0.0
-    for result in ray.get(futures):
-        total_detections += result['detections']
-        sum_worker_time += result['time']
+    results = run_dynamic(workers, keys, in_bucket, out_bucket, out_prefix, labels)
     t_wall = time.time() - t_wall
 
-    avg_worker = sum_worker_time / len(keys) if keys else 0
-    avg_wall   = t_wall / len(keys) if keys else 0
+    total_det  = sum(r['detections']  for r in results)
+    avg_total  = sum(r['time']        for r in results) / len(results)
+    avg_dl     = sum(r['t_download']  for r in results) / len(results)
+    avg_inf    = sum(r['t_inference'] for r in results) / len(results)
+    avg_up     = sum(r['t_upload']    for r in results) / len(results)
+
     log.info(
-        f"Done: {len(keys)} images, {total_detections} detections\n"
-        f"  Wall time     : {t_wall:.0f}s ({avg_wall:.1f}s/image)\n"
-        f"  Avg worker    : {avg_worker:.1f}s/image (sum across workers)"
+        f"\n── Results ──────────────────────────────\n"
+        f"  Images     : {len(keys)}\n"
+        f"  Detections : {total_det}\n"
+        f"  Wall time  : {t_wall:.0f}s\n"
+        f"  Avg/image  : {avg_total:.1f}s  "
+        f"[download={avg_dl:.1f}s  inference={avg_inf:.1f}s  upload={avg_up:.1f}s]\n"
+        f"─────────────────────────────────────────"
     )
     ray.shutdown()
 

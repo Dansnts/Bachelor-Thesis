@@ -1,0 +1,55 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: sam3-driver-dynamic
+  namespace: dani
+spec:
+  ttlSecondsAfterFinished: 3600
+  template:
+    spec:
+      restartPolicy: Never
+      imagePullSecrets:
+        - name: ghcr-secret
+      containers:
+        - name: driver
+          image: ghcr.io/nearai-interreg/ray-sam3:latest
+          imagePullPolicy: Always
+          command:
+            - python3.12
+            - /app/sam3_pipeline_dynamic.py
+          args:
+            - --s3_uri
+            - s3://nearai/data/acquisitions/20250521-HSN/01_images/S001/
+            - --s3_output_uri
+            - s3://nearai/dani/test4/parquet/
+            - --labels
+            - sign,road_marking
+            - --batch_size
+            - "2"
+            - --num_workers
+            - "3"
+          env:
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secret
+                  key: access_key
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secret
+                  key: secret_key
+            - name: S3_ENDPOINT_URL
+              value: https://storage-kubernetes.iict-heig-vd.in:9000
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: hf-secret
+                  key: HF_TOKEN
+          resources:
+            limits:
+              cpu: "2"
+              memory: 4Gi
+            requests:
+              cpu: "1"
+              memory: 2Gi
