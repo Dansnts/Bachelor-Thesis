@@ -11,3 +11,73 @@ pas19:
   title: Black Alps 2019
   author: Sylvain Pasini
   url: https://www.blackalps.ch/ba-19/
+
+sam3:
+  type: Article
+  title: "SAM 2: Segment Anything in Images and Videos"
+  author: ["Nikhila Ravi", "Valentin Gabeur", "Yuan-Ting Hu", "Ronghang Hu", "Chaitanya Ryali", "Tengyu Ma", "Haitham Khedr", "Roman Rädle", "Chloe Rolland", "Laura Gustafson", "Eric Mintun", "Junting Pan", "Kalyan Vasudev Alwala", "Nicolas Carion", "Chao-Yuan Wu", "Ross Girshick", "Piotr Dollár", "Christoph Feichtenhofer"]
+  date: 2024
+  url: https://arxiv.org/abs/2408.00714
+
+ray:
+  type: Article
+  title: "Ray: A Distributed Framework for Emerging AI Applications"
+  author: ["Philipp Moritz", "Robert Nishihara", "Stephanie Wang", "Alexey Tumanov", "Richard Liaw", "Eric Liang", "Melih Elibol", "Zongheng Yang", "William Paul", "Michael I. Jordan", "Ion Stoica"]
+  date: 2018
+  url: https://arxiv.org/abs/1712.05889
+
+mapreduce:
+  type: Article
+  title: "MapReduce: Simplified Data Processing on Large Clusters"
+  author: ["Jeffrey Dean", "Sanjay Ghemawat"]
+  date: 2004
+  url: https://static.googleusercontent.com/media/research.google.com/en//archive/mapreduce-osdi04.pdf
+
+kuberay:
+  type: Web
+  title: "KubeRay: Kubernetes Operator for Ray"
+  author: "Ray Project"
+  date: 2024
+  url: https://ray-project.github.io/kuberay/
+
+parquet:
+  type: Web
+  title: "Apache Parquet"
+  author: "Apache Software Foundation"
+  date: 2024
+  url: https://parquet.apache.org/docs/
+
+minio:
+  type: Web
+  title: "MinIO High-Performance Object Storage"
+  author: "MinIO Inc."
+  date: 2024
+  url: https://min.io/docs/minio/linux/index.html
+
+labelstudio:
+  type: Web
+  title: "Label Studio: Data Labeling Software"
+  author: "HumanSignal"
+  date: 2024
+  url: https://labelstud.io/
+
+gpuoperator:
+  type: Web
+  title: "NVIDIA GPU Operator"
+  author: "NVIDIA Corporation"
+  date: 2024
+  url: https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/overview.html
+
+prometheus:
+  type: Web
+  title: "Prometheus Monitoring System"
+  author: "Prometheus Authors"
+  date: 2024
+  url: https://prometheus.io/docs/introduction/overview/
+
+loki:
+  type: Web
+  title: "Grafana Loki: Log Aggregation System"
+  author: "Grafana Labs"
+  date: 2024
+  url: https://grafana.com/docs/loki/latest/

@@ -18,7 +18,7 @@
 
     information: (
       title: "Pipeline distribué d'annotation automatique d'images géospatiales",
-      subtitle: "SAM3, Ray et Kubernetes au service de la segmentation GPU",
+      subtitle: "Ray et Kubernetes au service de la segmentation GPU",
       academic_years: "2025-26",
       departement: (
         court: "TIC",

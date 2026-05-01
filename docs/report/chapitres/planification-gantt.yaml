@@ -9,7 +9,7 @@ start: 2026-02-01
 end: 2026-09-30
 # A list of tasks
 tasks:
-    # The name of the task.
+  # The name of the task.
   - name: Démarrage
     subtasks:
       - name: "Documents administratifs"
@@ -33,10 +33,16 @@ tasks:
 milestones:
   - name: Kick-off
     date: 2026-02-16
-    # Optional: whether or not the date should be shown in this milestone
-    show-date: true 
+    show-date: true
 
   - name: CdC final
     date: 2026-04-01
-    # Optional: whether or not the date should be shown in this milestone
-    show-date: true 
+    show-date: true
+
+  - name: Rapport intermédiaire
+    date: 2026-05-20
+    show-date: true
+
+  - name: Rendu travail Bachelor
+    date: 2026-07-24
+    show-date: true

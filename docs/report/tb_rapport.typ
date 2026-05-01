@@ -158,12 +158,18 @@
 ])
 #pagebreak(weak: true)
 
+// Page blanche
+#page(header: none, footer: none)[]
+
+#outline(title: "Table des matières", depth: 2, indent: 15pt)
+#pagebreak(weak: true)
+
 /*
-                  ▄▄                           ▄▄                                       
-             ██   ██                 ██   ▀▀  ██  ▀▀               ██   ▀▀              
- ▀▀█▄ ██ ██ ▀██▀▀ ████▄ ▄█▀█▄ ████▄ ▀██▀▀ ██ ▀██▀ ██  ▄████  ▀▀█▄ ▀██▀▀ ██  ▄███▄ ████▄ 
-▄█▀██ ██ ██  ██   ██ ██ ██▄█▀ ██ ██  ██   ██  ██  ██  ██    ▄█▀██  ██   ██  ██ ██ ██ ██ 
-▀█▄██ ▀██▀█  ██   ██ ██ ▀█▄▄▄ ██ ██  ██   ██▄ ██  ██▄ ▀████ ▀█▄██  ██   ██▄ ▀███▀ ██ ██ 
+                  ▄▄                           ▄▄
+             ██   ██                 ██   ▀▀  ██  ▀▀               ██   ▀▀
+ ▀▀█▄ ██ ██ ▀██▀▀ ████▄ ▄█▀█▄ ████▄ ▀██▀▀ ██ ▀██▀ ██  ▄████  ▀▀█▄ ▀██▀▀ ██  ▄███▄ ████▄
+▄█▀██ ██ ██  ██   ██ ██ ██▄█▀ ██ ██  ██   ██  ██  ██  ██    ▄█▀██  ██   ██  ██ ██ ██ ██
+▀█▄██ ▀██▀█  ██   ██ ██ ▀█▄▄▄ ██ ██  ██   ██▄ ██  ██▄ ▀████ ▀█▄██  ██   ██▄ ▀███▀ ██ ██
 */
 
 = Authentification
@@ -265,10 +271,7 @@ Toute utilisation, même partielle, de ce TB doit être faite dans le respect du
                                                                                  ▀▀▀              
 */
 
-#include "chapitres/cahier-des-charges.typ"
-
-
-#outline(title: "Table des matières", depth: 2, indent: 15pt)
+// #include "chapitres/cahier-des-charges.typ"
 
 /*                                                 
                                    ▄▄                                                   
@@ -294,7 +297,7 @@ Toute utilisation, même partielle, de ce TB doit être faite dans le respect du
 */
 
 #include "chapitres/introduction.typ"
-#include "chapitres/planification.typ"
+// #include "chapitres/planification.typ"
 #include "chapitres/etat-de-lart.typ"
 #include "chapitres/exemple-de-chapitre.typ"
 #include "chapitres/architecture.typ"
@@ -368,6 +371,35 @@ Toute utilisation, même partielle, de ce TB doit être faite dans le respect du
 | INSEREZ VOS ANNEXES CI-DESSOUS
 | ------------------------------------
 */
+
+= Glossaire
+
+#figure(
+  table(
+    columns: (auto, 1fr),
+    align: (left, left),
+    table.header([*Terme*], [*Définition*]),
+    [*Kubernetes*], [Système d'orchestration de conteneurs open-source],
+    [*KubeRay*], [Opérateur Kubernetes pour déployer des clusters Ray],
+    [*Ray*], [Framework Python de calcul distribué, optimisé pour les workloads GPU],
+    [*SAM3*], [Segment Anything Model v3 : modèle de segmentation d'images de Meta AI],
+    [*ZARR*], [Format N-dimensionnel orienté chunking, évalué comme optimisation optionnelle],
+    [*EXIF*], [Métadonnées embarquées dans les fichiers image, contenant notamment les coordonnées GPS],
+    [*MinIO*], [Serveur de stockage objet compatible S3],
+    [*Parquet*], [Format de stockage colonnaire optimisé pour les requêtes analytiques],
+    [*Label Studio*], [Plateforme open-source d'annotation de données pour le machine learning],
+    [*Pod*], [Unité de déploiement atomique dans Kubernetes],
+    [*S3*], [Protocole de stockage objet défini par Amazon Web Services],
+    [*GPU*], [Graphics Processing Unit],
+    [*Actor*], [Abstraction Ray permettant de charger un modèle une fois et de le réutiliser sur plusieurs tâches],
+    [*Prometheus*], [Système de collecte de métriques par scraping, modèle pull],
+    [*DCGM Exporter*], [Exporteur NVIDIA exposant les métriques GPU vers Prometheus],
+    [*Promtail*], [Agent de collecte de logs, tourne sur chaque node K8s],
+    [*Loki*], [Agrégateur de logs compatible S3, intégré à Grafana],
+    [*Grafana*], [Interface de visualisation des métriques et des logs],
+  ),
+  caption: [Glossaire]
+)
 
 #include "chapitres/outils-utilises.typ"
 #set page(flipped: true)
