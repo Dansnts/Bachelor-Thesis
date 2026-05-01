@@ -664,3 +664,105 @@ Synchronous. Single-image on-demand prediction. Blocks until SAM3 returns result
 ```
 
 Points are in percent of image dimensions, matching the Label Studio polygon format directly.
+
+# Week 11
+
+## Observability stack
+
+This week the full observability stack was deployed on the cluster. Two independent metric flows converge in Grafana.
+
+```
+Ray workers (stdout) → Promtail → Loki → Grafana
+Ray head :8080       → Prometheus → Grafana
+DCGM Exporter        → Prometheus → Grafana  (pending network policy from IICT)
+```
+
+### GPU tools : MPS, GPU Operator, DCGM Exporter
+
+Three tools handle GPU monitoring and sharing on the cluster. None are deprecated as of 2026.
+
+**GPU Operator** : installed by IICT on iict-rad. Automates driver installation, the device plugin, and DCGM Exporter on each node. Pods requesting `nvidia.com/gpu` work out of the box.
+
+**DCGM Exporter** : Nvidia Data Center GPU Manager. Runs as a DaemonSet (1 pod per GPU node). Reads GPU metrics directly from the NVIDIA driver via its own library. Exposes them on `:9400/metrics` for Prometheus to scrape. Two interfaces:
+- `dcgmi` : CLI for per-GPU health and performance monitoring
+- DCGM Exporter : cluster-level Prometheus endpoint
+
+**MPS (Multi-Process Service)** : used by IICT to share GPUs between pods. Not deprecated, marked experimental in k8s-device-plugin v0.15. Cannot be used with MIG-enabled devices.
+
+### Metrics flow
+
+![](diagrams/Schema-Observability.png)
+
+Grafana centralises everything. The key value is correlation : a GPU spike visible in Prometheus at a given timestamp can be matched with the corresponding Ray worker logs in Loki at the exact same moment.
+
+### Promtail deployment issues
+
+Promtail was deployed as a DaemonSet (1 pod per node). Two issues appeared on `iict-suchet` (main GPU node, 3× L40S).
+
+**Issue 1 : RBAC** : the manifest used `ClusterRole` + `ClusterRoleBinding`, which requires cluster-admin. Fixed by switching to `Role` + `RoleBinding` (namespace-scoped). Sufficient since we filter to namespace `dani`.
+
+**Issue 2 : too many open files** : Promtail uses inotify to watch log files. iict-suchet runs many workloads and the default inotify limits were exhausted. Fixed with a privileged `initContainer` that runs before Promtail starts:
+
+```yaml
+initContainers:
+  - name: increase-inotify-limits
+    image: busybox
+    command: ['sh', '-c', 'sysctl -w fs.inotify.max_user_watches=524288 && sysctl -w fs.inotify.max_user_instances=512']
+    securityContext:
+      privileged: true
+```
+
+Both `max_user_watches` (number of files watched) and `max_user_instances` (number of inotify instances) must be increased. Setting only one is not sufficient.
+
+### Loki storage on MinIO
+
+Loki stores logs in two parts on MinIO under `nearai/dani/loki/`:
+- **index** : maps label sets to chunk locations
+- **chunks** : compressed blocks of raw log lines
+
+
+### DCGM network policy
+
+Prometheus cannot scrape DCGM Exporter because a network policy blocks cross-namespace traffic. A mail was sent to Mehdi (IICT admin) with the following NetworkPolicy to apply:
+
+
+### Ray metrics in Prometheus
+
+Ray head exposes metrics on port 8080. The scrape works : confirmed via `ray_running_jobs` and `ray_gcs_actors_count` visible in Prometheus. Port 8080 does not need to be declared in the RayCluster containerPorts (declaring it caused KubeRay to fail creating pods due to internal port conflict).
+
+## Pipeline run on 20250521-HSN dataset
+
+2000 images processed on 2 GPU workers (3rd occupied).
+
+**Timing bug identified and fixed** : `total_time` in the pipeline was the sum of all worker times, not wall clock time. With 2 workers each processing ~1000 images at 8s, the sum was 16 000s, reported as 8s/image average. The actual wall clock time was ~4s/image (16 000s / 2 workers / 2000 images). Fix: track wall time separately and report both metrics.
+
+**Worker eviction on iict-chasseron** : a worker scheduled on chasseron (L4, disk-pressure taint) was evicted mid-run via SIGTERM. Fixed by adding a hard `NotIn` nodeAffinity to exclude chasseron from worker scheduling:
+
+```yaml
+- key: kubernetes.io/hostname
+  operator: NotIn
+  values:
+    - iict-chasseron
+```
+
+## Dynamic work queue (test4)
+
+The original pipeline used round-robin assignment (`i % num_workers`) : slow images block a worker slot. A new version in `tests/RAY/test4/sam3_pipeline_dynamic.py` uses `ray.wait()` for dynamic load balancing: each worker pulls the next image as soon as it finishes, no idle waiting. Version created by AI.
+
+```python
+done, _ = ray.wait(list(future_to_worker.keys()), num_returns=1)
+# assign next image to the now-free worker immediately
+```
+
+The dynamic version also logs per-image breakdown: `download / inference / upload` to identify the real bottleneck.
+
+## API : label classes
+
+Bertil suggested using classes instead of flat string arrays for labels, to give a black-box effect to the user and allow richer descriptions:
+
+```python
+[
+  {"name": "stopSign",  "description": "A circular red panel with the mention 'Stop' inside"},
+  {"name": "roadSign",  "description": "A white or yellow mark, usually rectangular or triangular, marked on roads"}
+]
+```

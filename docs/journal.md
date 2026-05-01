@@ -172,3 +172,27 @@
 | Update notes.md : Week 10 full write-up (Parquet schema, CUDA bug, Ray worker env vars, Label Studio, projection decision) | Done | 20min |
 | Write first draft of TB report : 6 chapters (introduction, état de l'art, architecture, implémentation, résultats, conclusion) + bibliography | Done | 2h15 |
 | **Total** |    | 12h40 |
+
+---
+
+# Week 11
+
+| Task              | Status | Time |
+| :---------------- | :------: | ----: |
+| Research deprecation status of MPS, GPU Operator and DCGM Exporter | Done | 30min |
+| Create observability stack K8s manifests (Prometheus, Loki, Promtail, Grafana) in `deploy/observability/` | Done | 3h |
+| Deploy full observability stack on cluster (all pods running) | Done | 30min |
+| Fix Promtail RBAC : ClusterRole --> Role (namespace-scoped, no cluster admin required) | Done | 15min |
+| Fix Loki S3 config : filesystem --> MinIO S3 (`nearai/dani/loki`), env vars from `minio-secret` via `-config.expand-env=true` | Done | 30min |
+| Fix Promtail "too many open files" on iict-suchet : namespace filter + privileged initContainer (sysctl inotify) | Done | 45min |
+| Verify Prometheus scrapes Ray metrics (`ray_running_jobs`, `ray_gcs_actors_count`) | Done | 15min |
+| Investigate DCGM Exporter access : blocked by network policy, drafted mail to Mehdi with NetworkPolicy YAML | Done | 30min |
+| Run SAM3 pipeline on new dataset `20250521-HSN/01_images/S001/` (2000 images, 2 workers, ~4s/image wall clock) | Done | 1h |
+| Fix RayCluster not starting, port 8080 declaration conflict with Ray internal port | Done | 30min |
+| Fix worker eviction on iict-chasseron : add hard `NotIn` nodeAffinity to exclude disk-pressure node | Done | 40min |
+| Identify timing bug in pipeline : `total_time` was sum across workers, not wall clock — fix + add split timing (download/inference/upload) | Done | 30min |
+| Create `tests/RAY/test4/` : dynamic work queue pipeline with `ray.wait()` for better load balancing | Done | 1h |
+| Update TB report : TOC after title page, blank page, cahier des charges content from spec, glossary in annexes | Done | 3h |
+| Update notes.md : Week 11 full write-up (observability stack, pipeline run, timing bug, dynamic queue) | Done | 20min |
+| Design API label classes : class objects with name+description instead of flat string arrays | Done | 20min |
+| **Total** |    | 13h35 |
