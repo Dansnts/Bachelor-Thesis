@@ -1,0 +1,90 @@
+---
+# ConfigMap : datasources Grafana (Prometheus + Loki)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: dani
+data:
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        url: http://prometheus-svc.dani.svc.cluster.local:9090
+        isDefault: true
+
+      - name: Loki
+        type: loki
+        url: http://loki-svc.dani.svc.cluster.local:3100
+
+---
+# Deployment Grafana
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: dani
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      containers:
+        - name: grafana
+          image: grafana/grafana:10.4.0
+          ports:
+            - containerPort: 3000
+          env:
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              value: "admin"   # TODO : remplacer par un Secret K8s
+          volumeMounts:
+            - name: datasources
+              mountPath: /etc/grafana/provisioning/datasources
+            - name: data
+              mountPath: /var/lib/grafana
+      volumes:
+        - name: datasources
+          configMap:
+            name: grafana-datasources
+        - name: data
+          emptyDir: {}   # TODO : remplacer par un PVC si persistance dashboards souhaitée
+
+---
+# Service Grafana
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana-svc
+  namespace: dani
+spec:
+  selector:
+    app: grafana
+  ports:
+    - port: 3000
+      targetPort: 3000
+
+---
+# Ingress Grafana
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grafana-ingress
+  namespace: dani
+spec:
+  rules:
+    - host: grafana.iict-rad.iict-heig-vd.in
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: grafana-svc
+                port:
+                  number: 3000

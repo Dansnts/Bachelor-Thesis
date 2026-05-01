@@ -18,3 +18,6 @@ spec:
     - name: dashboard
       port: 8265
       targetPort: 8265
+    - name: metrics
+      port: 8080
+      targetPort: 8080

@@ -1,0 +1,114 @@
+---
+# ConfigMap : configuration Promtail
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: promtail-config
+  namespace: dani
+data:
+  promtail.yaml: |
+    server:
+      http_listen_port: 9080
+
+    clients:
+      - url: http://loki-svc.dani.svc.cluster.local:3100/loki/api/v1/push
+
+    positions:
+      filename: /tmp/positions.yaml
+
+    scrape_configs:
+      - job_name: kubernetes-pods
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: [dani]
+        relabel_configs:
+          # Garder seulement les pods du namespace dani
+          - source_labels: [__meta_kubernetes_namespace]
+            regex: dani
+            action: keep
+          # Labels utiles pour filtrer dans Grafana
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          - source_labels: [__meta_kubernetes_pod_container_name]
+            target_label: container
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            target_label: app
+
+---
+# ServiceAccount + RBAC (Promtail doit lire les pods via K8s API)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: promtail
+  namespace: dani
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: promtail
+  namespace: dani
+rules:
+  - apiGroups: [""]
+    resources: [services, endpoints, pods]
+    verbs: [get, watch, list]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: promtail
+  namespace: dani
+subjects:
+  - kind: ServiceAccount
+    name: promtail
+    namespace: dani
+roleRef:
+  kind: Role
+  name: promtail
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# DaemonSet Promtail (1 pod par node)
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: promtail
+  namespace: dani
+spec:
+  selector:
+    matchLabels:
+      app: promtail
+  template:
+    metadata:
+      labels:
+        app: promtail
+    spec:
+      serviceAccountName: promtail
+      initContainers:
+        - name: increase-inotify-limits
+          image: busybox
+          command: ['sh', '-c', 'sysctl -w fs.inotify.max_user_watches=524288 && sysctl -w fs.inotify.max_user_instances=512']
+          securityContext:
+            privileged: true
+      containers:
+        - name: promtail
+          image: grafana/promtail:3.0.0
+          args:
+            - "-config.file=/etc/promtail/promtail.yaml"
+          volumeMounts:
+            - name: config
+              mountPath: /etc/promtail
+            - name: pods-logs
+              mountPath: /var/log/pods
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: promtail-config
+        - name: pods-logs
+          hostPath:
+            path: /var/log/pods   # logs des pods sur le node host

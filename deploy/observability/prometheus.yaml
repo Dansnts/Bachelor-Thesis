@@ -1,0 +1,99 @@
+---
+# ConfigMap : scrape config Prometheus
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: dani
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+
+    scrape_configs:
+      # Métriques GPU via DCGM Exporter (DaemonSet installé par GPU Operator)
+      - job_name: dcgm-exporter
+        kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names: [gpu-operator]   # namespace du GPU Operator — à confirmer avec IICT
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_endpoints_name]
+            regex: dcgm-exporter
+            action: keep
+
+      # Métriques Ray head (port 8080 par défaut)
+      - job_name: ray-head
+        static_configs:
+          - targets: ["ray-head-svc.dani.svc.cluster.local:8080"]
+
+---
+# Deployment Prometheus
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: dani
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      containers:
+        - name: prometheus
+          image: prom/prometheus:v2.51.0
+          args:
+            - "--config.file=/etc/prometheus/prometheus.yml"
+            - "--storage.tsdb.retention.time=7d"
+          ports:
+            - containerPort: 9090
+          volumeMounts:
+            - name: config
+              mountPath: /etc/prometheus
+            - name: data
+              mountPath: /prometheus
+      volumes:
+        - name: config
+          configMap:
+            name: prometheus-config
+        - name: data
+          emptyDir: {}   # TODO : remplacer par un PVC Longhorn si persistance souhaitée
+
+---
+# Service Prometheus
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus-svc
+  namespace: dani
+spec:
+  selector:
+    app: prometheus
+  ports:
+    - port: 9090
+      targetPort: 9090
+
+---
+# Ingress Prometheus (dashboard)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: prometheus-ingress
+  namespace: dani
+spec:
+  rules:
+    - host: prometheus.iict-rad.iict-heig-vd.in
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: prometheus-svc
+                port:
+                  number: 9090
