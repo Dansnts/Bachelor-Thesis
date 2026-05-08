@@ -766,3 +766,75 @@ Bertil suggested using classes instead of flat string arrays for labels, to give
   {"name": "roadSign",  "description": "A white or yellow mark, usually rectangular or triangular, marked on roads"}
 ]
 ```
+
+# Week 12
+
+## DCGM Exporter network access
+
+Mehdi created a NetworkPolicy allowing the `dani` namespace to reach DCGM Exporter in the `gpu-operator` namespace. Initial endpoint: `nvidia-dcgm-exporter.gpu-operator.svc.cluster.local:9400`.
+
+Problem: a ClusterIP returns a single pod in round-robin, so Prometheus could only scrape one GPU node. Mehdi created a **headless service** `nvidia-dcgm-exporter-headless.gpu-operator.svc.cluster.local` that exposes all DCGM pod IPs as DNS A records. Prometheus uses `dns_sd_configs` to scrape each node individually.
+
+```yaml
+- job_name: dcgm-exporter
+  dns_sd_configs:
+    - names:
+        - "nvidia-dcgm-exporter-headless.gpu-operator.svc.cluster.local"
+      type: A
+      port: 9400
+```
+
+## GPU monitoring script
+
+`tests/gpu.py` queries the Prometheus API and prints GPU metrics in real time:
+
+```
+=== DCGM_FI_DEV_GPU_UTIL ===
+  iict-suchet   gpu0  NVIDIA L40S    87.0 %
+  iict-chasseron gpu2  NVIDIA L4     45.0 %
+```
+
+Metrics tracked: `DCGM_FI_DEV_GPU_UTIL` (%), `DCGM_FI_DEV_FB_USED` (MB), `DCGM_FI_DEV_POWER_USAGE` (W), `DCGM_FI_DEV_GPU_TEMP` (°C).
+
+Reading: 0% utilisation with VRAM > 0 MB and power > 17 W means the model is loaded in memory and the Ray worker is active but not currently running inference.
+
+## Prometheus and Grafana PVC storage on Longhorn
+
+Added Longhorn PVCs for Prometheus (`50Gi`) and Grafana (`2Gi`) to persist data across pod restarts.
+
+**Issue**: Longhorn scheduled pods on `iict-k8s-node4-rad` by default, but that node has ghost block devices that block ext4 formatting (`mke2fs: device apparently in use`). Fix: `nodeSelector: kubernetes.io/hostname: iict-suchet` on both deployments.
+
+**Grafana permissions**: Grafana runs as user 472; the PVC is mounted without the correct ownership by default. Fix: `securityContext: fsGroup: 472, runAsUser: 472`.
+
+## Alloy replaces Promtail
+
+Promtail is EOL (maintenance-only since 2024). Alloy is its official successor from Grafana.
+
+Migration deployed in `deploy/observability/alloy/`. Advantages:
+
+- `loki.source.kubernetes` reads logs through the K8s API directly, no node filesystem mount needed
+- A single `Deployment` pod instead of a `DaemonSet`
+- No inotify limit issues
+- Configuration in River language (HCL-inspired), components wired together explicitly
+
+```alloy
+discovery.kubernetes "pods" { role = "pod" }
+loki.source.kubernetes "pods" {
+  targets    = discovery.kubernetes.pods.targets
+  forward_to = [loki.write.loki.receiver]
+}
+loki.write "loki" {
+  endpoint { url = "http://loki-svc.dani.svc.cluster.local:3100/loki/api/v1/push" }
+}
+```
+
+## Grafana dashboard
+
+Dashboard `deploy/observability/grafana/dashboard-tb.json` with 7 panels:
+
+![Grafana dashboard](images/dashboard.png)
+
+- **Gauge**: instantaneous GPU utilisation per node (green/orange/red)
+- **Timeseries**: GPU util (%), VRAM (MB), power (W), temperature (°C)
+- **Stat**: running Ray jobs, active Ray actors
+- **Variable** `hostname_filter`: textbox at the top, filters all panels by regex on hostname. Empty = show all. Clicking a gauge auto-fills the filter for that node.
