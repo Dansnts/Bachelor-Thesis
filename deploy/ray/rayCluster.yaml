@@ -4,11 +4,11 @@ metadata:
   name: ray-cluster
   namespace: dani
 spec:
-  rayVersion: '2.54.0'
+  rayVersion: "2.54.0"
 
   headGroupSpec:
     rayStartParams:
-      dashboard-host: '0.0.0.0'
+      dashboard-host: "0.0.0.0"
     template:
       spec:
         imagePullSecrets:
@@ -18,15 +18,15 @@ spec:
             image: ghcr.io/nearai-interreg/ray-sam3:latest
             imagePullPolicy: Always
             ports:
-              - containerPort: 6379   # Ray GCS
-              - containerPort: 8265   # Dashboard
-              - containerPort: 10001  # Ray client
+              - containerPort: 6379 # Ray GCS
+              - containerPort: 8265 # Dashboard
+              - containerPort: 10001 # Ray client
             resources:
               limits:
-                cpu: '2'
+                cpu: "2"
                 memory: 4Gi
               requests:
-                cpu: '2'
+                cpu: "2"
                 memory: 4Gi
 
   workerGroupSpecs:
@@ -45,10 +45,6 @@ spec:
                         operator: In
                         values:
                           - "true"
-                      - key: kubernetes.io/hostname
-                        operator: NotIn
-                        values:
-                          - iict-chasseron
               preferredDuringSchedulingIgnoredDuringExecution:
                 - weight: 100
                   preference:
@@ -64,6 +60,13 @@ spec:
                         operator: In
                         values:
                           - NVIDIA-A40
+                - weight: 10
+                  preference:
+                    matchExpressions:
+                      - key: nvidia.com/gpu.product
+                        operator: In
+                        values:
+                          - NVIDIA-L4
           imagePullSecrets:
             - name: ghcr-secret
           containers:
@@ -90,10 +93,10 @@ spec:
                   value: https://storage-kubernetes.iict-heig-vd.in:9000
               resources:
                 limits:
-                  nvidia.com/gpu: '1'
-                  cpu: '8'
+                  nvidia.com/gpu: "1"
+                  cpu: "8"
                   memory: 32Gi
                 requests:
-                  nvidia.com/gpu: '1'
-                  cpu: '4'
+                  nvidia.com/gpu: "1"
+                  cpu: "4"
                   memory: 16Gi
