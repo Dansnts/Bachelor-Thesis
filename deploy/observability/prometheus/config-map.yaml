@@ -1,0 +1,25 @@
+# ConfigMap : scrape config Prometheus
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: dani
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+
+    scrape_configs:
+      # Métriques GPU via DCGM Exporter (headless service — tous les nœuds via DNS A records)
+      - job_name: dcgm-exporter
+        dns_sd_configs:
+          - names:
+              - "nvidia-dcgm-exporter-headless.gpu-operator.svc.cluster.local"
+            type: A
+            port: 9400
+        metrics_path: /metrics
+
+      # Métriques Ray head (port 8080 par défaut)
+      - job_name: ray-head
+        static_configs:
+          - targets: ["ray-head-svc.dani.svc.cluster.local:8080"]

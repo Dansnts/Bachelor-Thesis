@@ -1,0 +1,37 @@
+# ConfigMap : configuration Promtail
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: promtail-config
+  namespace: dani
+data:
+  promtail.yaml: |
+    server:
+      http_listen_port: 9080
+
+    clients:
+      - url: http://loki-svc.dani.svc.cluster.local:3100/loki/api/v1/push
+
+    positions:
+      filename: /tmp/positions.yaml
+
+    scrape_configs:
+      - job_name: kubernetes-pods
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: [dani]
+        relabel_configs:
+          # Garder seulement les pods du namespace dani
+          - source_labels: [__meta_kubernetes_namespace]
+            regex: dani
+            action: keep
+          # Labels utiles pour filtrer dans Grafana
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          - source_labels: [__meta_kubernetes_pod_container_name]
+            target_label: container
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            target_label: app

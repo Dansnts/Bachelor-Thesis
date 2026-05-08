@@ -1,0 +1,18 @@
+# ConfigMap : datasources Grafana (Prometheus + Loki)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: dani
+data:
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        url: http://prometheus-svc.dani.svc.cluster.local:9090
+        isDefault: true
+
+      - name: Loki
+        type: loki
+        url: http://loki-svc.dani.svc.cluster.local:3100

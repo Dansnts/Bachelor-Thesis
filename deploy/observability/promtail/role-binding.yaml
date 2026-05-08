@@ -1,0 +1,13 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: promtail
+  namespace: dani
+subjects:
+  - kind: ServiceAccount
+    name: promtail
+    namespace: dani
+roleRef:
+  kind: Role
+  name: promtail
+  apiGroup: rbac.authorization.k8s.io

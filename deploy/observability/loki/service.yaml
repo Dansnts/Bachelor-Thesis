@@ -1,0 +1,12 @@
+# Service Loki (utilisé par Promtail et Grafana)
+apiVersion: v1
+kind: Service
+metadata:
+  name: loki-svc
+  namespace: dani
+spec:
+  selector:
+    app: loki
+  ports:
+    - port: 3100
+      targetPort: 3100
