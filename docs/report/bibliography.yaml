@@ -81,3 +81,31 @@ loki:
   author: "Grafana Labs"
   date: 2024
   url: https://grafana.com/docs/loki/latest/
+
+alloy:
+  type: Web
+  title: "Grafana Alloy: OpenTelemetry Collector"
+  author: "Grafana Labs"
+  date: 2024
+  url: https://grafana.com/docs/alloy/latest/
+
+anyscale-spark:
+  type: Web
+  title: "Ray Data vs Apache Spark: A Benchmark Comparison"
+  author: "Anyscale"
+  date: 2023
+  url: https://www.anyscale.com/blog/ray-data-vs-apache-spark
+
+daft-benchmark:
+  type: Web
+  title: "Distributed ML Data Processing Benchmarks: Daft, Ray Data, Spark, and Modin"
+  author: "Eventual Inc."
+  date: 2023
+  url: https://blog.getdaft.io/p/distributed-ml-data-processing-benchmarks
+
+amazon-ray:
+  type: Web
+  title: "How Amazon Migrated 1.5 Exabytes from Apache Spark to Ray"
+  author: ["Rahul Pandey", "Bo Xiong", "Anyscale"]
+  date: 2024
+  url: https://www.anyscale.com/blog/how-amazon-business-migrated-from-apache-spark-to-ray

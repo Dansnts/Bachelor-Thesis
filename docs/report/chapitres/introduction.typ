@@ -10,10 +10,11 @@ Annoter manuellement ce volume n'est pas faisable, un annotateur humain habile e
 
 Plusieures classes d'objets sont ciblées, comme par exemple, les panneaux de signalisation (`sign`) ou encore les marquages au sol (`road_marking`). Pour chaque image, le pipeline doit produire un ensemble de polygones identifiant ces objets, avec, leur classe, leur score de confiance, leurs coordonnées GPS et leurs dimensions normalisées.
 
-Ces polygones transitent ensuite vers Label Studio (ou toute autre plateforme de traitement d'image comme celle dévelopée par mon collègue Valentin Ricard), où, des annotateurs humains corrigent et valident les prédictions.
+Ces polygones transitent ensuite vers une plateforme de traitement d'image, où, des annotateurs humains corrigent et valident les prédictions.
 
-Chaque image à 8 192 x 4 096 pixels dépasse la fenêtre d'entrée de tout modèle de segmentation courant. Il faut donc découper l'image en tuiles avant l'inférence. Ensuite, traiter 300'000 images en un délai raisonnable impose de distribuer le calcul sur plusieurs GPUs en parallèle.
+Chaque image à 8'192 x 4'096 pixels dépasse la fenêtre d'entrée de tout modèle de segmentation courant. Il faut donc découper l'image en tuiles avant l'inférence. Ensuite, traiter 300'000 images en un délai raisonnable impose de distribuer le calcul sur plusieurs GPUs en parallèle.
 
+#pagebreak()
 == Objectifs
 
 === Traitement des images
@@ -34,4 +35,3 @@ Une API servira de porte d'accès aux développeurs ou utilisteurs du service po
 === Annalyse de la pipeline
 
 La pipeline sera annaylable au niveau de ses performances et état via un dashboards alimenté de métriques, logs et traces.
-

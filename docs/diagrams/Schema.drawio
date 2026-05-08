@@ -1,6 +1,6 @@
 <mxfile host="Electron" agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/29.6.6 Chrome/144.0.7559.236 Electron/40.8.4 Safari/537.36" pages="3">
   <diagram name="Kubernetes" id="beZfxf12aWHIaFTFD_Tw">
-    <mxGraphModel dx="1797" dy="1052" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="800" background="#ffffff" math="0" shadow="0">
+    <mxGraphModel dx="1437" dy="1116" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1050" pageHeight="700" background="#ffffff" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -516,7 +516,7 @@
     </mxGraphModel>
   </diagram>
   <diagram id="jBHKxsflVtCNjGL-3Z-z" name="Observability">
-    <mxGraphModel dx="2515" dy="1953" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1169" background="#ffffff" math="0" shadow="0">
+    <mxGraphModel dx="2236" dy="1736" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1169" background="#ffffff" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -634,7 +634,7 @@
         <mxCell id="IssqfOVraqhIr2DN6Hqd-18" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="&lt;font style=&quot;color: rgb(0, 0, 0); font-size: 29px;&quot;&gt;Loki&lt;/font&gt;" vertex="1">
           <mxGeometry height="59" width="131" x="1032" y="738" as="geometry" />
         </mxCell>
-        <mxCell id="IssqfOVraqhIr2DN6Hqd-19" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="&lt;font style=&quot;color: rgb(0, 0, 0); font-size: 29px;&quot;&gt;Promtail&lt;/font&gt;" vertex="1">
+        <mxCell id="IssqfOVraqhIr2DN6Hqd-19" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="&lt;font style=&quot;color: rgb(0, 0, 0); font-size: 29px;&quot;&gt;Alloy&lt;/font&gt;" vertex="1">
           <mxGeometry height="59" width="131" x="730" y="553" as="geometry" />
         </mxCell>
         <mxCell id="IssqfOVraqhIr2DN6Hqd-20" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="&lt;font style=&quot;color: rgb(0, 0, 0); font-size: 29px;&quot;&gt;Prometheus&lt;/font&gt;" vertex="1">
