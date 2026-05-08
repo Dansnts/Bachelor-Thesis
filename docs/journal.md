@@ -1,4 +1,5 @@
 # Week 1
+*Vendredi 20 février 2026*
 
 | Task              | Status | Time |
 | :---------------- | :------: | ----: |
@@ -12,6 +13,7 @@
 ---
 
 # Week 2
+*Vendredi 27 février 2026*
 
 | Task              | Status | Time |
 | :---------------- | :------: | ----: |
@@ -27,6 +29,7 @@
 ---
 
 # Week 3
+*Vendredi 6 mars 2026*
 
 | Task              | Status | Time |
 | :---------------- | :------: | ----: |
@@ -53,6 +56,7 @@
 ---
 
 # Week 4
+*Vendredi 13 mars 2026*
 
 | Task              | Status | Time |
 | :---------------- | :------: | ----: |
@@ -75,6 +79,7 @@
 ---
 
 # Week 5
+*Vendredi 20 mars 2026*
 
 | Task              | Status | Time |
 | :---------------- | :------: | ----: |
@@ -97,6 +102,7 @@
 ---
 
 # Week 6
+*Vendredi 27 mars 2026*
 
 | Task              | Status | Time |
 | :---------------- | :------: | ----: |
@@ -109,6 +115,7 @@
 ---
 
 # Week 7
+*Vendredi 3 avril 2026*
 
 | Task              | Status | Time |
 | :---------------- | :------: | ----: |
@@ -124,6 +131,7 @@
 ---
 
 # Week 8
+*Vendredi 10 avril 2026*
 
 | Task              | Status | Time |
 | :---------------- | :------: | ----: |
@@ -133,6 +141,7 @@
 ---
 
 # Week 9
+*Vendredi 17 avril 2026*
 
 | Task              | Status | Time |
 | :---------------- | :------: | ----: |
@@ -151,6 +160,7 @@
 ---
 
 # Week 10
+*Vendredi 24 avril 2026*
 
 | Task              | Status | Time |
 | :---------------- | :------: | ----: |
@@ -176,6 +186,7 @@
 ---
 
 # Week 11
+*Vendredi 1 mai 2026*
 
 | Task              | Status | Time |
 | :---------------- | :------: | ----: |
@@ -196,3 +207,35 @@
 | Update notes.md : Week 11 full write-up (observability stack, pipeline run, timing bug, dynamic queue) | Done | 20min |
 | Design API label classes : class objects with name+description instead of flat string arrays | Done | 20min |
 | **Total** |    | 13h35 |
+
+
+---
+
+# Week 12
+
+*Mercredi 6 mai 2026*
+
+| Task              | Status | Time |
+| :---------------- | :------: | ----: |
+| Fix DCGM Exporter multi-node scraping : migrate Prometheus config from `static_configs` (ClusterIP round-robin) to `dns_sd_configs` (headless service, resolves all pod IPs) | Done | 33min |
+| Create `tests/gpu.py` : query Prometheus for 4 DCGM metrics (util %, VRAM MB, power W, temp °C) with aligned formatted output | Done | 1h |
+
+*Vendredi 8 mai 2026*
+
+| Task              | Status | Time |
+| :---------------- | :------: | ----: |
+| Debug Grafana PVC mount failure on Longhorn : ghost block device on node4 -> force `nodeSelector: iict-suchet`, add `securityContext fsGroup: 472 runAsUser: 472` | Done | 1h20 |
+| Fix Prometheus PVC mount : add `securityContext fsGroup: 65534 runAsUser: 65534` and `nodeSelector: iict-suchet` | Done | 30min |
+| Migrate Promtail (EOL) -> Grafana Alloy : write River config (`loki.source.kubernetes`), Deployment, RBAC (ServiceAccount, Role, RoleBinding), debug CLI positional arg | Done | 2h |
+| Accept L4 GPUs in RayCluster : remove `NotIn iict-chasseron` from `requiredDuringScheduling` nodeAffinity, delete worker pods to force recreation | Done | 30min |
+| Build Grafana GPU monitoring dashboard : `hostname_filter` textbox variable, regex filter `{Hostname=~".*${hostname_filter}.*"}`, data links on gauge panel | Done | 1h55 |
+| Research project uniqueness : confirm no public project combines SAM3 + Ray/KubeRay + equirectangular panoramic images + Label Studio + Parquet/GPS at this scale | Done | 30min |
+| Report Alloy section : River config example, advantages vs Promtail (single Deployment, no inotify) | Done | 30min |
+| Read articles about Spark and Alloy | Done | 1h40 |
+| Report Spark vs Ray : 3 structural Spark limitations (CPU heritage, homogeneous clusters, ML performance), Amazon 2024 migration ($120M/year, 82% efficiency gain) | Done | 45min |
+| Report data parallelism vs model parallelism : justify SAM3 Actor strategy (2.4 GB VRAM fits on 1 GPU, throughput goal over 300k images) | Done | 20min |
+| Create architecture diagrams with fletcher (pipeline overview, RayCluster, observability stack) : debug fletcher 0.5.3 -> 0.5.7 upgrade for Typst 0.14.2 compatibility, add colors | Done | 1h30 |
+| Add bibliography entries : `anyscale-spark`, `daft-benchmark`, `amazon-ray` | Done | 13min |
+| Update glossary : 22 new terms (Alloy, River, ViT, SA-1B, VRAM, OOM, data/model parallelism, tuile, équirectangulaire, RayCluster, Head Node, DaemonSet, Deployment, Headless Service, NodeAffinity, TSDB, PromQL, LogQL, Snappy, inotify, Spark, ETL) | Done | 36min |
+| Update notes.md : Week 12 write-up | Done | 38min |
+| **Total** |    | 14h30 |
