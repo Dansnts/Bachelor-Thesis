@@ -4,7 +4,7 @@
 
 == Vue d'ensemble
 
-Le pipeline suit un flux linéaire en cinq étapes :
+La pipeline suit un flux linéaire en cinq étapes :
 
 + *Lecture* : le driver liste les objets du préfixe S3 d'entrée et distribue les clés d'image aux workers Ray.
 + *Téléchargement* : chaque worker télécharge l'image depuis MinIO et extrait les coordonnées GPS de l'EXIF.
@@ -12,7 +12,6 @@ Le pipeline suit un flux linéaire en cinq étapes :
 + *Agrégation* : les masques produits sont convertis en polygones, normalisés en pourcentage des dimensions de l'image originale, filtrés par score de confiance.
 + *Écriture* : les polygones sont sérialisés dans un fichier Parquet et envoyés sur MinIO.
 
-// Palette moderne
 #let col-blue = rgb("#2563EB")
 #let col-violet = rgb("#7C3AED")
 #let col-cyan = rgb("#0891B2")
@@ -26,6 +25,9 @@ Le pipeline suit un flux linéaire en cinq étapes :
 
 #let wt(it) = text(fill: white, it)
 #let e-stroke = 1.2pt + rgb("#94A3B8")
+
+
+#linebreak()
 
 #figure(
   diagram(
@@ -42,12 +44,13 @@ Le pipeline suit un flux linéaire en cinq étapes :
     edge(<workers>, <s3out>, "->"),
     edge(<s3out>, <ls>, "->"),
   ),
-  caption: [Vue d'ensemble du pipeline],
+  caption: [Vue d'ensemble de la pipeline],
 ) <fig-pipeline-overview>
+
 
 == Infrastructure Kubernetes
 
-Le pipeline s'exécute sur le cluster `iict-rad` de la HEIG-VD (Kubernetes 1.33.9). Le cluster expose 9 GPUs répartis sur trois nœuds :
+La pipeline s'exécute sur le cluster `iict-rad` de la HEIG-VD (Kubernetes 1.33.9) @k8s-heig. Le cluster expose 9 GPUs répartis sur trois nœuds :
 
 #figure(
   table(
@@ -61,21 +64,39 @@ Le pipeline s'exécute sur le cluster `iict-rad` de la HEIG-VD (Kubernetes 1.33.
 ) <tab-gpus>
 
 
+Le cluster suit l'architecture Kubernetes standard : un control plane gère l'état du cluster (API server, scheduler, etcd) et trois nœuds workers hébergent les pods.
+Par défaut, les pods sont schedulés sur n'importe quel nœud disponible.
+
+Deux exceptions s'appliquent dans ce projet :
+- les workers Ray ciblent les nœuds L40S (noeud `iict-suchet`) et A40 (noeud `iict-k8s-node4-rad`) via `nodeAffinity`#footnote[Règle de scheduling Kubernetes contraignant ou préférant certains nœuds pour un pod, basée sur les labels des nœuds.]
+- les pods Prometheus et Grafana sont épinglés sur `iict-suchet` via `nodeSelector` en raison de volumes Longhorn défectueux sur `iict-k8s-node4-rad`.
+
 #figure(
-  image("../images/Schema-Kubernetes.png", width: 80%),
+  image("../images/Schema-Kubernetes.jpg", width: 85%),
   caption: [
-    Les différentes ressources k8s sont distribuables sur n'importe quel noeud, à l'exception des workers qui visent des noeuds avec GPU.
+    Les ressources K8s sont distribuables sur n'importe quel nœud ; seuls les workers Ray ciblent les nœuds GPU via nodeAffinity.
   ],
 ) <Schema-Kubernets>
-Les workers Ray ciblent exclusivement les nœuds L40S et A40 via `nodeAffinity`. Le nœud `iict-chasseron` est exclu pour deux raisons :
-- ses L4 offrent une puissance de calcul inférieure (23 GB VRAM vs 46 GB)
-- et il portait un taint `node.kubernetes.io/disk-pressure` lors des tests.
 
-Ce taint, appliqué automatiquement par Kubernetes quand l'usage disque franchit un seuil, expose les pods à des évictions SIGTERM sans préavis.
+Le nœud `iict-chasseron` est exclu pour deux raisons :
+- ses L4 offrent une puissance de calcul inférieure (23 GB VRAM vs 46 GB)
+- il portait un taint `node.kubernetes.io/disk-pressure` lors des tests, exposant les pods à des évictions SIGTERM#footnote[Signal Unix de terminaison propre envoyé par Kubernetes à un pod avant de le supprimer. Le processus a un délai pour s'arrêter proprement.] sans préavis.
+
+Ce taint est appliqué automatiquement par Kubernetes quand l'usage disque franchit un seuil configuré sur le nœud.
 
 Le GPU Operator NVIDIA est installé sur le cluster. Il installe automatiquement les drivers GPU, le device plugin et DCGM Exporter sur chaque nœud. Les requêtes de ressource `nvidia.com/gpu` fonctionnent sans configuration manuelle.
 
 == RayCluster
+
+La pipeline repose sur deux modes d'exécution distincts, tous deux pilotés par un driver externe au cluster.
+
+Le *Batch Job Driver* soumet une liste d'images S3 au cluster, crée un pool d'Actors GPU via `ray.remote`, distribue les clés d'image aux workers disponibles et attend les résultats avec `ray.get()`. Chaque résultat est écrit en Parquet sur MinIO.
+
+Le *Solo Job Driver* soumet une seule image et attend la réponse de façon synchrone. Le résultat est retourné en JSON, compatible avec l'import direct dans Label Studio.
+
+Les deux modes partagent le même *Ray Control Plane*, hébergé sur le Head Node : le *Global Control Store* (GCS) maintient l'état global du cluster (Actors actifs, tâches en attente, état des workers) et le *Raylet* tourne sur chaque nœud pour scheduler localement les tâches que le GCS lui assigne.
+
+Chaque worker process héberge un Actor SAM3 avec son propre *Plasma Object Store*#footnote[Permet un échange de données à copie zéro (zero-copy data exchange) à très haute vitesse entre plusieurs processus s'exécutant sur une même machine.] local, évitant ainsi la sérialisation#footnote[Sérialisation : conversion d'un objet en mémoire (tenseur, tableau NumPy) en une séquence d'octets transmissible sur le réseau.] et la désérialisation#footnote[Désérialisation : reconstruction de l'objet original depuis la séquence d'octets reçue. Ces deux opérations sont coûteuses en CPU et en latence.]. Les objets volumineux (poids du modèle, données image, résultats) transitent via cet object store partagé en mémoire plutôt que par sérialisation réseau, ce qui évite les copies inutiles entre le driver et les workers.
 
 #figure(
   diagram(
@@ -101,12 +122,64 @@ Le GPU Operator NVIDIA est installé sur le cluster. Il installe automatiquement
   caption: [Architecture du RayCluster sur iict-rad],
 ) <fig-raycluster>
 
+
+#figure(
+  image("../images/Schema-Ray.jpg", width: 100%),
+  caption: [
+    Le driver soumet les tâches au Ray Control Plane (GCS + Raylet) puis, chaque worker process héberge les Actors avec leur Plasma Object Store local, ainsi, les résultats sont écrits sur MinIO via Boto3.
+  ],
+) <Schema-Ray>
+
+Le RayCluster est déclaré via la ressource CRD `ray.io/v1alpha1/RayCluster`. KubeRay crée automatiquement les pods head et workers, les Services associés (GCS [:6379], dashboard [:8265], client [:10001]) et gère leur cycle de vie.
+
+Le driver s'exécute à l'extérieur du cluster en tant que Job Kubernetes sans GPU. Il se connecte au head via `ray.init("ray://ray-head-svc:10001")` et soumet les tâches au GCS. Les workers ne sont jamais contactés directement : Ray dispatche les tâches via le GCS.
+
+#pagebreak()
+=== nodeAffinity
+
+Les workers Ray doivent s'exécuter sur des nœuds GPU. La configuration `nodeAffinity` du groupe de workers restreint le scheduling aux nœuds `iict-suchet` (L40S) et `iict-k8s-node4-rad` (A40) :
+
+```yaml
+nodeAffinity:
+  requiredDuringSchedulingIgnoredDuringExecution:
+    nodeSelectorTerms:
+      - matchExpressions:
+          - key: kubernetes.io/hostname
+            operator: In
+            values:
+              - iict-suchet
+              - iict-k8s-node4-rad
+```
+
 === Injection des credentials
+
+Les workers Ray s'exécutent dans des pods séparés et n'héritent pas des variables d'environnement du driver. Les credentials MinIO (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `S3_ENDPOINT_URL`) et le token HuggingFace (`HF_TOKEN`) doivent être déclarés explicitement dans le `workerGroupSpec` via des références à un Secret Kubernetes :
+
+```yaml
+env:
+  - name: AWS_ACCESS_KEY_ID
+    valueFrom:
+      secretKeyRef:
+        name: minio-secret
+        key: access-key
+  - name: HF_TOKEN
+    valueFrom:
+      secretKeyRef:
+        name: hf-secret
+        key: token
+```
+
+Sans cette configuration, chaque appel S3 depuis un Actor échoue avec `NoCredentialsError` et le premier démarrage du worker tente de télécharger les poids SAM3 (3,3 GB) sans authentification.
 
 == Cache du modèle SAM3
 
+=== PVC Longhorn
+
 == Stratégie de tuilage
 
+=== Downsampling
+
+=== Tuilage 512 × 512
 
 == Format de sortie Parquet
 
@@ -126,12 +199,18 @@ Chaque image produit un fichier Parquet nommé `<acquisition_id>/<image_stem>.pa
     [`latitude`], [`float64`], [Latitude GPS en degrés décimaux (null si absent)],
     [`longitude`], [`float64`], [Longitude GPS en degrés décimaux (null si absent)],
   ),
-  caption: [Schéma Parquet de sortie du pipeline],
+  caption: [Schéma Parquet de sortie de la pipeline],
 ) <tab-parquet-schema>
 
-La compression Snappy est appliquée. Les fichiers sont interrogeables directement depuis DuckDB ou PyArrow sans étape de chargement en base de données.
+La compression Snappy#footnote[Algorithme de compression rapide utilisé par Parquet. Prioritise la vitesse de décompression sur le taux de compression.] est appliquée. Les fichiers sont interrogeables directement depuis DuckDB ou PyArrow sans étape de chargement en base de données.
 
 == Intégration Label Studio
+
+=== Configuration S3
+
+=== Interface de labeling
+
+=== Pré-annotations
 
 Label Studio est connecté à MinIO comme _source storage_ S3. Les URLs `s3://nearai/...` sont converties en URLs HTTP temporaires pré-signées, servies directement du stockage au navigateur sans proxy.
 
@@ -143,6 +222,7 @@ L'interface de labeling XML définit deux classes :
   <PolygonLabels name="label" toName="image">
     <Label value="sign" background="#FF0000"/>
     <Label value="road_marking" background="#FFFF00"/>
+    <!-- <Label value="value" background="#XXXXXX"/>  Add new pre-annotation -->
   </PolygonLabels>
 </View>
 ```
@@ -157,3 +237,11 @@ Les pré-annotations importées doivent utiliser `from_name: "label"` et `to_nam
     Prometheus récolte les métriques tandis que Loki s'occupe des logs afin d'allimenter Grafana.
   ],
 ) <Schema-Observability>
+
+=== Prometheus
+
+=== Loki et Alloy
+
+=== Grafana
+
+=== DCGM
