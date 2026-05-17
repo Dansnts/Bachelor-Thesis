@@ -18,6 +18,7 @@
     [17.04.2026], [Semaine 9 — Reprise projet, diagramme architecture, debug RayCluster, étude Parquet], [5.5], [1], [1.5], [2],
     [24.04.2026], [Semaine 10 — Pipeline E2E : Parquet, GPS EXIF, Label Studio, run cluster 40 images, première rédaction rapport], [2], [8], [2.5], [0],
     [01.05.2026], [Semaine 11 — Stack observabilité déployée (Prometheus, Loki, Promtail, Grafana), run 2000 images, pipeline dynamic], [1.5], [6.5], [1], [0],
+    [11.05.2026], [Semaine 12 — Rapport : DCGM, RayCluster, Kubernetes, Alloy, footnotes, squelette résultats, warning box, Zotero ; lecture Kubernetes/Docker Up and Running + articles (jours fériés)], [7], [2], [18], [1],
 
   )],
   caption: [Journal de travail],
