@@ -1,17 +1,3 @@
-ajop15:
-  type: Book
-  title: Sécurité informatique, cours et exercices corrigés
-  author: ["Gildas Avoine", "Pascal Junod", "Philippe Oechslin", "and Sylvain Pasini"]
-  date: 2015
-  publisher:
-    name: Vuibert
-
-pas19:
-  type: Web
-  title: Black Alps 2019
-  author: Sylvain Pasini
-  url: https://www.blackalps.ch/ba-19/
-
 sam3:
   type: Article
   title: "SAM 2: Segment Anything in Images and Videos"
@@ -109,3 +95,36 @@ amazon-ray:
   author: ["Rahul Pandey", "Bo Xiong", "Anyscale"]
   date: 2024
   url: https://www.anyscale.com/blog/how-amazon-business-migrated-from-apache-spark-to-ray
+
+dcgm:
+  type: Web
+  title: "NVIDIA DCGM Documentation"
+  author: "NVIDIA Corporation"
+  date: 2024
+  url: https://docs.nvidia.com/datacenter/dcgm/latest/user-guide/index.html
+
+mps:
+  type: Web
+  title: "NVIDIA Multi-Process Service Architecture"
+  author: "NVIDIA Corporation"
+  date: 2024
+  url: https://docs.nvidia.com/deploy/mps/architecture.html
+
+loki-storage:
+  type: Web
+  title: "Manage storage | Grafana Loki documentation"
+  author: "Grafana Labs"
+  date: 2024
+  url: https://grafana.com/docs/loki/latest/operations/storage/
+
+k8s-heig:
+  type: Web
+  title: "Kubernetes Documentation — IICT HEIG-VD"
+  author: "IICT HEIG-VD"
+  date: 2024
+  url: https://wiki.iict-heig-vd.in/en/iict/k8s-user-doc
+
+parquet-query:
+  type: Article
+  title: "Efficient Query Processing with Parquet"
+  author: "Alice Rey"
