@@ -81,7 +81,7 @@
   },
   margin: (
     top: 150pt,
-    bottom: 150pt,
+    bottom: 80pt,
     x: 1in,
   ),
 )
@@ -93,6 +93,7 @@
 #set table.cell(breakable: false)
 #show figure: set block(breakable: true)
 #show link: underline
+#set footnote.entry(gap: 0.3em, clearance: 0.5em, indent: 0.5em)
 
 #show raw.where(block: true): block.with(
   fill: luma(240),
@@ -140,7 +141,7 @@
         [*#config.information.author.name*],
 
         [], [],
-        [*#if config.information.supervisor.feminine_form { "Superviseur" } else { "Superviseure" }*],
+        [*#if config.information.supervisor.feminine_form { "Superviseure" } else { "Superviseur" }*],
         [#config.information.supervisor.name],
 
         [], [],
@@ -263,7 +264,7 @@ Toute utilisation, même partielle, de ce TB doit être faite dans le respect du
         [*#config.information.author.name*],
 
         [], [],
-        [*#if config.information.supervisor.feminine_form { "Superviseur" } else { "Superviseure" }*],
+        [*#if config.information.supervisor.feminine_form { "Superviseure" } else { "Superviseur" }*],
         [#config.information.supervisor.name],
 
         [], [],
@@ -313,7 +314,7 @@ Toute utilisation, même partielle, de ce TB doit être faite dans le respect du
 // #include "chapitres/planification.typ"
 #include "chapitres/etat-de-lart.typ"
 #include "chapitres/architecture.typ"
-//#include "chapitres/implementation.typ"
+#include "chapitres/implementation.typ"
 #include "chapitres/resultats.typ"
 #include "chapitres/conclusion.typ"
 
@@ -333,7 +334,7 @@ Toute utilisation, même partielle, de ce TB doit être faite dans le respect du
 */
 
 #if config.bibliography.content != none {
-  bibliography(config.bibliography.content, style: config.bibliography.style)
+  bibliography(config.bibliography.content, style: config.bibliography.style, full: true)
 }
 
 /*

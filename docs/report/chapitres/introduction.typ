@@ -8,7 +8,7 @@ Annoter manuellement ce volume n'est pas faisable, un annotateur humain habile e
 
 == Problème
 
-Plusieures classes d'objets sont ciblées, comme par exemple, les panneaux de signalisation (`sign`) ou encore les marquages au sol (`road_marking`). Pour chaque image, le pipeline doit produire un ensemble de polygones identifiant ces objets, avec, leur classe, leur score de confiance, leurs coordonnées GPS et leurs dimensions normalisées.
+Plusieures classes d'objets sont ciblées, comme par exemple, les panneaux de signalisation (`sign`) ou encore les marquages au sol (`road_marking`). Pour chaque image, la pipeline doit produire un ensemble de polygones identifiant ces objets, avec, leur classe, leur score de confiance, leurs coordonnées GPS et leurs dimensions normalisées.
 
 Ces polygones transitent ensuite vers une plateforme de traitement d'image, où, des annotateurs humains corrigent et valident les prédictions.
 
@@ -18,7 +18,7 @@ Chaque image à 8'192 x 4'096 pixels dépasse la fenêtre d'entrée de tout mod�
 == Objectifs
 
 === Traitement des images
-Ce travail conçoit et déploie un pipeline distribué couvrant les étapes suivantes :
+Ce travail conçoit et déploie une pipeline distribuée couvrant les étapes suivantes :
 
 + Lecture des images depuis le bucket S3.
 + Découpage en tuiles 512 x 512 pixels et inférence sur chaque tuile.
@@ -32,6 +32,6 @@ Tout cela s'exécute sur le cluster Kubernetes de la HEIG-VD via le framework Ra
 
 Une API servira de porte d'accès aux développeurs ou utilisteurs du service pour faciliter l'accès aux services batch ou on-demand.
 
-=== Annalyse de la pipeline
+=== Analyse de la pipeline
 
-La pipeline sera annaylable au niveau de ses performances et état via un dashboards alimenté de métriques, logs et traces.
+La pipeline sera analysable au niveau de ses performances et état via un dashboard alimenté de métriques, logs et traces.
