@@ -239,3 +239,40 @@
 | Update glossary : 22 new terms (Alloy, River, ViT, SA-1B, VRAM, OOM, data/model parallelism, tuile, équirectangulaire, RayCluster, Head Node, DaemonSet, Deployment, Headless Service, NodeAffinity, TSDB, PromQL, LogQL, Snappy, inotify, Spark, ETL) | Done | 36min |
 | Update notes.md : Week 12 write-up | Done | 38min |
 | **Total** |    | 14h30 |
+
+# Week 13
+
+*Jeudi 14 mai 2026 & Vendredi 15 mai 2026*
+
+| Task              | Status | Time |
+| :---------------- | :------: | ----: |
+| Read Kubernetes Up and Running (O'Reilly) : architecture K8s, Pods, Services, Volumes, Deployments, RBAC | Done | 3h30 |
+| Read Docker Up and Running (O'Reilly) : images, layers, multi-stage builds, registry, best practices | Done | 2h30 |
+| Read articles : Alloy vs Promtail migration, Loki label-based indexing, Parquet columnar format internals | Done | 2h |
+| **Subtotal** |    | 8h |
+
+---
+
+*Dimanche 17 mai 2026*
+
+| Task              | Status | Time |
+| :---------------- | :------: | ----: |
+| Create `docs/report/bibliography.bib` for Zotero : convert all 16 sources from bibliography.yaml to BibTeX | Done | 45min |
+| Complete DCGM section in état de l'art : DaemonSet per GPU node, 4 metrics table (util%, VRAM MB, power W, temp °C), headless service scraping | Done | 2h |
+| Complete "cycle de vie d'un log" in état de l'art : 4-step pipeline (stdout → Alloy → Loki → MinIO) + Fletcher diagram | Done | 1h30 |
+| Add Elasticsearch exclusion paragraph in état de l'art : inverted index overhead, 3-node minimum HA, mismatch with log use case | Done | 30min |
+| Add Parquet columnar format explanation text after parquetFormat.png figure | Done | 20min |
+| Add footnotes in état de l'art at first occurrence  | Done | 2h |
+| Fix 10 typos in état de l'art (stockées, permettant, visualisations, nœuds, statut, horaire, filtrant, DaemonSet, etc.) | Done | 20min |
+| Complete Infrastructure Kubernetes section in architecture : control plane + 3 worker nodes, two scheduling exceptions (Ray nodeAffinity + Prometheus/Grafana nodeSelector) | Done | 1h |
+| Complete RayCluster section in architecture : Batch/Solo drivers, Control Plane (GCS + Raylet), Plasma Object Store, nodeAffinity YAML, credentials injection YAML | Done | 2h |
+| Add footnotes in architecture : nodeAffinity, SIGTERM, Snappy, Plasma Object Store, sérialisation, désérialisation | Done | 55min |
+| Add more footnotes in implementation  | Done | 1h |
+| Fix Promtail --> Alloy in implementation | Done | 25min |
+| Add skeleton to résultats chapter : 5 sections + subsections (throughput, segmentation quality, resource utilization, Label Studio, API) | Done | 30min |
+| Fix footnote entry spacing and bottom page margin in tb_rapport.typ | Done | 30min |
+| Style rapport intermédiaire notice as amber warning block in config.typ | Done | 20min |
+| Update journal de travail table | Done | 10min |
+| Git commit | Done | 15min |
+| **Subtotal** |    | 14h30 |
+| **Total** |    | **22h30** |
