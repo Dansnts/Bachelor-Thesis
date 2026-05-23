@@ -1,6 +1,9 @@
 = Architecture <architecture>
 
+#import "@preview/codly:1.3.0": *
+#import "@preview/codly-languages:0.1.1": *
 #import "@preview/fletcher:0.5.7" as fletcher: diagram, edge, node
+#show: codly-init.with()
 
 == Vue d'ensemble
 
@@ -231,17 +234,66 @@ Les pré-annotations importées doivent utiliser `from_name: "label"` et `to_nam
 
 == Observabilité
 
+La stack d'observabilité collecte deux flux distincts : les métriques GPU et Ray via Prometheus, et les logs des pods via Alloy et Loki. Grafana agrège les deux sources dans un dashboard unique.
+
 #figure(
   image("../images/Schema-Observability.png", width: 80%),
   caption: [
-    Prometheus récolte les métriques tandis que Loki s'occupe des logs afin d'allimenter Grafana.
+    Prometheus récolte les métriques tandis que Loki s'occupe des logs afin d'alimenter Grafana.
   ],
 ) <Schema-Observability>
 
+
+#linebreak()
 === Prometheus
 
-=== Loki et Alloy
+Prometheus scrape deux sources de métriques toutes les 15 secondes depuis 2 sources :
+
+*DCGM Exporter* : 4 métriques GPU par nœud (`DCGM_FI_DEV_GPU_UTIL`, `DCGM_FI_DEV_FB_USED`, `DCGM_FI_DEV_POWER_USAGE`, `DCGM_FI_DEV_GPU_TEMP`). Le scraping utilise `dns_sd_configs` sur le Service headless DCGM, ce qui résout l'IP de chaque pod DaemonSet individuellement et évite le round-robin du ClusterIP.
+
+*RayCluster* : métriques Ray exposées par le head node (`ray_running_jobs`, `ray_gcs_actors_count`).
+
+=== DCGM
+
+DCGM tourne via un DeamonSet sur chaque node. Via un endpoint `/metrics` sur le port [9400] et le DNS de K8s, les données peuvent être scrapées individuellment, ce qui permet de garder le `hostname` pour chaque métrique.
+
+=== Alloy
+
+Alloy est déployé en Deployment unique dans le namespace `dani`. Il lit les logs de tous les pods via l'API Kubernetes (`loki.source.kubernetes`) sans monter le système de fichiers du nœud hôte et les pousse vers Loki en continu.
+
+#figure(
+  ```yaml
+  discovery.relabel "pods" {
+        targets = discovery.kubernetes.pods.targets
+
+        rule {
+          source_labels = ["__meta_kubernetes_namespace"]
+          target_label  = "namespace"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_name"]
+          target_label  = "pod"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_container_name"]
+          target_label  = "container"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_label_app"]
+          target_label  = "app"
+        }
+      }
+  ```,
+  caption: [Chaque ligne de log est indexée avec les labels `pod`, `container`, `namespace` et `app`.],
+)
+
+
+=== Loki
+
+Loki stocke l'index (TSDB) et les chunks de logs dans MinIO sous le préfixe `nearai/dani/loki`. Il est ainsi _stateless_ : tout l'état réside dans le bucket S3, et le pod peut être redémarré sans perte de données.
+
+Les logs du driver SAM3 contiennent les résultats de chaque run au format texte.
 
 === Grafana
 
-=== DCGM
+Grafana intéroge les résultats interroge via LogQL avec `regexp` et `unwrap` pour en extraire des métriques comme le nombre d'images traitées, détections, et temps moyen par image.
