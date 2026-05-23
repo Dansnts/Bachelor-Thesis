@@ -276,3 +276,22 @@
 | Git commit | Done | 15min |
 | **Subtotal** |    | 14h30 |
 | **Total** |    | **22h30** |
+
+# Week 14
+
+*Friday May 22, 2026*
+
+| Task              | Status | Time |
+| :---------------- | :------: | ----: |
+| Fix iict-rad kubeconfig, renew Rancher token, merge homelab + iict-rad (multiple attempts) | Done | 45min |
+| RayCluster fix, apply manifests, debug workers, confirm 3 GPUs running and active | Done | 45min |
+| Debug Grafana logs, port-forward Loki, verify labels, raw pod queries, confirmed Loki receives all pods | Done | 1h |
+| LogQL exploration, trial and error with sum_over_time, last_over_time, unwrap, regexp, Stat panel configuration | Done | 2h |
+| Run pipeline 3 GPU workers (L40S × 2, A40 × 1), 40 images, 2224 detections, 8.9s/image wall clock | Done | 20min |
+| NearAI Grafana home dashboard, HEIG-VD logo, Loki/Prometheus stats, last runs panel, no default Grafana content | Done | 1h |
+| Review intermediate report with Remy | Done | 30min |
+| Read Kubernetes Up and Running (O'Reilly), continued | Done | 2h10 |
+| Architecture chapter, Observability section | Done | 1h30 |
+| Journal, notes week 14, dashboard screenshot | Done | 30min |
+| Git commits | Done | 15min |
+| **Total** | | **9h45** |

@@ -838,3 +838,81 @@ Dashboard `deploy/observability/grafana/dashboard-tb.json` with 7 panels:
 - **Timeseries**: GPU util (%), VRAM (MB), power (W), temperature (°C)
 - **Stat**: running Ray jobs, active Ray actors
 - **Variable** `hostname_filter`: textbox at the top, filters all panels by regex on hostname. Empty = show all. Clicking a gauge auto-fills the filter for that node.
+
+# Week 14
+
+## kubeconfig merge
+
+Rancher token expires periodically. To renew without losing other contexts:
+
+```bash
+# New file FIRST — flatten keeps first occurrence of duplicate entries
+KUBECONFIG=~/Downloads/iict-rad.yaml:~/.kube/config kubectl config view --flatten > /tmp/merged.yaml && mv /tmp/merged.yaml ~/.kube/config
+```
+
+If homelab config is a separate file (`~/.kube/homelab`), include it explicitly:
+
+```bash
+KUBECONFIG=~/Downloads/iict-rad.yaml:~/.kube/homelab kubectl config view --flatten > ~/.kube/config
+```
+
+## kubectl apply on subdirectories
+
+`kubectl apply -f dir/` does not recurse. Use `-R`:
+
+```bash
+kubectl --context iict-rad apply -Rf deploy/observability/ --validate=false
+```
+
+Note: `-fR` is invalid (`-f` takes an argument). `-Rf` works.
+
+## Loki : logs confirmed working
+
+All pods in namespace `dani` indexed by Alloy via `loki.source.kubernetes`. Labels available: `pod`, `container`, `namespace`, `app`.
+
+Query all pods:
+```logql
+{namespace="dani"}
+```
+
+SAM3 Actor stdout is forwarded to the driver pod stdout (Ray behavior). Driver pods (`sam3-driver-*`) contain both autoscaler messages and SAM3Worker inference lines.
+
+Filter noise:
+```logql
+{pod=~"sam3-driver-.+"} != "urllib3" != "InsecureRequest" != "warnings.warn"
+```
+
+## LogQL metric extraction
+
+Extract numeric values from log lines with `regexp` + `unwrap`:
+
+```logql
+# Total images processed in 30 days
+sum(sum_over_time(
+  {pod=~"sam3-driver-.+"} |= "Done"
+  | regexp `Done: (?P<images>\d+) images`
+  | unwrap images [30d]
+))
+
+# Mean s/image across all runs
+avg_over_time(
+  {pod=~"sam3-driver-.+"} |= "Wall time"
+  | regexp `Wall time\s*:\s*\d+s \((?P<secs_per_image>[\d.]+)s/image\)`
+  | unwrap secs_per_image [30d]
+)
+```
+
+Key rules:
+- `=` : exact match on label, `=~` : regex match
+- `|=` : line contains substring, `!=` : line does not contain
+- `unwrap` : convert extracted string field to float for metric queries
+- `sum_over_time` : sum all occurrences in window → use for totals
+- `last_over_time` : last value in window → use for latest run value
+- Stat panel Calculation = `Last *` to show single value, not sum of all steps
+
+## Run — 2026-05-22
+
+3 workers GPU (2× L40S iict-suchet + 1× A40 iict-k8s-node4-rad), 40 images, 2224 détections, **8.9s/image** wall clock, GPU peak 300W, VRAM 8GB, température max 75°C.
+
+Screenshot: `docs/images/dashboard.png`
+
