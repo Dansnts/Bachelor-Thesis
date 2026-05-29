@@ -9,7 +9,7 @@
 
 == Segmentation d'images
 
-SAM3 (Segment Anything Model 3) est le modèle de segmentation publié par Meta en 2024 @sam3. Il hérite de SAM2 et étend ses capacités aux images de haute résolution et à la vidéo. SAM3 adopte une architecture Vision Transformer#footnote[Vision Transformer : architecture d'encodeur d'image basée sur l'attention, utilisée par SAM3 pour encoder les images en représentations latentes.] comme encodeur d'image et un décodeur léger qui produit des masques binaires à partir de prompts géométriques (points, boîtes, polygones).
+SAM3 (Segment Anything Model 3) est le modèle de segmentation publié par Meta en 2024 @sam3. Il hérite de SAM2 et étend ses capacités aux images de haute résolution et à la vidéo. SAM3 adopte une architecture Vision Transformer comme encodeur d'image et un décodeur léger qui produit des masques binaires à partir de prompts géométriques (points, boîtes, polygones).
 
 Le modèle fonctionne en mode _promptable_ et en mode _everything_.
 
@@ -26,7 +26,7 @@ Tandis que en mode *everything*, il segmente tous les objets détectables de l'i
 
 
 #pagebreak()
-SAM3 a été entraîné sur SA-1B#footnote[Dataset d'entraînement de SAM : 1,1 milliard de masques sur 11 millions d'images. Confère à SAM3 une généralisation forte sur des domaines non vus.], un corpus de 1,1 milliard de masques sur 11 millions d'images. Cette couverture lui confère une généralisation forte sur des domaines non vus à l'entraînement, dont les images routières équirectangulaires#footnote[Projection cartographique des images panoramiques 360°. Produit une distorsion géométrique croissante vers le zénith et le nadir.].
+SAM3 a été entraîné sur SA-1B, un corpus de 1,1 milliard de masques sur 11 millions d'images. Cette couverture lui confère une généralisation forte sur des domaines non vus à l'entraînement, dont les images routières équirectangulaires.
 
 Ce modèle accepte des images jusqu'à 1'024 x 1'024 pixels. Une panoramique de 8'192 x 4'096 pixels doit donc être découpée avant l'inférence. Ce travail adopte des tuiles de 512 x 512 pixels, ce qui produit 128 tuiles par image à pleine résolution. Un downsampling à 50 % ramène ce nombre à 32 tuiles et réduit le temps d'inférence d'un facteur 4, au prix d'une perte de détail acceptable pour les classes cibles.
 
@@ -36,11 +36,11 @@ Les images équirectangulaires présentent une distorsion géométrique croissan
 == Calcul distribué
 
 
-Apache Spark est le framework de calcul distribué dominant pour les workloads analytiques sur données structurées. Son modèle d'exécution repose sur un DAG#footnote[_Directed Acyclic Graph_ : graphe orienté sans cycle représentant les dépendances entre transformations.] de transformations sur des RDDs ou DataFrames, optimisé pour les opérations SQL et les pipelines ETL#footnote[_Extract, Transform, Load_ : pipeline d'ingestion qui extrait des données d'une source, les transforme et les charge dans un système cible.] à large échelle sur clusters homogènes.
+Apache Spark est le framework de calcul distribué dominant pour les workloads analytiques sur données structurées. Son modèle d'exécution repose sur un DAG de transformations sur des RDDs ou DataFrames, optimisé pour les opérations SQL et les pipelines ETL à large échelle sur clusters homogènes.
 
 Spark présente trois limitations structurelles pour l'inférence GPU :
 
-*Héritage CPU* : Spark a été conçu dans l'écosystème Hadoop pour le traitement de données tabulaires. Le support GPU a été ajouté a posteriori via RAPIDS#footnote[Bibliothèque NVIDIA ajoutant le support GPU à Spark. Non natif : ne gère pas le scheduling dynamique de tâches GPU hétérogènes.] (NVIDIA). Il n'est pas natif : les workers Spark ne savent pas scheduler dynamiquement des tâches GPU hétérogènes.
+*Héritage CPU* : Spark a été conçu dans l'écosystème Hadoop pour le traitement de données tabulaires. Le support GPU a été ajouté a posteriori via RAPIDS (NVIDIA). Il n'est pas natif : les workers Spark ne savent pas scheduler dynamiquement des tâches GPU hétérogènes.
 
 *Clusters homogènes* : Spark optimise pour la localité des données sur des clusters uniformes. Le cluster iict-rad dispose de trois types de GPU (L40S, A40, L4) avec des performances très différentes. Ray gère nativement cette hétérogénéité via ses mécanismes de placement group et de priorité par ressource.
 
@@ -54,7 +54,7 @@ Ray est un framework Python open-source pour distribuer des workloads ML/IA sur 
 Il expose deux primitives fondamentales :
 
 - Une *Task* (`@ray.remote` sur une fonction) est une unité de calcul sans état, exécutée de façon asynchrone sur un worker disponible.
-- Un *Actor* (`@ray.remote` sur une classe) est une unité de calcul avec état, maintenu en mémoire sur un worker assigné. L'Actor est LE patron adapté au chargement de modèles. Le modèle est chargé une fois dans `__init__`, puis réutilisé sur toutes les requêtes sans rechargement, évitant les erreurs de mémoire insuffisante (OOM#footnote[Out of Memory : erreur de dépassement de mémoire. Survient si un modèle est rechargé à chaque tâche au lieu d'être maintenu dans un Actor.]) qui surviennent lorsqu'un modèle est rechargé à chaque tâche.
+- Un *Actor* (`@ray.remote` sur une classe) est une unité de calcul avec état, maintenu en mémoire sur un worker assigné. L'Actor est LE patron adapté au chargement de modèles. Le modèle est chargé une fois dans `__init__`, puis réutilisé sur toutes les requêtes sans rechargement, évitant les erreurs OOM qui surviennent lorsqu'un modèle est rechargé à chaque tâche.
 
 #linebreak()
 #figure(
@@ -78,13 +78,13 @@ Spark reste pertinent pour les pipelines ETL sur données structurées. Pour l'i
 #pagebreak()
 Deux stratégies de parallélisation GPU existent pour l'inférence de modèles :
 
-- *Data parallelism*#footnote[Stratégie de parallélisation GPU où chaque GPU héberge une copie complète du modèle et traite une image indépendante. Le throughput scale linéairement avec le nombre de GPU.] : chaque GPU héberge une copie complète du modèle et traite une image indépendante. Le throughput scale linéairement avec le nombre de GPU.
-- *Model parallelism*#footnote[Stratégie de parallélisation GPU où le modèle est fragmenté sur plusieurs GPU pour réduire la latence d'une seule inférence.] : le modèle est fragmenté sur plusieurs GPU pour réduire la latence d'une seule inférence. Implique un overhead de communication inter-GPU à chaque couche.
+- *Data parallelism* : chaque GPU héberge une copie complète du modèle et traite une image indépendante. Le throughput scale linéairement avec le nombre de GPU.
+- *Model parallelism* : le modèle est fragmenté sur plusieurs GPU pour réduire la latence d'une seule inférence. Implique un overhead de communication inter-GPU à chaque couche.
 
-Le model parallelism est justifié uniquement lorsque le modèle ne tient pas sur un seul GPU (LLMs de 70 milliards de paramètres et plus). SAM3 ViT-H occupe 2,4 Go de VRAM#footnote[Video RAM : mémoire dédiée d'un GPU. SAM3 ViT-H occupe ~2,4 Go de VRAM.] et les GPU du cluster (L40S 48 Go, A40 48 Go, L4 24 Go) l'hébergent sans contrainte.
+Le model parallelism est justifié uniquement lorsque le modèle ne tient pas sur un seul GPU (LLMs de 70 milliards de paramètres et plus). SAM3 ViT-H occupe 2,4 Go de VRAM et les GPU du cluster (L40S 48 Go, A40 48 Go, L4 24 Go) l'hébergent sans contrainte.
 L'objectif de la pipeline est le throughput sur 300'000 images, pas la latence sur une image isolée. Avec $N$ workers en data parallelism, $N$ images sont traitées simultanément sans aucune synchronisation inter-GPU. Le modèle Ray Actor (un modèle chargé par GPU, $N$ workers indépendants) est la stratégie la plus correcte pour ce workload.
 
-*KubeRay* est l'opérateur Kubernetes officiel pour Ray @kuberay. Il introduit la ressource `RayCluster`, qui déclare un nœud head et un ou plusieurs groupes de workers. L'opérateur crée et gère les pods correspondants, expose les ports GCS#footnote[Global Control Store : Control Plane de Ray, maintient l'état global du cluster (Actors actifs, tâches en attente, état des workers).] (:6379), dashboard (:8265), métriques (:8080) et client Ray (:10001) via des Services Kubernetes.
+*KubeRay* est l'opérateur Kubernetes officiel pour Ray @kuberay. Il introduit la ressource `RayCluster`, qui déclare un nœud head et un ou plusieurs groupes de workers. L'opérateur crée et gère les pods correspondants, expose les ports GCS (:6379), dashboard (:8265), métriques (:8080) et client Ray (:10001) via des Services Kubernetes.
 
 Le driver externe se connecte au cluster via `ray.init("ray://ray-cluster-head-svc:10001")`.
 Les workers ne sont pas contactés directement car Ray dispatche les tâches via le Global Control Store (GCS) hébergé sur le head.
@@ -105,14 +105,14 @@ Une distinction importante sépare la terminologie Kubernetes de la terminologie
 #pagebreak()
 == Stockage objet
 
-Les images panoramiques (JPEG, ~50 Mo chacune), les fichiers Parquet et les poids de modèles sont des *BLOBs*#footnote[Binary Large Object : fichier binaire non structuré (image JPEG, poids de modèle). Stocké dans un système de stockage objet (S3/MinIO) plutôt qu'en base de données.], des objets binaires nonstructurés que les bases de données relationnelles gèrent mal et que les systèmes de fichiers partagés (NFS) ne scalent pas.
+Les images panoramiques (JPEG, ~50 Mo chacune), les fichiers Parquet et les poids de modèles sont des *BLOBs*, des objets binaires nonstructurés que les bases de données relationnelles gèrent mal et que les systèmes de fichiers partagés (NFS) ne scalent pas.
 Le stockage objet est conçu pour ce cas. Chaque BLOB est adressé par une clé unique, accessible via HTTP, sans limite de taille ni de volume total.
 
 *S3* est le protocole standard pour ce type de stockage. `boto3`, PyArrow et Ray Data l'implémentent nativement, aucune couche d'abstraction supplémentaire n'est nécessaire. Enfin, remplacer la variable `S3_ENDPOINT_URL` suffit à changer de backend (MinIO, AWS S3, Ceph) sans modifier le code de la pipeline.
 
 *MinIO* est un serveur de stockage objet compatible avec le protocole S3 @minio. La HEIG-VD l'exploite sur un NAS Synology SA3200D, installé via _Container Manager_ avec l'image officielle `minio/minio`. La pipeline accède à MinIO via `boto3` avec les variables d'environnement S3 standard (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `S3_ENDPOINT_URL`).
 
-Des alternatives comme *RustFS* sous license Apache 2.0 et sorti il y'a moins d'un an ou *CEPH* qui lui est plus mature, sous license LGPL#footnote[Lesser General Public License : permet de lier des logiciels propriétaires sans obligation de rendre public le code source] et gère du bloc/fichier/objet ont été évaluées. MinIO ferme son code source en 2025. La migration vers une alternative ajouterait du risque sans bénéfice immédiat. La configuration S3 est le seul point à modifier lors d'un changement de backend.
+Des alternatives comme *RustFS* sous license Apache 2.0 et sorti il y'a moins d'un an ou *CEPH* qui lui est plus mature, sous license LGPL et gère du bloc/fichier/objet ont été évaluées. MinIO ferme son code source en 2025. La migration vers une alternative ajouterait du risque sans bénéfice immédiat. La configuration S3 est le seul point à modifier lors d'un changement de backend.
 
 == Format de résultats
 
@@ -133,7 +133,7 @@ L'image illustre la différence entre les trois approches.
 
 Parquet stocke des statistiques min/max par column chunk. Un moteur de requête peut ainsi ignorer des row groups entiers si le prédicat tombe hors de leur plage. C'est le _predicate pushdown_, supporté nativement par PyArrow. Filtrer les polygones par zone GPS ou par seuil de score ne charge que les colonnes `latitude`, `longitude` et `score`, indépendamment du volume total.
 
-*PostGIS* (extension PostgreSQL pour les données géospatiales) a été évalué comme alternative. Il offre des index spatiaux GIST#footnote[Generalized Search Tree : infrastructure d'indexation générale pour PostgreSQL] et des requêtes géométriques natives (`ST_Within`, `ST_Intersects`). La décision est de le remplacer par Parquet sur S3. Les requêtes du projet ne nécessitent pas de jointures géospatiales complexes, et Parquet évite de maintenir une base de données.
+*PostGIS* (extension PostgreSQL pour les données géospatiales) a été évalué comme alternative. Il offre des index spatiaux GIST et des requêtes géométriques natives (`ST_Within`, `ST_Intersects`). La décision est de le remplacer par Parquet sur S3. Les requêtes du projet ne nécessitent pas de jointures géospatiales complexes, et Parquet évite de maintenir une base de données.
 
 *JSON* (JavaScript Object Notation) est le format accepté par LabelStudio pour importer les données géospatiales sur une images. Ce format va être utiliser uniquement pour le mode `on demand` et en legacy pour labelstudio afin de visualiser les résultats des runs.
 
@@ -174,7 +174,7 @@ XXXX Parler ici de NearLabel, le projet fait par mon collègue Valentin Ricard.
 
 == Observabilité
 
-*Prometheus* collecte des métriques en temps réel et génère des alertes. Les données sont stockées au format TSDB#footnote[Time Series DataBase : format de stockage de Prometheus optimisé pour les métriques horodatées.] et interrogées via PromQL, un langage de requête basé sur les vecteurs instantanés, de portée et scalaires.
+*Prometheus* collecte des métriques en temps réel et génère des alertes. Les données sont stockées au format TSDB et interrogées via PromQL, un langage de requête basé sur les vecteurs instantanés, de portée et scalaires.
 
 Ses principaux composants sont:
 
@@ -193,7 +193,7 @@ Il stocke les données dans un format S3 et est composé de 2 types de stockages
 - *Index* : Table des matières, mappe simplement les labels sur la position des chunks.
 - *Chunks* : Blocs compressés de logs bruts selon un label et une plage horaire.
 
-Les logs sont traités avec LogQL#footnote[Langage de requête de Loki, fortement inspiré de PromQL. Filtre les logs par labels puis les transforme en métriques.] en les filtrant selon les labels pour les transformer ensuite en métriques.
+Les logs sont traités avec LogQL en les filtrant selon les labels pour les transformer ensuite en métriques.
 
 #figure(
   ```LogQL
@@ -205,13 +205,13 @@ Les logs sont traités avec LogQL#footnote[Langage de requête de Loki, fortemen
 
 Pour notre pipeline, la recherche plein-texte est inutile car les requêtes se limitent à retrouver les logs d'un worker Ray identifié par son nom de pod et son namespace. Elasticsearch apporterait une infrastructure disproportionnée par rapport au besoin.
 
-*Promtail* est un agent supplémentaire pour Loki. Il tourne en tant que _DaemonSet_#footnote[DaemonSet : ressource Kubernetes qui déploie exactement un pod par nœud du cluster.] avec 1 instance par noeud et collecte toutes les métriques des pods sur ce dit noeud. Les pods sont découverts via le _service discovery_ de l'API K8s puis en lisant dans `/var/logs/pods/`.
+*Promtail* est un agent supplémentaire pour Loki. Il tourne en tant que _DaemonSet_ avec 1 instance par noeud et collecte toutes les métriques des pods sur ce dit noeud. Les pods sont découverts via le _service discovery_ de l'API K8s puis en lisant dans `/var/logs/pods/`.
 Les workers Ray dans notre cas n'auront qu'a écrire dans leur _stdout/stderr_ et Promtail les récupères.
 
-Malheureusement, Promtail a été mis en EOL#footnote[End of Life : mise en terminaison d'un produit ou d'une solution, passage en maintenance-only.]. Il faut donc utiliser *Alloy* comme substitut.
+Malheureusement, Promtail a été mis en EOL. Il faut donc utiliser *Alloy* comme substitut.
 
 *Grafana Alloy* est le successeur officiel de Promtail et de Grafana Agent, annoncé en maintenance-only en 2024 @alloy. Il unifie la collecte de logs, métriques, traces et profils dans un seul agent configurable.
-Sa configuration utilise le langage River#footnote[Langage déclaratif de configuration d'Alloy, inspiré de HCL. Les composants sont connectés explicitement, la sortie d'un bloc devient l'entrée du suivant.], un format déclaratif inspiré de HCL#footnote[Hashicorp Configuration Language, language déclaratif open source de configuration simple à lire pour un humain et analysable pour une machine.]. Les composants sont connectés explicitement. C'est à dire que la sortie d'un bloc devient l'entrée du suivant, formant une pipeline de traitement.
+Sa configuration utilise le langage River, un format déclaratif inspiré de HCL. Les composants sont connectés explicitement. C'est à dire que la sortie d'un bloc devient l'entrée du suivant, formant une pipeline de traitement.
 
 #figure(
   ```alloy
@@ -232,7 +232,7 @@ Sa configuration utilise le langage River#footnote[Langage déclaratif de config
 #linebreak()
 
 
-Alloy présente deux avantages sur Promtail : un seul pod `Deployment` remplace le `DaemonSet`, et les limites inotify#footnote[Mécanisme Linux de surveillance des modifications de fichiers. Consommé massivement par Promtail qui ouvre un watcher par fichier de log.] du nœud ne sont pas sollicitées. Là où Promtail ouvrait un watcher par fichier de log, Alloy interroge l'API Kubernetes à intervalles réguliers.
+Alloy présente deux avantages sur Promtail : un seul pod `Deployment` remplace le `DaemonSet`, et les limites inotify du nœud ne sont pas sollicitées.#footnote[Promtail ouvre un watcher `inotify` par fichier de log. Sur un nœud dense en pods, la limite `fs.inotify.max_user_watches` est atteinte et Promtail cesse silencieusement de collecter les nouveaux logs sans erreur visible.] Là où Promtail ouvrait un watcher par fichier de log, Alloy interroge l'API Kubernetes à intervalles réguliers.
 
 #pagebreak()
 == Cycle de vie d'un log
@@ -315,4 +315,4 @@ Les quatre métriques intérésantes sont :
 
 Un GPU à 0 % d'utilisation avec une VRAM occupée et une puissance supérieure à 17 W indique un worker Ray actif avec le modèle chargé en mémoire mais sans inférence en cours. Cette distinction est utile pour identifier les périodes d'attente entre deux batches d'images.
 
-Prometheus scrape DCGM Exporter via un `headless service`#footnote[Service Kubernetes sans ClusterIP. La résolution DNS retourne les IPs de tous les pods ciblés.] qui résout en autant d'adresses IP que de pods actifs (un par nœud GPU). La configuration `dns_sd_configs` de Prometheus collecte chaque nœud individuellement, contrairement à un ClusterIP qui n'expose qu'un pod en round-robin.
+Prometheus scrape DCGM Exporter via un `headless service` qui résout en autant d'adresses IP que de pods actifs (un par nœud GPU). La configuration `dns_sd_configs` de Prometheus collecte chaque nœud individuellement, contrairement à un ClusterIP qui n'expose qu'un pod en round-robin.#footnote[Avec un ClusterIP, Prometheus aurait obtenu une seule IP tournante car le label `hostname` de chaque nœud GPU aurait été perdu, rendant impossible la distinction entre L40S et A40 dans Grafana.]
