@@ -100,3 +100,10 @@ spec:
                   nvidia.com/gpu: "1"
                   cpu: "4"
                   memory: 16Gi
+              volumeMounts:
+                - mountPath: /root/.cache/huggingface
+                  name: hf-cache
+          volumes:
+            - name: hf-cache
+              persistentVolumeClaim:
+                claimName: hf-cache
