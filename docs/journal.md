@@ -295,3 +295,24 @@
 | Journal, notes week 14, dashboard screenshot | Done | 30min |
 | Git commits | Done | 15min |
 | **Total** | | **9h45** |
+
+# Week 15
+
+*Friday May 29, 2026*
+
+| Task              | Status | Time |
+| :---------------- | :------: | ----: |
+| Architecture chapter, Cache SAM3 section, RWX PVC design, Longhorn NFS rationale | Done | 1h30 |
+| HuggingFace PVC setup, pvc-hf-cache.yaml, storageclass-rwx.yaml, volumeMount in rayCluster.yaml | Done | 1h15 |
+| Debug Multi-Attach PVC error on multi-node workers, Longhorn RWX research, storageclass-rwx.yaml drafted for Mehdi | Done | 1h |
+| Make tile size configurable, --tile_size, --tile_stride CLI args in pipeline, SAM3Worker params | Done | 30min |
+| API REST design, FastAPI, kubernetes-client pattern, K8s Job submission rationale | Done | 1h45 |
+| Architecture chapter, API REST section, 5-endpoint table, column proportions fix | Done | 1h |
+| Architecture chapter, Stratégie de tuilage section, SAM3 internal 1024x1024 resize, downsampling implications | Done | 1h |
+| Table styling, blue header with white text, alternating gray/white rows on all 3 tables in architecture | Done | 45min |
+| Footnotes cleanup architecture.typ, remove 5 pure definitions, rewrite disk-pressure/SIGTERM as constraint | Done | 45min |
+| Footnotes cleanup implementation.typ, remove 7 pure definitions, rewrite 4 as constraints (CUDA_VISIBLE_DEVICES, ttlSecondsAfterFinished, emptyDir/Memory, hostIPC) | Done | 1h |
+| Footnotes cleanup etat-de-lart.typ, remove 20 pure definitions, rewrite inotify and headless service as constraints | Done | 1h45 |
+| Add Polling to glossary in tb_rapport.typ | Done | 15min |
+| Journal, notes week 15, git commits | Done | 30min |
+| **Total** | | **13h** |
