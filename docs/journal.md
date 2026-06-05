@@ -336,4 +336,5 @@
 | deploy/jobs/solo/Dockerfile : nvidia/cuda base, PyTorch CUDA 12.6, SAM3 clone, requirements.txt | Done | 30min |
 | Test API with Bruno : POST /jobs/solo, confirm Job created on cluster (ImagePullBackOff expected) | Done | 15min |
 | Journal, notes week 16, git commits | Done | 30min |
-| **Total** | | **10h** |
+| Updated Architecure part of the report | Done | 1h20 |
+| **Total** | | **11h20** |
