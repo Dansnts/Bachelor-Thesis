@@ -1,0 +1,8 @@
+ray[data,train,serve,default]==2.54.0
+boto3
+numpy>=1.26,<2
+Pillow
+exif
+opencv-python-headless
+scipy
+pyarrow
