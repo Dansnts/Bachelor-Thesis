@@ -1,0 +1,267 @@
+{
+  "title": "NearAI — Home",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "links": [],
+  "schemaVersion": 39,
+  "tags": ["nearai"],
+  "timezone": "browser",
+  "version": 2,
+  "weekStart": "",
+  "time": { "from": "now-24h", "to": "now" },
+  "timepicker": {
+    "refresh_intervals": ["10s", "30s", "1m", "5m", "15m", "1h"],
+    "hidden": false
+  },
+  "refresh": "1m",
+  "annotations": { "list": [] },
+  "templating": {
+    "list": [
+      {
+        "name": "DS_PROMETHEUS",
+        "type": "datasource",
+        "query": "prometheus",
+        "label": "Prometheus",
+        "hide": 2
+      },
+      {
+        "name": "DS_LOKI",
+        "type": "datasource",
+        "query": "loki",
+        "label": "Loki",
+        "hide": 2
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 10,
+      "type": "text",
+      "title": "",
+      "gridPos": { "h": 4, "w": 24, "x": 0, "y": 0 },
+      "options": {
+        "mode": "markdown",
+        "content": "![HEIG-VD](https://heig-vd.ch/images/heig-vd-logo.gif)\n\n# NearAI — Pipeline d'annotation panoramique  \n`SAM3` · `RayCluster` · `Kubernetes iict-rad` · `MinIO` · `Label Studio`  \nSegmentation automatique d'images équirectangulaires 8192 × 4096 px — polygones exportés en Parquet."
+      },
+      "datasource": { "type": "datasource", "uid": "grafana" },
+      "transparent": true
+    },
+    {
+      "id": 20,
+      "type": "stat",
+      "title": "Images traitées (30j)",
+      "gridPos": { "h": 5, "w": 5, "x": 0, "y": 4 },
+      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "#73BF69" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "#73BF69", "value": null }] },
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "0"
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "auto",
+        "textMode": "value_and_name",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+          "expr": "sum(sum_over_time({pod=~\"sam3-driver-.+\"} |= \"Done\" | regexp `Done: (?P<images>\\d+) images` | unwrap images [30d]))",
+          "queryType": "range"
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "type": "stat",
+      "title": "Détections (30j)",
+      "gridPos": { "h": 5, "w": 5, "x": 5, "y": 4 },
+      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "#F2495C" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "#F2495C", "value": null }] },
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "0"
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "auto",
+        "textMode": "value_and_name",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+          "expr": "sum(sum_over_time({pod=~\"sam3-driver-.+\"} |= \"Done\" | regexp `Done: \\d+ images, (?P<detections>\\d+) detections` | unwrap detections [30d]))",
+          "queryType": "range"
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "type": "stat",
+      "title": "Moyenne s/image",
+      "gridPos": { "h": 5, "w": 4, "x": 10, "y": 4 },
+      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "#5794F2" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "#5794F2", "value": null }] },
+          "unit": "s",
+          "decimals": 1,
+          "noValue": "—"
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["mean"] },
+        "orientation": "auto",
+        "textMode": "value_and_name",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+          "expr": "avg_over_time({pod=~\"sam3-driver-.+\"} |= \"Wall time\" | regexp `Wall time\\s*:\\s*\\d+s \\((?P<secs_per_image>[\\d.]+)s/image\\)` | unwrap secs_per_image [30d])",
+          "queryType": "range"
+        }
+      ]
+    },
+    {
+      "id": 23,
+      "type": "stat",
+      "title": "Ray Jobs actifs",
+      "gridPos": { "h": 5, "w": 5, "x": 14, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "#73BF69", "value": null },
+              { "color": "#FF9830", "value": 1 }
+            ]
+          },
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "0"
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "auto",
+        "textMode": "value_and_name",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "ray_running_jobs",
+          "legendFormat": "Jobs"
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "type": "stat",
+      "title": "Ray Actors actifs",
+      "gridPos": { "h": 5, "w": 5, "x": 19, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "#73BF69", "value": null },
+              { "color": "#FF9830", "value": 1 }
+            ]
+          },
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "0"
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "auto",
+        "textMode": "value_and_name",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "sum(ray_gcs_actors_count{State=\"ALIVE\"})",
+          "legendFormat": "Actors"
+        }
+      ]
+    },
+    {
+      "id": 30,
+      "type": "logs",
+      "title": "Derniers runs",
+      "gridPos": { "h": 10, "w": 14, "x": 0, "y": 9 },
+      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": false,
+        "prettifyLogMessage": false,
+        "showCommonLabels": false,
+        "showLabels": false,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": false
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+          "expr": "{pod=~\"sam3-driver-.+\"} |= \"Done\"",
+          "queryType": "range"
+        }
+      ]
+    },
+    {
+      "id": 40,
+      "type": "dashlist",
+      "title": "Dashboards",
+      "gridPos": { "h": 10, "w": 10, "x": 14, "y": 9 },
+      "options": {
+        "folderUID": "",
+        "includeVars": false,
+        "keepTime": true,
+        "maxItems": 10,
+        "query": "",
+        "showHeadings": false,
+        "showRecentlyViewed": true,
+        "showSearch": false,
+        "showStarred": true,
+        "tags": []
+      },
+      "datasource": { "type": "datasource", "uid": "grafana" }
+    }
+  ]
+}
