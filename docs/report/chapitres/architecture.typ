@@ -60,10 +60,7 @@ La pipeline s'exécute sur le cluster `iict-rad` de la HEIG-VD (Kubernetes 1.33.
     columns: (auto, auto, auto, auto),
     fill: (_, row) => if row == 0 { col-blue } else if calc.odd(row) { rgb("#F1F5F9") } else { white },
     table.header(
-      text(fill: white)[*Nœud*],
-      text(fill: white)[*GPUs*],
-      text(fill: white)[*Modèle*],
-      text(fill: white)[*VRAM*],
+      text(fill: white)[*Nœud*], text(fill: white)[*GPUs*], text(fill: white)[*Modèle*], text(fill: white)[*VRAM*]
     ),
     [`iict-suchet`], [3], [NVIDIA L40S], [46 GB],
     [`iict-k8s-node4-rad`], [2], [NVIDIA A40], [46 GB],
@@ -190,7 +187,7 @@ Le mode `ReadWriteMany` est retenu car les workers s'exécutent sur deux nœuds 
 
 == Stratégie de tuilage
 
-L'hardware est une contrainte pour les performances de notre pipeline, les deux autres vecteurs qui sont envisageables pour gagner en performances est le software (Choix du modèle, optimisation du code) ou bien simplement les données brutes a traitées. Dans notre cas, nous avons des images de très haute résolution (8192 × 4096 px) qui devront être traité par SAM3 qui, pour rappel, à comme taille maximale de traitement par tuilles de 1024px par 1024px. 
+L'hardware est une contrainte pour les performances de notre pipeline, les deux autres vecteurs qui sont envisageables pour gagner en performances est le software (Choix du modèle, optimisation du code) ou bien simplement les données brutes a traitées. Dans notre cas, nous avons des images de très haute résolution (8192 × 4096 px) qui devront être traité par SAM3 qui, pour rappel, à comme taille maximale de traitement par tuilles de 1024px par 1024px.
 
 Les conséquances sont les suivantes :
 - > 1024px : l'image est downsamplée par SAM3 et nous avons une perte d'information.
@@ -211,11 +208,7 @@ Chaque image produit un fichier Parquet nommé `<acquisition_id>/<image_stem>.pa
   table(
     columns: (auto, auto, 1fr),
     fill: (_, row) => if row == 0 { col-blue } else if calc.odd(row) { rgb("#F1F5F9") } else { white },
-    table.header(
-      text(fill: white)[*Colonne*],
-      text(fill: white)[*Type*],
-      text(fill: white)[*Description*],
-    ),
+    table.header(text(fill: white)[*Colonne*], text(fill: white)[*Type*], text(fill: white)[*Description*]),
     [`image_key`], [`string`], [Chemin S3 complet de l'image source],
     [`acquisition_id`], [`string`], [Dossier parent (identifiant de l'acquisition)],
     [`label`], [`string`], [`sign` ou `road_marking`],
@@ -255,6 +248,10 @@ L'interface de labeling XML définit deux classes :
 ```
 
 Les pré-annotations importées doivent utiliser `from_name: "label"` et `to_name: "image"` pour correspondre à cette interface. Une divergence de noms provoque l'affichage des polygones sans label (gris).
+
+== Intégration Near Label
+
+=== API
 
 == Observabilité
 
@@ -333,26 +330,46 @@ L'API tourne comme un `Deployment` dans le namespace `dani`, avec un `ServiceAcc
     columns: (1fr, 1.5fr, 2fr),
     align: (left, left, left),
     fill: (_, row) => if row == 0 { col-blue } else if calc.odd(row) { rgb("#F1F5F9") } else { white },
-    table.header(
-      text(fill: white)[*Endpoint*],
-      text(fill: white)[*Paramètres*],
-      text(fill: white)[*Description*],
-    ),
+    table.header(text(fill: white)[*Endpoint*], text(fill: white)[*Paramètres*], text(fill: white)[*Description*]),
     [`POST /jobs/batch`],
-    [#set par(justify: false); #text(size: 0.85em)[`s3_uri`, `s3_output_uri`,\ `labels`, `num_workers`,\ `batch_size`, `tile_size`, `tile_stride`]],
+    [#set par(justify: false); #text(
+        size: 0.85em,
+      )[`s3_uri`, `s3_output_uri`,\ `labels`, `num_workers`,\ `batch_size`, `tile_size`, `tile_stride`]],
     [Soumet un lot d'images S3. Retourne `{job_name, status}`.],
+
     [`POST /jobs/solo`],
     [#set par(justify: false); #text(size: 0.85em)[`image_uri`, `labels`,\ `tile_size`, `tile_stride`]],
     [Soumet une image unique, poll le statut du Job K8s et retourne le résultat au format JSON Label Studio.],
-    [`GET /jobs`],
-    [—],
-    [Liste les Jobs Kubernetes du namespace avec leur statut.],
+
+    [`GET /jobs`], [—], [Liste les Jobs Kubernetes du namespace avec leur statut.],
     [`GET /jobs/{name}`],
     [#text(size: 0.85em)[`name`]],
     [Retourne le statut d'un Job (`Pending`, `Running`, `Succeeded`, `Failed`).],
+
     [`POST /import/\ {acquisition_id}`],
     [#text(size: 0.85em)[`acquisition_id`]],
     [Lit les Parquets depuis MinIO, les convertit et les importe via l'API REST Label Studio.],
   ),
   caption: [Endpoints de l'API REST],
 ) <tab-api-endpoints>
+
+== Variables environement
+
+== Gestion des secrets
+=== SOPS
+=== Kubernetes API python
+```python
+from kubernetes import client
+
+env = [
+    client.V1EnvVar(
+        name="AWS_ACCESS_KEY",
+        value_from=client.V1EnvVarSource(
+            secret_key_ref=client.V1SecretKeySelector(
+                name="XXXXXXX"
+                key="YYYYYY"
+            )
+        )
+    )
+]
+```
