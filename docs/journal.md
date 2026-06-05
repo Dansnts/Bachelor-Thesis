@@ -316,3 +316,24 @@
 | Add Polling to glossary in tb_rapport.typ | Done | 15min |
 | Journal, notes week 15, git commits | Done | 30min |
 | **Total** | | **13h** |
+
+# Week 16
+
+*Friday June 6, 2026*
+
+| Task              | Status | Time |
+| :---------------- | :------: | ----: |
+| Apply HuggingFace PVC (longhorn-rwx), verify Bound RWX, confirm multi-node mount works | Done | 30min |
+| Update ghcr-secret on cluster (kubectl create --dry-run apply) | Done | 15min |
+| Debug RayCluster connection error, confirm head Running, driver job connecting | Done | 45min |
+| Debug pending worker (Insufficient GPU), identify other namespace squatting GPU on iict-suchet | Done | 30min |
+| API structure design : api/main.py + jobs/solo/ + jobs/batch/ separation | Done | 30min |
+| Learn FastAPI : First Steps, Request Body, Pydantic BaseModel, HTTPException | Done | 1h |
+| api/main.py : FastAPI app, env vars, BatchRequest/SoloRequest models, kubernetes client setup | Done | 1h30 |
+| buildJob function : V1EnvVar, V1Container, V1Job, V1JobSpec, V1PodSpec | Done | 1h30 |
+| submitSolo endpoint : uuid name generation, argList construction, buildJob call | Done | 45min |
+| deploy/jobs/solo/main.py : skeleton, s3Client, getImage, patchPosition, getPatches, mergeMasks, maskToPolygon, toLabelStudio | Done | 1h30 |
+| deploy/jobs/solo/Dockerfile : nvidia/cuda base, PyTorch CUDA 12.6, SAM3 clone, requirements.txt | Done | 30min |
+| Test API with Bruno : POST /jobs/solo, confirm Job created on cluster (ImagePullBackOff expected) | Done | 15min |
+| Journal, notes week 16, git commits | Done | 30min |
+| **Total** | | **10h** |
