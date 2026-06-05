@@ -478,6 +478,9 @@ Toute utilisation, même partielle, de ce TB doit être faite dans le respect du
     [*LogQL*],
     [Langage de requête de Loki, fortement inspiré de PromQL. Filtre les logs par labels puis les transforme en métriques],
 
+    [*Polling*],
+    [Technique d'interrogation périodique d'un état externe jusqu'à ce qu'il change. Le client envoie des requêtes à intervalle fixe plutôt que d'attendre une notification push],
+
     [*Snappy*],
     [Algorithme de compression rapide utilisé par Parquet. Prioritise la vitesse de décompression sur le taux de compression],
 
