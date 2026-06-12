@@ -185,6 +185,9 @@ Un PVC Longhorn de 10 Gi est partagé entre tous les workers Ray. HuggingFace Hu
 
 Le mode `ReadWriteMany` est retenu car les workers s'exécutent sur deux nœuds distincts (`iict-suchet` et `iict-k8s-node4-rad`). Un PVC `ReadWriteOnce` ne peut être monté que par un seul nœud à la fois, ce qui bloquerait les workers sur le second nœud.
 
+=== Prérequis NFS sur les nœuds
+// TODO: RWX Longhorn = NFS share-manager → mount.nfs (paquet nfs-common) requis sur CHAQUE nœud GPU. iict-chasseron sans nfs-common → FailedMount "bad option". Une StorageClass RWX ne suffit pas : elle impose une homogénéité des nœuds. Un pod sans affinité tombant sur un nœud incompatible échoue au montage.
+
 == Stratégie de tuilage
 
 L'hardware est une contrainte pour les performances de notre pipeline, les deux autres vecteurs qui sont envisageables pour gagner en performances est le software (Choix du modèle, optimisation du code) ou bien simplement les données brutes a traitées. Dans notre cas, nous avons des images de très haute résolution (8192 × 4096 px) qui devront être traité par SAM3 qui, pour rappel, à comme taille maximale de traitement par tuilles de 1024px par 1024px.
@@ -352,6 +355,26 @@ L'API tourne comme un `Deployment` dans le namespace `dani`, avec un `ServiceAcc
   ),
   caption: [Endpoints de l'API REST],
 ) <tab-api-endpoints>
+
+=== Orchestration par Jobs Kubernetes
+// TODO: l'API construit des V1Job dynamiquement (buildJob) car les params changent par requête (impossible en YAML statique). image_pull_policy Always, ttl 3600, runtimeClassName nvidia, resources nvidia.com/gpu, restart Never. Découple l'API de l'état du RayCluster.
+
+=== RBAC et ServiceAccount
+// TODO: SA sam3-api + Role (jobs create/get/list/watch/delete ; pods + pods/log get) + RoleBinding. Moindre privilège. Subtilité : jobs/status est une sous-ressource distincte → 403 ; on utilise read_namespaced_job (ressource jobs).
+
+=== Récupération des résultats
+// TODO: solo écrit results/<job>.json sur S3 ; get_result lit S3 (durable, indépendant du TTL). Comparaison logs (éphémère + bug client bytes) vs SQLite (inadapté distribué/NFS) vs S3 (retenu).
+
+== Segmentation interactive
+
+=== Prompt visuel (PVS) vs prompt concept (PCS)
+// TODO: PVS (point/box) = OÙ, masque class-agnostic sans type. PCS (texte/exemplar) = QUOI, trouve toutes les instances du concept fourni. Batch/solo = PCS (label texte) ; endpoint interactif = PVS (point), le label est fourni en entrée et sert à étiqueter la sortie.
+
+=== Service persistant à modèle chaud
+// TODO: clic→contour = interactif → modèle chargé une fois (FastAPI lifespan), pas un Job par requête (cold start = pull image + load modèle = minutes). Tient 1 GPU en permanence (coût vs pénurie GPU).
+
+=== Ultralytics
+// TODO: API points/box triviale (model.predict(points=, labels=)) vs le pipeline complet (_make_datapoint/collate/postprocessor). Image plus légère. Modèle sam3.pt. Pas d'auth (exposé via Ingress).
 
 == Variables environement
 

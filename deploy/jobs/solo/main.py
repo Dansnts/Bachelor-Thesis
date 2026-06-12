@@ -1,59 +1,26 @@
 import argparse
 import io
 import json
+import logging
 import os
 
 import numpy as np
 import ray
 import torch
 from dotenv import load_dotenv
-from exif import Image as ExifImage
 from PIL import Image
 
-load_dotenv("/Users/dani/Cours/6.SEM/TB/.env")
-parser = argparse.ArgumentParser()
-parser.add_argument("--imageUri", required=True)
-parser.add_argument("--bucket", type=str, required=True)
-parser.add_argument("--labels", nargs="+", required=True)
-parser.add_argument("--tileSize", type=int, default=1008)
-parser.add_argument("--tileStride", type=int, default=768)
-args = parser.parse_args()
+load_dotenv()
+
+log = logging.getLogger(__name__)
+
+CONF_THRESHOLD = 0.5
+DEFAULT_TILE_SIZE = 1008
+DEFAULT_TILE_STRIDE = 768
+DEFAULT_BATCH_SIZE = 4
 
 
-# Fonctions
-## EXIF
-def getGPSFromEXIF(picurePath):
-    pictureName = os.path.basename(picurePath)
-
-    wantedTags = ["gps_altitude", "gps_img_direction", "datetime_original"]
-    pairedTags = [
-        ("gps_latitude_ref", "gps_latitude"),
-        ("gps_longitude_ref", "gps_longitude"),
-    ]
-
-    with open(picurePath, "rb") as picture:
-        myPicture = Image(picture)
-        hasExif = "" if myPicture.has_exif else "'nt"
-
-        print.info(
-            "The pirture",
-            pictureName,
-            "does",
-            hasExif,
-            " have EXIF data on it.",
-        )
-
-        for pictureTag in myPicture.list_all():
-            if pictureTag in wantedTags:
-                print(pictureTag, ":", myPicture.get(pictureTag))
-
-        print()
-
-        for ref, tag in pairedTags:
-            print(tag, ":", myPicture.get(ref), myPicture.get(tag))
-
-
-## S3
+# S3
 def s3Client():
     import boto3
     from botocore.client import Config
@@ -68,12 +35,12 @@ def s3Client():
     )
 
 
-def getImage(bucket: str, imageURL: str):
+def getImage(bucket, imageURL):
     picture = s3Client().get_object(Bucket=bucket, Key=imageURL)
     return picture["Body"].read()
 
 
-## Tiles
+# Tiles
 def patchPosition(img_w, img_h, tile_size, tile_stride):
     def positions_1d(size):
         pos = []
@@ -106,7 +73,7 @@ def getPatches(image, tile_size, tile_stride):
     return patches
 
 
-## Post processing
+# Post processing
 def mergeMasks(masks, coords_list, img_w, img_h, scores):
     from scipy import ndimage
 
@@ -163,47 +130,233 @@ def maskToPolygon(mask, w, h):
 def toLabelStudio(image_uri, polygons, img_w, img_h):
     results = []
     for label, points, score in polygons:
-        results.append({
-            "type": "polygonlabels",
-            "from_name": "label",
-            "to_name": "image",
-            "original_width": img_w,
-            "original_height": img_h,
-            "value": {
-                "closed": True,
-                "polygonlabels": [label],
-                "points": points,
-            },
-        })
-    return [{
-        "data": {"image": image_uri},
-        "predictions": [{"model_version": "SAM3", "result": results}],
-    }]
+        results.append(
+            {
+                "type": "polygonlabels",
+                "from_name": "label",
+                "to_name": "image",
+                "original_width": img_w,
+                "original_height": img_h,
+                "value": {
+                    "closed": True,
+                    "polygonlabels": [label],
+                    "points": points,
+                },
+            }
+        )
+    return [
+        {
+            "data": {"image": image_uri},
+            "predictions": [{"model_version": "SAM3", "result": results}],
+        }
+    ]
 
 
-## RAY Actor
-@ray.remote(num_gpus=1) # 1 Seul GPU car nous sommes en solo
+# RAY Actor
+@ray.remote(num_gpus=1)  # 1 seul GPU car nous sommes en solo
 class SAM3Worker:
-    def __init__(self, tile_size=1008, tile_stride=768):
-        # charger le modèle SAM3 une fois
-        # initialiser self.model, self.transform, self.postprocessor
+    def __init__(
+        self,
+        tile_size=DEFAULT_TILE_SIZE,
+        tile_stride=DEFAULT_TILE_STRIDE,
+        batch_size=DEFAULT_BATCH_SIZE,
+    ):
+        from huggingface_hub import login
+        from sam3 import build_sam3_image_model
+        from sam3.eval.postprocessors import PostProcessImage
+        from sam3.train.transforms.basic_for_api import (
+            ComposeAPI,
+            NormalizeAPI,
+            ToTensorAPI,
+        )
 
-    def process(self, image):
-        # 1. extraire les patches avec getPatches()
-        # 2. passer chaque patch à SAM3
-        # 3. merger les masques avec mergeMasks()
-        # 4. convertir en polygones avec maskToPolygon()
-        # 5. retourner liste de (label, points, score)
+        logging.basicConfig(level=logging.INFO)
+
+        # charger le modèle SAM3 une fois
+        hf_token = os.getenv("HF_TOKEN")
+        if hf_token:
+            login(token=hf_token)
+
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.tile_size = tile_size
+        self.tile_stride = tile_stride
+        self.batch_size = batch_size
+        self._counter = 1
+
+        self.model = build_sam3_image_model(
+            device=self.device,
+            eval_mode=True,  # mode inférence
+            load_from_HF=True,
+            enable_segmentation=True,
+            enable_inst_interactivity=True,
+        )
+
+        self.transform = ComposeAPI(
+            transforms=[
+                ToTensorAPI(),
+                NormalizeAPI(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
+            ]
+        )
+
+        self.postprocessor = PostProcessImage(
+            max_dets_per_img=-1,
+            iou_type="segm",
+            use_original_sizes_box=True,
+            use_original_sizes_mask=True,
+            convert_mask_to_rle=False,
+            detection_threshold=CONF_THRESHOLD,
+            to_cpu=True,
+        )
+        log.info("SAM3Worker prêt sur %s", self.device)
+
+    def _make_datapoint(self, patch_image, labels):
+        from sam3.train.data.sam3_image_dataset import (
+            Datapoint,
+            FindQueryLoaded,
+            InferenceMetadata,
+        )
+        from sam3.train.data.sam3_image_dataset import Image as SAMImage
+
+        pw, ph = patch_image.size
+        dp = Datapoint(
+            find_queries=[],
+            images=[SAMImage(data=patch_image, objects=[], size=[ph, pw])],
+        )
+        query_id_to_label = {}
+        for label in labels:
+            dp.find_queries.append(
+                FindQueryLoaded(
+                    query_text=label,
+                    image_id=0,
+                    object_ids_output=[],
+                    is_exhaustive=True,
+                    query_processing_order=0,
+                    inference_metadata=InferenceMetadata(
+                        coco_image_id=self._counter,
+                        original_image_id=self._counter,
+                        original_category_id=1,
+                        original_size=[pw, ph],
+                        object_id=0,
+                        frame_index=0,
+                    ),
+                )
+            )
+            query_id_to_label[self._counter] = label
+            self._counter += 1
+        return self.transform(dp), query_id_to_label
+
+    def process(self, image_bytes, labels):
+        from sam3.model.utils.misc import copy_data_to_device
+        from sam3.train.data.collator import collate_fn_api as collate
+
+        image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        image_width, image_height = image.size
+
+        # 1. extraire les patches
+        patches = getPatches(image, self.tile_size, self.tile_stride)
+
+        # 2. emballer chaque patch en Datapoint (image + labels)
+        patch_data = []
+        for patch_image, coordinates in patches:
+            dp, query_id = self._make_datapoint(patch_image, labels)
+            patch_data.append((dp, coordinates, query_id))
+
+        # 3. inférence batchée → liste de (mask, coords, score, label)
+        detections = []
+        for i in range(0, len(patch_data), self.batch_size):
+            batch = patch_data[i : i + self.batch_size]
+            dps = [x[0] for x in batch]
+            coords_list = [x[1] for x in batch]
+            qmaps = [x[2] for x in batch]
+
+            b = collate(dps, dict_key="dummy")["dummy"]
+            b = copy_data_to_device(b, torch.device(self.device), non_blocking=True)
+
+            with torch.inference_mode():
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                    output = self.model(b)
+
+            results = self.postprocessor.process_results(output, b.find_metadatas)
+
+            for coordinates, qmap in zip(coords_list, qmaps):
+                for query_id, label in qmap.items():
+                    if query_id not in results:
+                        continue
+                    for mask, score in zip(
+                        results[query_id].get("masks", []),
+                        results[query_id].get("scores", []),
+                    ):
+                        s = float(score.float().cpu().numpy())
+                        if s >= CONF_THRESHOLD:
+                            m = (mask.float().cpu().numpy().squeeze() > 0.5).astype(
+                                np.uint8
+                            )
+                            detections.append((m, coordinates, s, label))
+
+        # 4. regrouper par label puis recoller les patches avec mergeMasks()
+        label_groups = {}
+        for mask, coordinates, score, label in detections:
+            g = label_groups.setdefault(
+                label, {"masks": [], "coords": [], "scores": []}
+            )
+            g["masks"].append(mask)
+            g["coords"].append(coordinates)
+            g["scores"].append(score)
+
+        # 5. convertir chaque masque fusionné en polygone → (label, points, score)
+        polygons = []
+        for label, g in label_groups.items():
+            for mask, score in mergeMasks(
+                g["masks"], g["coords"], image_width, image_height, g["scores"]
+            ):
+                points = maskToPolygon(mask, image_width, image_height)
+                if points:
+                    polygons.append((label, points, float(score)))
+
+        log.info("%d objets détectés sur %d patches", len(polygons), len(patches))
+        return polygons, image_width, image_height
+
 
 # Main
 def main():
-    s3Bucket = args.bucket
-    imageURI = args.imageUri
-    labels = args.labels
-    tileSize = args.tileSize
-    tileStride = args.tileStide
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
+    )
 
-    picture = getImage(s3Bucket, imageURI)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--imageUri", required=True)
+    parser.add_argument("--bucket", required=True)
+    parser.add_argument("--labels", nargs="+", required=True)
+    parser.add_argument("--tileSize", type=int, default=DEFAULT_TILE_SIZE)
+    parser.add_argument("--tileStride", type=int, default=DEFAULT_TILE_STRIDE)
+    parser.add_argument("--resultKey", default=None)
+    args = parser.parse_args()
+
+    log.info("Téléchargement de %s depuis le bucket %s", args.imageUri, args.bucket)
+    picture = getImage(args.bucket, args.imageUri)
+
+    ray.init()
+    try:
+        worker = SAM3Worker.remote(
+            tile_size=args.tileSize, tile_stride=args.tileStride
+        )
+        polygons, width, height = ray.get(
+            worker.process.remote(picture, args.labels)
+        )
+    finally:
+        ray.shutdown()
+
+    body = json.dumps(toLabelStudio(args.imageUri, polygons, width, height))
+    print(body)
+
+    if args.resultKey:
+        s3Client().put_object(
+            Bucket=args.bucket,
+            Key=args.resultKey,
+            Body=body.encode("utf-8"),
+            ContentType="application/json",
+        )
+        log.info("Résultat écrit sur s3://%s/%s", args.bucket, args.resultKey)
 
 
 if __name__ == "__main__":

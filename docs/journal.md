@@ -338,3 +338,26 @@
 | Journal, notes week 16, git commits | Done | 30min |
 | Updated Architecure part of the report | Done | 1h20 |
 | **Total** | | **11h20** |
+
+# Week 17
+
+*Friday June 12, 2026*
+
+| Task              | Status | Time |
+| :---------------- | :------: | ----: |
+| Complete SAM3Worker actor in solo/main.py : __init__ (model/transform/postprocessor), _make_datapoint, batched inference loop | Done | 1h30 |
+| Verify SAM3 API signatures from source + clean up solo/main.py (logging, argparse in main, constants, dead code removal) | Done | 45min |
+| Multi-stage Docker build for solo, fix typos, requirements cleanup (python-dotenv, drop exif/pyarrow, ray[default]) | Done | 45min |
+| API Dockerfile : remove baked .env (secret leak), fix --no-cache-dir, add non-root user | Done | 20min |
+| Build + push sam3-solo:staging and sam3-api:staging to ghcr | Done | 30min |
+| API K8s manifests : ServiceAccount, Role, RoleBinding, Deployment, Service, Ingress | Done | 30min |
+| Deploy + debug : RoleBinding apply order, python-dotenv crash, stale :latest job, GPU scheduling (scale Ray workers to 0 via JSON patch) | Done | 1h |
+| buildJob GPU resources + runtimeClassName, validate solo job end-to-end (15 sign detections) | Done | 30min |
+| get_job + get_result endpoints : read_namespaced_job (jobs/status RBAC fix), pod-log bytes bug (_preload_content) | Done | 45min |
+| Result persistence on S3 : solo uploads results/<job>.json, get_result reads S3, boto3 + minio-secret in API | Done | 45min |
+| SAM3 visual prompt research (PVS vs PCS), source + web verification | Done | 30min |
+| Interactive segmentation service (deploy/segment) : FastAPI lifespan + Ultralytics, Dockerfile, manifests, gated weights hf_hub_download fix | Done | 1h30 |
+| Multi-point support (list of items) + API gateway (/segment proxy, segment service internal) | Done | 30min |
+| docs/API.md usage guide, report placeholders (architecture + implementation), notes week 15-17 | Done | 30min |
+| Email to professor | Done | 10min |
+| **Total** | | **10h30** |

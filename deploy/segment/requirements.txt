@@ -1,0 +1,6 @@
+ultralytics
+huggingface_hub
+fastapi
+uvicorn
+boto3
+python-dotenv

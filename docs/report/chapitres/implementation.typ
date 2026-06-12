@@ -15,6 +15,12 @@ La pipeline s'exécute dans une image Docker basée sur `nvidia/cuda:12.6.3-cudn
 + SAM3 cloné depuis le dépôt Meta (`github.com/facebookresearch/sam3`) et installé avec ses extras `notebooks,train,dev`.
 + Ray 2.54.0 avec les extras `data,train,serve,default` et les dépendances pipeline : `exif`, `Pillow`, `opencv-python-headless`, `numpy>=1.26,<2`, `boto3`, `scipy`, `pyarrow`.
 
+== Build multi-stage
+// TODO: stage builder (CUDA devel, git/-dev, venv complet) → stage runtime qui COPY --from=builder /opt/venv. Piège : le venv a des symlinks vers le python système → réinstaller python3.12 en stage runtime. Compromis devel vs runtime (risque Triton JIT/ptxas au runtime). Mesure taille avant/après (solo = 24 Go).
+
+== Conteneurs non-root
+// TODO: USER appuser (uid 1000) pour l'API + runAsNonRoot dans le Deployment. Port 8000 (>1024) bindable sans privilège. pip install reste en root (étape build). Le solo/segment restent root (cache HF /root, accès GPU).
+
 == Pipeline Python
 
 Le fichier `sam3_minio_pipeline.py` est le point d'entrée unique. Il supporte deux modes via l'argument `--local` :
@@ -127,5 +133,17 @@ Deux contraintes sont critiques :
 La prochaine étape est d'automatiser cette conversion et l'appel à l'API REST Label Studio directement depuis la pipeline, conformément à la section 6.4 du cahier des charges.
 
 == API
+
+=== Construction dynamique des Jobs (buildJob)
+// TODO: V1Job / V1PodSpec / V1Container via le SDK Python. env via secretKeyRef (minio-secret, hf-secret), S3_ENDPOINT_URL. resources nvidia.com/gpu, runtimeClassName nvidia, imagePullSecrets ghcr-secret, restart Never, ttl 3600.
+
+=== Récupération du résultat depuis S3
+// TODO: submitSolo passe --resultKey results/<job>.json ; le solo upload le JSON sur S3. get_result lit cet objet (boto3 + minio-secret côté API). Durable, indépendant du TTL des Jobs.
+
+=== Frictions du client Kubernetes
+// TODO: (1) read_namespaced_pod_log renvoie repr(bytes) sur kubernetes-client 36.x → _preload_content=False + .data.decode("utf-8"). (2) jobs/status est une sous-ressource RBAC distincte de jobs → read_namespaced_job au lieu de read_namespaced_job_status.
+
+== Service de segmentation interactive
+// TODO: Deployment GPU 1 replica, modèle chaud (FastAPI lifespan), lock GPU, startupProbe tolérante (download modèle). POST /segment {url, point, label} → download S3 → model.predict(points) → maskToPolygon → {label, points}. Ultralytics SAM3 (sam3.pt).
 
 

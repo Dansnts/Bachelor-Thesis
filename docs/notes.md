@@ -916,3 +916,136 @@ Key rules:
 
 Screenshot: `docs/images/dashboard.png`
 
+# Week 15
+
+## Longhorn RWX cache (model weights)
+
+SAM3 weights (3.3 GB) are pulled from HuggingFace Hub on the first model load. Without a shared cache every pod re-downloads them. The cache PVC mounts at `/root/.cache/huggingface`; HuggingFace checks that directory before any network call.
+
+### RWO vs RWX
+
+The first cache PVC was `ReadWriteOnce`: mountable by one node at a time. As soon as workers were scheduled on two nodes (`iict-suchet` + `iict-k8s-node4-rad`), the worker on the second node stayed `Pending` with a multi-attach error. `ReadWriteMany` (RWX) allows simultaneous mounts from multiple nodes — required for a cache shared across workers (and later the solo/segment pods).
+
+### Longhorn RWX = NFS share-manager
+
+Longhorn implements RWX through a **share-manager** pod that re-exports the volume over **NFS**. So an RWX PVC is, under the hood, an NFS share. Mehdi created a `longhorn-rwx` StorageClass for it.
+
+`migratable: "false"` in the StorageClass is **correct** for RWX/share-manager volumes. `migratable: "true"` only concerns VM live-migration (KubeVirt block volumes), not filesystem RWX.
+
+### Node prerequisite : nfs-common
+
+Mounting RWX/NFS requires the NFS client (`mount.nfs`, package `nfs-common`) **on each node**. `iict-chasseron` lacks it → any pod mounting the RWX PVC there fails:
+
+```
+mount: ... bad option; for several filesystems (e.g. nfs, cifs) you might need a /sbin/mount.<type> helper program.
+```
+
+`iict-k8s-node4-rad` has it (workers mounted fine). Lesson: **an RWX StorageClass is not enough** — it imposes node homogeneity (NFS client everywhere). A pod without node affinity can land on an incompatible node and fail to mount. Reported to Mehdi to install `nfs-common` cluster-wide.
+
+---
+
+# Week 16
+
+Python libraries used to glue the pipeline together — connection/import patterns.
+
+## SAM3 (facebookresearch)
+
+The model is *built*, not just loaded:
+
+```python
+from sam3 import build_sam3_image_model
+model = build_sam3_image_model(device="cuda", eval_mode=True, load_from_HF=True,
+                               enable_segmentation=True, enable_inst_interactivity=True)
+```
+
+`load_from_HF=True` pulls the gated weights from HF (needs `HF_TOKEN` + approved access; `huggingface_hub.login(token=...)` before building).
+
+Two companion objects, both *constructed* (no weights):
+- `transform = ComposeAPI([ToTensorAPI(), NormalizeAPI(mean=[.5]*3, std=[.5]*3)])` — PIL → normalized tensor. SAM3 operates on a `Datapoint` (image + text queries), not a raw PIL image.
+- `postprocessor = PostProcessImage(iou_type="segm", detection_threshold=0.5, max_dets_per_img=-1, ...)` — decodes raw logits into masks + scores. `iou_type="segm"` is mandatory to get masks; `max_dets_per_img` has no default (must pass `-1`).
+
+Lesson: **the installed source is the source of truth, not the README.** The README does not list `build_sam3_image_model`'s kwargs; the code does (`sam3/model_builder.py`). Signatures were verified directly instead of trusting docs/memory.
+
+`_make_datapoint` wraps a patch + text labels into `FindQueryLoaded` objects. The same struct also carries `input_bbox`/`input_points` → SAM3 supports **visual prompts** (points/boxes) on top of text.
+
+## boto3 (MinIO / S3)
+
+```python
+boto3.session.Session().client(
+    "s3", endpoint_url=os.getenv("S3_ENDPOINT_URL"),
+    aws_access_key_id=os.getenv("AWS_ACCESS_KEY"),
+    aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+    config=Config(connect_timeout=5, read_timeout=10, retries={"max_attempts": 1}),
+    verify=False)
+```
+
+- `verify=False` — MinIO uses a self-signed cert internally → TLS verification off (warns `InsecureRequestWarning`, expected).
+- Custom env name `AWS_ACCESS_KEY` (not the standard `AWS_ACCESS_KEY_ID`) — works since it is read explicitly, but it diverges from the Ray pipeline (`AWS_ACCESS_KEY_ID`). To reconcile before the batch job.
+- `get_object(Bucket, Key)["Body"].read()` → bytes ; `put_object(Bucket, Key, Body=..., ContentType=...)` to write.
+- A missing key raises `client.exceptions.NoSuchKey`.
+
+## kubernetes (python client)
+
+```python
+try: config.load_incluster_config()      # in-cluster: pod ServiceAccount token
+except config.ConfigException: config.load_kube_config()   # local: ~/.kube/config
+batch_v1 = client.BatchV1Api()
+core_v1  = client.CoreV1Api()
+```
+
+- V1-prefixed classes map 1:1 to YAML: `V1Job > V1JobSpec > V1PodTemplateSpec > V1PodSpec > V1Container`. Env via `V1EnvVar` + `V1EnvVarSource(secret_key_ref=V1SecretKeySelector(...))`.
+- The Job is built dynamically (params change per request) — impossible with a static YAML.
+- `client.ApiException` carries `.status` and `.reason` → relayed as HTTP errors.
+
+Two real frictions:
+- `read_namespaced_job_status` hits the **`jobs/status` subresource** — a distinct RBAC resource from `jobs`. The Role granted only `jobs` → `403 Forbidden`. Fix: `read_namespaced_job` (resource `jobs`, returns the full object incl. `.status`).
+- `read_namespaced_pod_log` on kubernetes-client 36.x returns `repr(bytes)` (a single line `b'...\n...'` with literal `\n`) instead of decoded text → `splitlines()` sees one line. Fix: `read_namespaced_pod_log(..., _preload_content=False).data.decode("utf-8")`.
+
+---
+
+# Week 17
+
+REST API design and the choices behind it.
+
+## API as a Job orchestrator
+
+FastAPI `Deployment` (no GPU). It does **not** run the model — it creates Kubernetes `Job`s via `buildJob` (dynamic `V1Job`), staying decoupled from the RayCluster state.
+
+- `POST /jobs/solo` → one image, self-contained job (`ray.init()` local, single GPU), writes result to S3.
+- `POST /jobs/batch` → planned: connects to the RayCluster (still a stub).
+- `GET /jobs/{name}` → status (Succeeded / Failed / Active / Pending).
+- `GET /jobs/{name}/result` → reads the result from S3.
+- `POST /segment` → proxy to the interactive service (see below).
+
+The Job container needs `resources.limits["nvidia.com/gpu"]=1` + `runtimeClassName: nvidia`, otherwise the `@ray.remote(num_gpus=1)` actor never schedules (no GPU visible) and the job hangs.
+
+## RBAC (least privilege)
+
+A pod uses the `default` SA (no rights) unless told otherwise. Created `ServiceAccount sam3-api` + `Role` (jobs create/get/list/watch/delete ; pods + pods/log get) + `RoleBinding`. Creating a Job from the API needs these rights; without them → 403.
+
+## Result persistence : S3 (not SQLite, not logs)
+
+- **logs** (stdout → `kubectl logs`): ephemeral, gone after the Job TTL (1 h), fragile parsing (the client bytes bug).
+- **SQLite**: bad fit — the job runs in a separate pod; sharing a SQLite file needs an RWX/NFS volume (the Week-15 NFS problem) and SQLite over NFS corrupts (POSIX locking) + single-writer contention.
+- **S3** (chosen): the solo job uploads `results/<job>.json`; `get_result` reads it back. Durable, survives the TTL, distributed-friendly, consistent with the batch (Parquet on S3). The API gained boto3 + `minio-secret`.
+
+## Interactive segmentation (visual prompt)
+
+New requirement: give a point + a label, get the object's polygon back.
+
+- **PVS vs PCS** — SAM3 has two prompt families. **PCS** (text/exemplar) = *what* → finds all instances of a concept (the batch/solo path). **PVS** (point/box) = *where* → outlines the object at that spot, **class-agnostic** (no type). Verified in source (`predict()` returns masks + IoU, no label) and online (PCS = concept specified by the prompt). A point alone cannot "guess" a type; the label is provided by the caller and only tags the output.
+- **Warm service, not a Job** — interactive use needs a hot model (sub-second). A Job per request = cold start (pull image + load model = minutes), unusable. Built `sam3-segment`: a GPU `Deployment` (1 replica) loading the model once (FastAPI `lifespan`), holding 1 GPU permanently, with a tolerant `startupProbe`.
+- **Ultralytics** instead of the facebookresearch pipeline: `model.predict(points=, labels=)` in 2 lines vs the full `_make_datapoint`/collate/postprocessor. But SAM3 weights are **gated**: `SAM("sam3.pt")` does not auto-download. Fix: `hf_hub_download(repo_id="facebook/sam3", filename="sam3.pt", token=HF_TOKEN)` at startup (point prompts don't need the BPE vocab — that's text-only).
+
+## API gateway
+
+Instead of exposing `sam3-segment` publicly, the main API **proxies** `/segment` to the internal service (`http://sam3-segment:8000`). One entry point, the GPU service stays internal (ClusterIP, no Ingress), one place for future auth.
+
+## Container choices
+
+- **Multi-stage build** (builder CUDA-devel → runtime): copy only `/opt/venv` into the final image. Gotcha: the venv symlinks the system python → reinstall `python3.12` in the runtime stage. Trade-off devel↔runtime (Triton JIT may need `ptxas` at runtime).
+- **Non-root** (`USER appuser`, `runAsNonRoot`) for the API. The pip root warning is build-time only; the goal is the running process. The `.env` must **not** be baked into the image (secrets would leak into the registry) — config comes from K8s env.
+
+## Open / security
+
+No authentication yet on the API or the segment service. Exposed via Ingress = anyone on the network can consume GPU. Token / API key is a future improvement.

@@ -3,9 +3,12 @@ FROM python:3.12-slim
 WORKDIR /app
 
 COPY ./requirements.txt .
-RUN pip install --no-cache -r ./requirements.txt
+RUN pip install --no-cache-dir -r ./requirements.txt
 
 COPY ./main.py .
-COPY ./.env .
+
+# Utilisateur non-root pour l'exécution
+RUN useradd --create-home --uid 1000 appuser
+USER appuser
 
 CMD ["python", "main.py"]

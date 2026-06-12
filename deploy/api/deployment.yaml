@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sam3-api
+  namespace: dani
+  labels:
+    app: sam3-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sam3-api
+  template:
+    metadata:
+      labels:
+        app: sam3-api
+    spec:
+      serviceAccountName: sam3-api
+      imagePullSecrets:
+        - name: ghcr-secret
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+        - name: api
+          image: ghcr.io/nearai-interreg/sam3-api:staging
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+          env:
+            - name: NAMESPACE
+              value: "dani"
+            - name: S3_ENDPOINT_URL
+              value: "https://storage-kubernetes.iict-heig-vd.in:9000"
+            - name: BUCKET
+              value: "nearai"
+            - name: AWS_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secret
+                  key: access_key
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secret
+                  key: secret_key
+            - name: SOLO_IMAGE
+              value: "ghcr.io/nearai-interreg/sam3-solo:staging"
+            - name: BATCH_IMAGE
+              value: "ghcr.io/nearai-interreg/sam3-batch:staging"
+            - name: PORT
+              value: "8000"
+            - name: V4_ADDRESS
+              value: "0.0.0.0"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
