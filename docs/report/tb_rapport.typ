@@ -434,7 +434,7 @@ Toute utilisation, même partielle, de ce TB doit être faite dans le respect du
     [*SA-1B*],
     [Dataset d'entraînement de SAM, 1,1 milliard de masques sur 11 millions d'images. Confère à SAM3 une généralisation forte sur des domaines non vus],
 
-    [*VRAM*], [Video RAM, mémoire dédiée d'un GPU. SAM3 ViT-H occupe ~2,4 Go de VRAM],
+    [*VRAM*], [Video RAM, mémoire dédiée d'un GPU. SAM3 ViT-H occupe ~3,8 Go de VRAM une fois chargé],
     [*OOM*],
     [Out of Memory, erreur de dépassement de mémoire. Survient si un modèle est rechargé à chaque tâche au lieu d'être maintenu dans un Actor],
 
