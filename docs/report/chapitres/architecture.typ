@@ -141,7 +141,6 @@ Le RayCluster est déclaré via la ressource CRD `ray.io/v1alpha1/RayCluster`. K
 Le driver s'exécute à l'extérieur du cluster en tant que Job Kubernetes sans GPU. Il se connecte au head via `ray.init("ray://ray-head-svc:10001")` et soumet les tâches au GCS. Les workers ne sont jamais contactés directement : Ray dispatche les tâches via le GCS.
 
 #pagebreak()
-=== nodeAffinity
 
 Les workers Ray doivent s'exécuter sur des nœuds GPU. La configuration `nodeAffinity` du groupe de workers restreint le scheduling aux nœuds `iict-suchet` (L40S) et `iict-k8s-node4-rad` (A40) :
 
@@ -156,8 +155,6 @@ nodeAffinity:
               - iict-suchet
               - iict-k8s-node4-rad
 ```
-
-=== Injection des credentials
 
 Les workers Ray s'exécutent dans des pods séparés et n'héritent pas des variables d'environnement du driver. Les credentials MinIO (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `S3_ENDPOINT_URL`) et le token HuggingFace (`HF_TOKEN`) doivent être déclarés explicitement dans le `workerGroupSpec` via des références à un Secret Kubernetes :
 
@@ -175,7 +172,7 @@ env:
         key: token
 ```
 
-Sans cette configuration, chaque appel S3 depuis un Actor échoue avec `NoCredentialsError` et le premier démarrage du worker tente de télécharger les poids SAM3 (3,3 GB) sans authentification.
+Sans cette configuration, chaque appel S3 depuis un Actor échoue avec `NoCredentialsError` et le premier démarrage du worker tente de télécharger les poids SAM3 sans authentification.
 
 == Cache du modèle SAM3
 
@@ -256,6 +253,9 @@ Les pré-annotations importées doivent utiliser `from_name: "label"` et `to_nam
 
 === API
 
+=== Segmentation manuelle (Call endpoint /segment)
+
+#pagebreak()
 == Observabilité
 
 La stack d'observabilité collecte deux flux distincts : les métriques GPU et Ray via Prometheus, et les logs des pods via Alloy et Loki. Grafana agrège les deux sources dans un dashboard unique.
@@ -268,7 +268,7 @@ La stack d'observabilité collecte deux flux distincts : les métriques GPU et R
 ) <Schema-Observability>
 
 #linebreak()
-=== Prometheus
+
 
 Prometheus scrape deux sources de métriques toutes les 15 secondes depuis 2 sources :
 
@@ -276,11 +276,11 @@ Prometheus scrape deux sources de métriques toutes les 15 secondes depuis 2 sou
 
 *RayCluster* : métriques Ray exposées par le head node (`ray_running_jobs`, `ray_gcs_actors_count`).
 
-=== DCGM
+
 
 DCGM tourne via un DeamonSet sur chaque node. Via un endpoint `/metrics` sur le port [9400] et le DNS de K8s, les données peuvent être scrapées individuellment, ce qui permet de garder le `hostname` pour chaque métrique.
 
-=== Alloy
+
 
 Alloy est déployé en Deployment unique dans le namespace `dani`. Il lit les logs de tous les pods via l'API Kubernetes (`loki.source.kubernetes`) sans monter le système de fichiers du nœud hôte et les pousse vers Loki en continu.
 
@@ -311,17 +311,17 @@ Alloy est déployé en Deployment unique dans le namespace `dani`. Il lit les lo
 )
 
 
-=== Loki
+#linebreak()
 
 Loki stocke l'index (TSDB) et les chunks de logs dans MinIO sous le préfixe `nearai/dani/loki`. Il est ainsi _stateless_ : tout l'état réside dans le bucket S3, et le pod peut être redémarré sans perte de données.
 
 Les logs du driver SAM3 contiennent les résultats de chaque run au format texte.
 
-=== Grafana
+
 
 Grafana intéroge les résultats interroge via LogQL avec `regexp` et `unwrap` pour en extraire des métriques comme le nombre d'images traitées, détections, et temps moyen par image.
 
-
+#pagebreak()
 == API
 
 Une API REST expose la pipeline aux utilisateurs et aux systèmes externes. Elle permet de soumettre des jobs batch ou on-demand, de consulter leur état et d'importer automatiquement les résultats dans NearLabel ou sans accès direct au cluster Kubernetes.
@@ -334,6 +334,12 @@ L'API tourne comme un `Deployment` dans le namespace `dani`, avec un `ServiceAcc
     align: (left, left, left),
     fill: (_, row) => if row == 0 { col-blue } else if calc.odd(row) { rgb("#F1F5F9") } else { white },
     table.header(text(fill: white)[*Endpoint*], text(fill: white)[*Paramètres*], text(fill: white)[*Description*]),
+    [`GET /`],
+    [#set par(justify: false); #text(
+        size: 0.85em,
+      )[`-`]],
+    [Retourne `NearApi vX is running`.],
+
     [`POST /jobs/batch`],
     [#set par(justify: false); #text(
         size: 0.85em,
@@ -344,10 +350,14 @@ L'API tourne comme un `Deployment` dans le namespace `dani`, avec un `ServiceAcc
     [#set par(justify: false); #text(size: 0.85em)[`image_uri`, `labels`,\ `tile_size`, `tile_stride`]],
     [Soumet une image unique, poll le statut du Job K8s et retourne le résultat au format JSON Label Studio.],
 
-    [`GET /jobs`], [—], [Liste les Jobs Kubernetes du namespace avec leur statut.],
+    [`GET /jobs`], [-], [Liste les Jobs `sam3-batch-*` et `sam3-solo-*` du namespace avec leur statut.],
     [`GET /jobs/{name}`],
     [#text(size: 0.85em)[`name`]],
     [Retourne le statut d'un Job (`Pending`, `Running`, `Succeeded`, `Failed`).],
+
+    [`POST /segment/`],
+    [#text(size: 0.85em)[`image_uri`, `items` (position + label)]],
+    [Utilise la fonction de SAM3 pour retrouver un item selon son label `label` à la position `position`.],
 
     [`POST /import/\ {acquisition_id}`],
     [#text(size: 0.85em)[`acquisition_id`]],

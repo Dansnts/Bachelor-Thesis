@@ -30,6 +30,7 @@ SAM3 a été entraîné sur SA-1B, un corpus de 1,1 milliard de masques sur 11 m
 
 Ce modèle accepte des images jusqu'à 1'024 x 1'024 pixels. Une panoramique de 8'192 x 4'096 pixels doit donc être découpée avant l'inférence. Ce travail adopte des tuiles de 512 x 512 pixels, ce qui produit 128 tuiles par image à pleine résolution. Un downsampling à 50 % ramène ce nombre à 32 tuiles et réduit le temps d'inférence d'un facteur 4, au prix d'une perte de détail acceptable pour les classes cibles.
 
+=== TO DO : EXPLICATION DU TUILAGE VIA UNE IMAGE
 
 Les images équirectangulaires présentent une distorsion géométrique croissante vers le zénith et le nadir. Les objets cibles (panneaux, marquages) se concentrent dans la bande centrale de l'image, correspondant à ±30° d'élévation, là où la distorsion est minimale. La correction de projection n'est donc pas implémentée, elle apporterait un gain marginal pour un coût d'implémentation élevé. Le bas du panorama est en grande partie occulté par la carrosserie du véhicule. Ce choix est documenté comme limitation connue.
 
@@ -81,7 +82,7 @@ Deux stratégies de parallélisation GPU existent pour l'inférence de modèles 
 - *Data parallelism* : chaque GPU héberge une copie complète du modèle et traite une image indépendante. Le throughput scale linéairement avec le nombre de GPU.
 - *Model parallelism* : le modèle est fragmenté sur plusieurs GPU pour réduire la latence d'une seule inférence. Implique un overhead de communication inter-GPU à chaque couche.
 
-Le model parallelism est justifié uniquement lorsque le modèle ne tient pas sur un seul GPU (LLMs de 70 milliards de paramètres et plus). SAM3 ViT-H occupe 2,4 Go de VRAM et les GPU du cluster (L40S 48 Go, A40 48 Go, L4 24 Go) l'hébergent sans contrainte.
+Le model parallelism est justifié uniquement lorsque le modèle ne tient pas sur un seul GPU (LLMs de 70 milliards de paramètres et plus). SAM3 ViT-H occupe ~3,8 Go de VRAM une fois chargé et les GPU du cluster (L40S 48 Go, A40 48 Go, L4 24 Go) l'hébergent sans contrainte.
 L'objectif de la pipeline est le throughput sur 300'000 images, pas la latence sur une image isolée. Avec $N$ workers en data parallelism, $N$ images sont traitées simultanément sans aucune synchronisation inter-GPU. Le modèle Ray Actor (un modèle chargé par GPU, $N$ workers indépendants) est la stratégie la plus correcte pour ce workload.
 
 *KubeRay* est l'opérateur Kubernetes officiel pour Ray @kuberay. Il introduit la ressource `RayCluster`, qui déclare un nœud head et un ou plusieurs groupes de workers. L'opérateur crée et gère les pods correspondants, expose les ports GCS (:6379), dashboard (:8265), métriques (:8080) et client Ray (:10001) via des Services Kubernetes.
