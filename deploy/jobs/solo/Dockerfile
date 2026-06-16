@@ -25,11 +25,11 @@ RUN git clone https://github.com/facebookresearch/sam3.git && \
     cd sam3 && \
     pip install ".[notebooks,train,dev]"
 
-COPY requirements.txt .
+COPY jobs/solo/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 
-# ßSTAGE 2 : runtine
+# STAGE 2 : runtine
 FROM nvidia/cuda:12.6.3-cudnn-devel-ubuntu24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -42,6 +42,8 @@ ENV PATH="/opt/venv/bin:$PATH"
 WORKDIR /app
 
 COPY --from=builder /opt/venv /opt/venv
-COPY ./main.py ./
+COPY jobCore /app/jobCore
+COPY jobs/solo/main.py /app/main.py
+ENV PYTHONPATH=/app
 
-CMD ["python3", "main.py"]
+CMD ["python3", "/app/main.py"]

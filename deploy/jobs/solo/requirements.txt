@@ -4,4 +4,3 @@ numpy>=1.26,<2
 Pillow
 opencv-python-headless
 scipy
-python-dotenv
