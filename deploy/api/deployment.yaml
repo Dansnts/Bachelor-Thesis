@@ -47,7 +47,7 @@ spec:
             - name: SOLO_IMAGE
               value: "ghcr.io/nearai-interreg/sam3-solo:staging"
             - name: BATCH_IMAGE
-              value: "ghcr.io/nearai-interreg/sam3-batch:staging"
+              value: "ghcr.io/nearai-interreg/ray-sam3:staging"
             - name: PORT
               value: "8000"
             - name: V4_ADDRESS

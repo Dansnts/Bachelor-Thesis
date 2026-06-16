@@ -17,13 +17,11 @@ try:
 except config.ConfigException:
     config.load_kube_config()
 
-batch_v1 = client.BatchV1Api()
-core_v1 = client.CoreV1Api()
 
 load_dotenv()
 app = FastAPI()
 
-# Variables
+# Variables --------------------------------------------------
 NAMESPACE = os.getenv("NAMESPACE", "dani")
 S3_ENDPOINT = os.getenv(
     "S3_ENDPOINT_URL", "https://storage-kubernetes.iict-heig-vd.in:9000"
@@ -34,6 +32,9 @@ PORT = int(os.getenv("PORT", "8000"))
 ADDRESS = os.getenv("V4_ADDRESS", "0.0.0.0")
 BUCKET = os.getenv("BUCKET", "nearai")
 SEGMENT_URL = os.getenv("SEGMENT_URL", "http://sam3-segment:8000")
+
+batch_v1 = client.BatchV1Api()
+core_v1 = client.CoreV1Api()
 
 
 def s3Client():
@@ -50,7 +51,7 @@ def s3Client():
     )
 
 
-# Classes
+# Classes --------------------------------------------------
 class BatchRequest(BaseModel):
     s3Uri: str
     s3OutputUri: str
@@ -58,16 +59,16 @@ class BatchRequest(BaseModel):
     labels: List[str]
     numWorkers: int
     batchSize: int  # Nombre d'images envoyées a un worker en une seule fois
-    tileSize: int
-    tileStride: int  # Décalage entre les tiles, permet de chevaucher une image pour être sur l'avoir analyser une partie coupée
+    tileSize: int = 1008
+    tileStride: int = 768  # Décalage entre les tiles, permet de chevaucher une image pour être sur l'avoir analyser une partie coupée
 
 
 class SoloRequest(BaseModel):
     imageUri: str
     s3Bucket: str
     labels: List[str]
-    tileSize: int
-    tileStride: int
+    tileSize: int = 1008
+    tileStride: int = 768
 
 
 class SegmentItem(BaseModel):
@@ -80,10 +81,15 @@ class SegmentRequest(BaseModel):
     items: List[SegmentItem]
 
 
-def buildJob(name, image, args):
+# gpu=True : le pod réserve un GPU et tourne sous la runtime nvidia (cas solo, qui
+#   fait tourner SAM3 dans son propre pod).
+# gpu=False : driver CPU-only (cas batch) ; il se connecte au RayCluster et ce sont
+#   les workers du cluster qui portent les GPUs, le driver n'en a pas besoin.
+# accessKeyEnv : le pipeline batch lit AWS_ACCESS_KEY_ID, le job solo AWS_ACCESS_KEY.
+def buildJob(name, image, command, args, gpu=True, accessKeyEnv="AWS_ACCESS_KEY"):
     env = [
         client.V1EnvVar(
-            name="AWS_ACCESS_KEY",
+            name=accessKeyEnv,
             value_from=client.V1EnvVarSource(
                 secret_key_ref=client.V1SecretKeySelector(
                     name="minio-secret", key="access_key"
@@ -109,19 +115,40 @@ def buildJob(name, image, args):
         client.V1EnvVar(name="S3_ENDPOINT_URL", value=os.getenv("S3_ENDPOINT_URL")),
     ]
 
+    if gpu:
+        resources = client.V1ResourceRequirements(
+            requests={"cpu": "4", "memory": "16Gi"},
+            limits={"nvidia.com/gpu": "1", "cpu": "8", "memory": "32Gi"},
+        )
+    else:
+        # driver batch : juste de quoi orchestrer, le calcul est sur le RayCluster
+        resources = client.V1ResourceRequirements(
+            requests={"cpu": "1", "memory": "2Gi"},
+            limits={"cpu": "2", "memory": "4Gi"},
+        )
+
     # Container
     container = client.V1Container(
         name=name,
         image=image,
         image_pull_policy="Always",
-        command=["python3", "/app/main.py"],
+        command=command,
         args=args,
         env=env,
-        resources=client.V1ResourceRequirements(
-            requests={"cpu": "4", "memory": "16Gi"},
-            limits={"nvidia.com/gpu": "1", "cpu": "8", "memory": "32Gi"},
-        ),
+        resources=resources,
     )
+
+    pod_spec = client.V1PodSpec(
+        restart_policy="Never",
+        image_pull_secrets=[
+            client.V1LocalObjectReference(
+                name="ghcr-secret"
+            )  # Secret pour pull les images depuis le registre
+        ],
+        containers=[container],
+    )
+    if gpu:
+        pod_spec.runtime_class_name = "nvidia"
 
     job = client.V1Job(
         api_version="batch/v1",
@@ -129,18 +156,7 @@ def buildJob(name, image, args):
         metadata=client.V1ObjectMeta(name=name, namespace=NAMESPACE),
         spec=client.V1JobSpec(
             ttl_seconds_after_finished=3600,
-            template=client.V1PodTemplateSpec(
-                spec=client.V1PodSpec(
-                    restart_policy="Never",
-                    runtime_class_name="nvidia",
-                    image_pull_secrets=[
-                        client.V1LocalObjectReference(
-                            name="ghcr-secret"
-                        )  # Secret pour pull les images depuis le registre
-                    ],
-                    containers=[container],
-                )
-            ),
+            template=client.V1PodTemplateSpec(spec=pod_spec),
         ),
     )
 
@@ -151,6 +167,15 @@ def buildJob(name, image, args):
         raise HTTPException(status_code=e.status, detail=e.reason)
 
 
+def toS3Uri(bucket, path):
+    # le pipeline attend une URI s3://bucket/prefix. On accepte aussi bien un
+    # préfixe simple ("data/...") qu'une URI déjà formée ("s3://bucket/...").
+    if path.startswith("s3://"):
+        return path
+    return f"s3://{bucket}/{path.lstrip('/')}"
+
+
+# Endpoints --------------------------------------------------
 @app.get("/")
 async def root():
     return {"message": "NearAPI is working."}
@@ -158,7 +183,36 @@ async def root():
 
 @app.post("/jobs/batch")
 def submitBatch(req: BatchRequest):
-    pass
+    # Driver CPU-only : il se connecte au RayCluster et distribue les images du
+    # préfixe S3 sur num_workers acteurs GPU. Réutilise le pipeline éprouvé
+    # (même image que les workers Ray).
+    name = f"sam3-batch-{uuid.uuid4().hex[:8]}"
+
+    argList = [
+        "--s3_uri",
+        toS3Uri(req.s3Bucket, req.s3Uri),
+        "--s3_output_uri",
+        toS3Uri(req.s3Bucket, req.s3OutputUri),
+        "--labels",
+        ",".join(req.labels),
+        "--num_workers",
+        str(req.numWorkers),
+        "--batch_size",
+        str(req.batchSize),
+        "--tile_size",
+        str(req.tileSize),
+        "--tile_stride",
+        str(req.tileStride),
+    ]
+
+    return buildJob(
+        name,
+        BATCH_IMAGE,
+        ["python3.12", "/app/main.py"],
+        argList,
+        gpu=False,
+        accessKeyEnv="AWS_ACCESS_KEY_ID",
+    )
 
 
 @app.post("/jobs/solo")
@@ -180,7 +234,13 @@ def submitSolo(req: SoloRequest):
         "--labels",
     ] + req.labels
 
-    return buildJob(name, SOLO_IMAGE, argList)
+    return buildJob(name, SOLO_IMAGE, ["python3", "/app/main.py"], argList)
+
+
+@app.get("/jobs/")
+def get_jobs(name: str):
+
+    pass
 
 
 @app.get("/jobs/{name}")
@@ -217,8 +277,6 @@ def get_result(name):
 
 @app.post("/segment")
 def segment(req: SegmentRequest):
-    # L'API ne fait pas tourner le modèle (pas de GPU) : elle relaie la requête
-    # vers le service interne sam3-segment (modèle chargé en permanence).
     try:
         resp = requests.post(
             f"{SEGMENT_URL}/segment", json=req.model_dump(), timeout=120
@@ -236,7 +294,7 @@ def parquetToLabelStudio(aquisitionID: int):
     pass
 
 
-# Main
+#  Main --------------------------------------------------
 def main():
     import uvicorn
 
