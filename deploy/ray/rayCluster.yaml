@@ -15,7 +15,7 @@ spec:
           - name: ghcr-secret
         containers:
           - name: ray-head
-            image: ghcr.io/nearai-interreg/ray-sam3:latest
+            image: ghcr.io/nearai-interreg/ray-sam3:staging
             imagePullPolicy: Always
             ports:
               - containerPort: 6379 # Ray GCS
@@ -71,7 +71,7 @@ spec:
             - name: ghcr-secret
           containers:
             - name: ray-worker
-              image: ghcr.io/nearai-interreg/ray-sam3:latest
+              image: ghcr.io/nearai-interreg/ray-sam3:staging
               imagePullPolicy: Always
               env:
                 - name: HF_TOKEN
@@ -100,10 +100,3 @@ spec:
                   nvidia.com/gpu: "1"
                   cpu: "4"
                   memory: 16Gi
-              volumeMounts:
-                - mountPath: /root/.cache/huggingface
-                  name: hf-cache
-          volumes:
-            - name: hf-cache
-              persistentVolumeClaim:
-                claimName: hf-cache

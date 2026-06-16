@@ -12,11 +12,11 @@ spec:
         - name: ghcr-secret
       containers:
         - name: driver
-          image: ghcr.io/nearai-interreg/ray-sam3:latest
+          image: ghcr.io/nearai-interreg/ray-sam3:staging
           imagePullPolicy: Always
           command:
             - python3.12
-            - /app/sam3_minio_pipeline.py
+            - /app/main.py
           args:
             - --s3_uri
             - s3://nearai/data/acquisitions/Samples/01_images/
