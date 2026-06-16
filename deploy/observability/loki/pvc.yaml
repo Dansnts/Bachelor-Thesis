@@ -1,0 +1,15 @@
+# Volume persistant pour Loki (/loki : index, cache, wal, compactor).
+# Remplace l'emptyDir volatile : sans ça, un redémarrage du pod perdait le WAL
+# et l'index local non encore expédiés vers S3.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: loki-data
+  namespace: dani
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 10Gi

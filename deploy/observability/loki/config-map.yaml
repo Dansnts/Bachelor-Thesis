@@ -34,6 +34,25 @@ data:
         active_index_directory: /loki/index
         cache_location: /loki/cache
       aws:
-        s3: http://${MINIO_ACCESS_KEY}:${MINIO_SECRET_KEY}@storage-kubernetes.iict-heig-vd.in:9000/nearai/dani/loki
-        s3forcepathstyle: true
+        # MinIO est en HTTPS (cert auto-signé) sur le port 9000. L'ancienne config
+        # utilisait http:// -> MinIO répondait 400 et AUCUN chunk n'était persisté.
+        endpoint: storage-kubernetes.iict-heig-vd.in:9000
+        bucketnames: nearai-logs
         region: ch
+        access_key_id: ${MINIO_ACCESS_KEY}
+        secret_access_key: ${MINIO_SECRET_KEY}
+        s3forcepathstyle: true
+        insecure: false # HTTPS
+        http_config:
+          insecure_skip_verify: true # cert auto-signé
+
+    # Rétention : on garde les logs 30 jours (720h), purge gérée par le compactor.
+    limits_config:
+      retention_period: 720h
+
+    compactor:
+      working_directory: /loki/compactor
+      delete_request_store: s3
+      retention_enabled: true
+      retention_delete_delay: 2h
+      compaction_interval: 10m
