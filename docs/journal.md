@@ -361,3 +361,41 @@
 | docs/API.md usage guide, report placeholders (architecture + implementation), notes week 15-17 | Done | 30min |
 | Email to professor | Done | 10min |
 | **Total** | | **10h30** |
+
+# Week 18
+
+*Monday June 15, 2026*
+
+| Task              | Status | Time |
+| :---------------- | :------: | ----: |
+| submitBatch endpoint : CPU-only Ray driver, distribute S3 prefix over num_workers GPU actors | Done | 1h30 |
+| buildJob refactor : parametrize command/gpu/accessKeyEnv (CPU batch driver vs GPU solo pod) | Done | 1h |
+| Extract jobCore shared library : dedup solo/batch (s3, tiling, postprocess, worker), reconcile AWS env var names | Done | 2h30 |
+| toS3Uri helper + fix batch NoSuchBucket (s3:// prefix parsing stripped "data/") | Done | 30min |
+| Debug stuck Ray workers : FailedMount NFS on iict-chasseron (no nfs-common), remove hf-cache RWX mount | Done | 1h |
+| Run full batch pipeline on cluster : 14207 Vevey images, ~18h wall, 4.6s/image, 2 L4 GPUs | Done | 15min |
+| Debug Ray Client ConnectionAbortedError (SpecificServer fork), confirm transient | Done | 1h30min |
+| Fix image references (rayCluster worker, BATCH_IMAGE, driver) -> ray-sam3:staging | Done | 15min |
+| Report fix : SAM3 VRAM 2.4 --> 3.8 GB (measured on loaded worker) | Done | 30min |
+| Analyse log filtering on Grafana stack : Alloy (Promtail successor) vs Logstash, stage.drop placement | Done | 1h |
+| Meeting with Bertil | Done | 30min |
+| **Subtotal** |    | 10h30 |
+
+---
+
+*Tuesday June 16, 2026*
+
+| Task              | Status | Time |
+| :---------------- | :------: | ----: |
+| Finish API : resubmit batch with full s3:// URIs, validate end-to-end on Samples | Done | 1h |
+| jobCore : snake_case (PEP8) across all modules | Done | 1h |
+| jobCore : rename patch --> tile (tiling + worker) | Done | 30min |
+| jobCore : comment tiling/postprocess modules (module docstrings + rationale, the > 127 rebinarization) | Done | 1h |
+| jobCore : rename package sam3core --> jobCore, consolidate duplicated dirs, update imports + Dockerfiles | Done | 1h |
+| Diagnose Loki not persisting logs : flush 400 errors, root cause HTTP --> HTTPS to MinIO TLS endpoint | Done | 1h30 |
+| Fix Loki S3 storage : dedicated bucket nearai-logs, 30-day retention + compactor, emptyDir --> PVC Longhorn + fsGroup | Done | 1h30 |
+| Verify S3 round-trip (push/flush/read) + Grafana read path via Loki | Done | 30min |
+| Identify /health log source (sam3-segment ingress healthcheck), node vs pod IP/ports clarification | Done | 30min |
+| Journal week 18 | Done | 30min |
+| **Subtotal** |    | 9h |
+| **Total** |    | **19h30** |
