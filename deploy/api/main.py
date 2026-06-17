@@ -26,15 +26,17 @@ NAMESPACE = os.getenv("NAMESPACE", "dani")
 S3_ENDPOINT = os.getenv(
     "S3_ENDPOINT_URL", "https://storage-kubernetes.iict-heig-vd.in:9000"
 )
-BATCH_IMAGE = os.getenv("BATCH_IMAGE", "ghcr.io/nearai-interreg/sam3-batch:latest")
-SOLO_IMAGE = os.getenv("SOLO_IMAGE", "ghcr.io/nearai-interreg/sam3-solo:latest")
+BATCH_IMAGE = os.getenv("BATCH_IMAGE", "ghcr.io/nearai-interreg/ray-sam3:staging")
+SOLO_IMAGE = os.getenv("SOLO_IMAGE", "ghcr.io/nearai-interreg/sam3-solo:staging")
 PORT = int(os.getenv("PORT", "8000"))
 ADDRESS = os.getenv("V4_ADDRESS", "0.0.0.0")
 BUCKET = os.getenv("BUCKET", "nearai")
 SEGMENT_URL = os.getenv("SEGMENT_URL", "http://sam3-segment:8000")
+SEGMENT_DEPLOYMENT = os.getenv("SEGMENT_DEPLOYMENT", "sam3-segment")
 
 batch_v1 = client.BatchV1Api()
 core_v1 = client.CoreV1Api()
+apps_v1 = client.AppsV1Api()
 
 
 def s3Client():
@@ -175,6 +177,18 @@ def toS3Uri(bucket, path):
     return f"s3://{bucket}/{path.lstrip('/')}"
 
 
+def scaleSegment(replicas):
+    try:
+        apps_v1.patch_namespaced_deployment_scale(
+            name=SEGMENT_DEPLOYMENT,
+            namespace=NAMESPACE,
+            body={"spec": {"replicas": replicas}},
+        )
+    except client.ApiException as e:
+        raise HTTPException(status_code=e.status, detail=e.reason)
+    return {"deployment": SEGMENT_DEPLOYMENT, "replicas": replicas}
+
+
 # Endpoints --------------------------------------------------
 @app.get("/")
 async def root():
@@ -287,6 +301,16 @@ def segment(req: SegmentRequest):
     if resp.status_code != 200:
         raise HTTPException(status_code=resp.status_code, detail=resp.text)
     return resp.json()
+
+
+@app.post("/segment/up")
+def segment_up():
+    return scaleSegment(1)
+
+
+@app.post("/segment/down")
+def segment_down():
+    return scaleSegment(0)
 
 
 @app.post("/import/{aquisitionId}")
