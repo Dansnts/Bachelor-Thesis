@@ -6,7 +6,8 @@ metadata:
   labels:
     app: sam3-segment
 spec:
-  replicas: 1
+  # 0 par défaut : le GPU reste libre. L'API réveille le service à la demande
+  replicas: 0
   selector:
     matchLabels:
       app: sam3-segment
