@@ -398,4 +398,21 @@
 | Identify /health log source (sam3-segment ingress healthcheck), node vs pod IP/ports clarification | Done | 30min |
 | Journal week 18 | Done | 30min |
 | **Subtotal** |    | 9h |
-| **Total** |    | **19h30** |
+
+---
+
+*Wednesday June 17, 2026*
+
+| Task              | Status | Time |
+| :---------------- | :------: | ----: |
+| Segment scale-to-zero : /segment/up + /segment/down endpoints, scaleSegment via patch_namespaced_deployment_scale | Done | 2h |
+| RBAC deployments/scale (get+patch) + segment Deployment replicas: 0 by default | Done | 30min |
+| Design decision : Job-per-request vs KEDA vs manual up/down, settle on manual scaling (cold start unavoidable, no cluster admin) | Done | 1h30 |
+| .env consolidation to single root file + .env.example, fix BATCH_IMAGE/SOLO_IMAGE defaults (:staging) | Done | 1h |
+| Build + smoke-test sam3-api:staging (kubeconfig COPY workaround, verify all routes register) | Done | 2h |
+| Push sam3-api + sam3-segment images to ghcr | Done | 30min |
+| Report : Build multi-stage + Conteneurs non-root sections | Done | 1h30 |
+| Report : Solo/Batch correction, Sérialisation des inférences, Pourquoi pas KEDA, KEDA glossary entry | Done | 2h |
+| extract.py cleanup (formatting, imports) | Done | 30min |
+| **Subtotal** |    | 11h30 |
+| **Total** |    | **31h** |
