@@ -16,10 +16,20 @@ La pipeline s'exécute dans une image Docker basée sur `nvidia/cuda:12.6.3-cudn
 + Ray 2.54.0 avec les extras `data,train,serve,default` et les dépendances pipeline : `exif`, `Pillow`, `opencv-python-headless`, `numpy>=1.26,<2`, `boto3`, `scipy`, `pyarrow`.
 
 == Build multi-stage
-// TODO: stage builder (CUDA devel, git/-dev, venv complet) → stage runtime qui COPY --from=builder /opt/venv. Piège : le venv a des symlinks vers le python système → réinstaller python3.12 en stage runtime. Compromis devel vs runtime (risque Triton JIT/ptxas au runtime). Mesure taille avant/après (solo = 24 Go).
+
+L'image solo est construite en deux étapes. Le stage `builder` part de `nvidia/cuda:12.6.3-cudnn-devel-ubuntu24.04`, installe les outils de compilation (`python3.12-dev`, `git`, `wget`), crée un venv dans `/opt/venv` et y compile PyTorch, SAM3 et les dépendances. Le stage runtime ne récupère que le venv terminé via `COPY --from=builder /opt/venv /opt/venv` et laisse derrière lui les sources clonées, le cache `pip` et les en-têtes de développement.
+
+Un piège est apparu lors de la première construction : le venv contient des liens symboliques vers le `python3.12` du système, absent d'une image vierge. Copier `/opt/venv` seul produit un venv cassé. La correction réinstalle `python3.12` (sans le paquet `-dev`) dans le stage runtime pour rétablir la cible des liens.
+
+Le stage runtime conserve l'image `cuda-...-devel` plutôt qu'une variante `runtime` plus légère. PyTorch compile certains noyaux à la volée via Triton, qui invoque `ptxas` du toolkit CUDA. Une image `runtime` sans `ptxas` casse cette compilation au premier appel GPU. Le compromis échange quelques centaines de mégaoctets contre la garantie que la compilation JIT fonctionne en production.
 
 == Conteneurs non-root
-// TODO: USER appuser (uid 1000) pour l'API + runAsNonRoot dans le Deployment. Port 8000 (>1024) bindable sans privilège. pip install reste en root (étape build). Le solo/segment restent root (cache HF /root, accès GPU).
+
+L'API tourne sous un utilisateur non privilégié. Le Dockerfile crée `appuser` (uid 1000) et bascule dessus via `USER appuser`, et le Deployment durcit la contrainte côté Kubernetes avec `runAsNonRoot: true` et `runAsUser: 1000`.
+
+Le serveur écoute sur le port 8000, supérieur à 1024, donc liable sans privilège root. Les `pip install` restent exécutés en root car ils appartiennent à l'étape de build, avant le `USER appuser`.
+
+Les images solo et segment restent en root. Elles écrivent le cache des poids HuggingFace dans `/root/.cache` et accèdent au GPU, deux opérations qui se compliquent sous un utilisateur restreint sans réel gain de sécurité pour des Jobs éphémères.
 
 == Pipeline Python
 
@@ -132,7 +142,22 @@ Deux contraintes sont critiques :
 
 La prochaine étape est d'automatiser cette conversion et l'appel à l'API REST Label Studio directement depuis la pipeline, conformément à la section 6.4 du cahier des charges.
 
+#pagebreak()
 == API
+
+Les parties communes entre `Solo` et `Batch` sont regroupées dans une libraire *jobCore* séparée en 4 fichiers.
+
+*postprocess.py* : Recolle les masques produits tuile par tuile sur l'image entière (merge_masks), sépare les objets en composantes connexes, puis convertit chaque masque en polygone au format Label Studio (mask_to_polygon). PIL travaille avec un masque sur 8 bit (0 --> 255) la sortie attendue est binaire car un masque de segmentation répond, pour chaque pixel, à une question : ce pixel appartient-il à l'objet détecté (1 = oui) ou (0 = non) ?
+
+*s3.py* : Ouvre une session s3 avec `boto3` pour être utilsée lors de la lecture/écriture sur le bucket.
+
+*tiling.py* : Découpe l'image panoramique en tuiles carrées de taille fixe avec recouvrement (tile_stride), pour que SAM3 traite des morceaux assez petits et qu'un objet à cheval sur une bordure reste entier dans au moins une tuile. Complète les bords avec du noir pour garder des tuiles carrées.
+
+*worker.py* : La classe Sam3Model charge le modèle SAM3 une seule fois, puis détecte sur une image les concepts décrits par des labels texte. Elle découpe l'image en tuiles (tling.py), lance l'inférence par batch sur GPU, recolle et vectorise les résultats (postprocess.py), et renvoie la liste des polygones (label, points, score). Indépendante de Ray et des I/O : Solo et Batch l'enveloppent chacun dans leur propre acteur Ray.
+
+Le job *solo* traite une seule image. L'API crée un Job Kubernetes qui lance un pod à GPU unique tournant l'image `ghcr.io/nearai-interreg/sam3-solo:staging`. Le pod appelle `ray.init()` localement sans cluster Ray et instancie un `SoloWorker` (acteur `@ray.remote(num_gpus=1)`) qui charge SAM3 une fois et infère sur l'image transmise avec les paramètres de tuilage définis. Le résultat est écrit au format JSON Label Studio sur le bucket S3, à la clé `results/<job>.json` passée via `--resultKey`. Cette clé est ensuite relue par l'endpoint `/jobs/{name}/result`.
+
+Le job *batch* traite un préfixe S3 entier. L'API crée un Job Kubernetes qui lance un pod *sans GPU* tournant l'image `ghcr.io/nearai-interreg/ray-sam3:staging` la même que les workers du RayCluster. Ce pod n'est qu'un driver, càd  qu'il se connecte au RayCluster permanent (`ray://ray-cluster-head-svc:10001`), liste les images du préfixe d'entrée et les distribue sur `num_workers` acteurs GPU. Chaque worker écrit ses résultats en Parquet à l'URI de sortie. On transmet donc le bucket et le préfixe des images source, le préfixe de sortie des fichiers Parquet, les labels et le nombre de workers.
 
 === Construction dynamique des Jobs (buildJob)
 // TODO: V1Job / V1PodSpec / V1Container via le SDK Python. env via secretKeyRef (minio-secret, hf-secret), S3_ENDPOINT_URL. resources nvidia.com/gpu, runtimeClassName nvidia, imagePullSecrets ghcr-secret, restart Never, ttl 3600.
@@ -143,7 +168,43 @@ La prochaine étape est d'automatiser cette conversion et l'appel à l'API REST 
 === Frictions du client Kubernetes
 // TODO: (1) read_namespaced_pod_log renvoie repr(bytes) sur kubernetes-client 36.x → _preload_content=False + .data.decode("utf-8"). (2) jobs/status est une sous-ressource RBAC distincte de jobs → read_namespaced_job au lieu de read_namespaced_job_status.
 
-== Service de segmentation interactive
-// TODO: Deployment GPU 1 replica, modèle chaud (FastAPI lifespan), lock GPU, startupProbe tolérante (download modèle). POST /segment {url, point, label} → download S3 → model.predict(points) → maskToPolygon → {label, points}. Ultralytics SAM3 (sam3.pt).
 
+Pour la segmentation à la demande, un utilisateur peut simplement passer à l'API l'url ainsi que les items à re-passer en inférance :
+```JSON
+{
+  "url": "data/acquisitions/20241003-Nyon/01_images/S003/20241003-Nyon_S003_ladybug5plus_000001.jpg",
+  "items": [
+    { "point": [4637, 2675], "label": "manhole" },
+    { "point": [1200, 800],  "label": "road_marking" }
+  ]
+}
+```
 
+L'endpoit `/segment` lance alors une opération sur le pod `sam3-segment-*` et retourne en JSON le résulat des recherches demandées.
+
+Afin d'avoir une attente régulière sur le service, le choix de laisser un pod prêt à agir à été choisi.
+
+La mise en veille et la reprise se fait simplement via un autre appel de la librairie K8s en exploitant le principe de replicas :
+
+```python
+apps_v1.patch_namespaced_deployment_scale(
+    name=SEGMENT_DEPLOYMENT,
+    namespace=NAMESPACE,
+    body={"spec": {"replicas": replicas}},
+```
+
+#linebreak()
+
+`/segment/up` va faire un appel de la fonction avec la valeure *1* en paramètre, tandis que `/segment/down`, passe en paramètre *0*.
+
+Le réveil aurait pu être automatisé avec KEDA et son extension HTTP, qui réveille un service dès qu'une requête arrive. Cette piste a été écartée pour trois raisons.
+
+Le problème dans notre cas, KEDA s'installe à l'échelle du cluster et requiert des droits d'administrateur, hors de portée du namespace actuel : il faudrait passer par l'admin de l'infrastructure.
+
+Ensuite, l'extension HTTP insère un _interceptor_ devant le service pour retenir la requête le temps que le pod démarre, ajoutant une pièce supplémentaire dans le chemin réseau.
+
+Enfin, et surtout, KEDA n'élimine pas le démarrage à froid (le chargement du modèle en mémoire GPU, de l'ordre de 20 à 30 secondes) : il ne fait que le déclencher automatiquement.
+
+Pour un usage ponctuel et séquentiel d'un seul annotateur et une image à la fois, le pilotage manuel par `/segment/up` et `/segment/down` offre la même expérience réelle, un unique démarrage à froid en début de session, sans dépendance d'infrastructure ni composant réseau additionnel.
+
+Finnalement, le service ne dispose que d'un GPU. Comme une seule inférence peut tourner à la fois, un `threading.Lock` met les appels en file et les traite l'un après l'autre. En pratique l'usage est séquentiel, un annotateur, une image à la fois, donc la file ne bloque jamais.

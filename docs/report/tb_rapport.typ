@@ -394,6 +394,8 @@ Toute utilisation, même partielle, de ce TB doit être faite dans le respect du
     table.header([*Terme*], [*Définition*]),
     [*Kubernetes*], [Système d'orchestration de conteneurs open-source],
     [*KubeRay*], [Opérateur Kubernetes pour déployer des clusters Ray],
+    [*KEDA*],
+    [Kubernetes Event-Driven Autoscaling : autoscaler qui ajuste le nombre de réplicas en fonction d'événements externes, et sait descendre jusqu'à zéro],
     [*Ray*], [Framework Python de calcul distribué, optimisé pour les workloads GPU],
     [*SAM3*], [Segment Anything Model v3 : modèle de segmentation d'images de Meta AI],
     [*ZARR*], [Format N-dimensionnel orienté chunking, évalué comme optimisation optionnelle],
