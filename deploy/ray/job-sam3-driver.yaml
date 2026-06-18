@@ -20,7 +20,6 @@ spec:
           args:
             - --s3_uri
             - s3://nearai/data/acquisitions/Samples/01_images/
-            #- s3://nearai/data/acquisitions/20250521-HSN/01_images/S001/
             - --s3_output_uri
             - s3://nearai/dani/test/predictions/
             - --labels

@@ -1,0 +1,8 @@
+ray[default]==2.54.0
+boto3
+numpy>=1.26,<2
+Pillow
+opencv-python-headless
+scipy
+pyarrow
+exif
