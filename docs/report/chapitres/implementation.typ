@@ -101,14 +101,6 @@ Pour faire les tests le fichier `tests/RAY/job-sam3-ray-test.yaml` est utilisé 
 
 Pour le cache des poids HuggingFace, `tests/RAY/pvc-hf-cache.yaml` crée un PVC Longhorn de 10 Gi en mode `ReadWriteOnce`. Monté sur le pod worker à `/root/.cache/huggingface`. Le volume reste lié entre les redéploiements, évitant le re-téléchargement des 3,3 GB du modèle SAM3 à chaque run.
 
-== Cache Modèle
-
-=== Tuilage 1008 × 769
-
-=== Tuilage 512 × 512
-
-=== Tuilage 1024 × 1024
-
 == Conversion vers Label Studio
 
 Les fichiers Parquet produits par la pipeline sont convertis en JSON Label Studio pour l'import de pré-annotations. Le format attendu par Label Studio est :
@@ -160,13 +152,22 @@ Le job *solo* traite une seule image. L'API crée un Job Kubernetes qui lance un
 Le job *batch* traite un préfixe S3 entier. L'API crée un Job Kubernetes qui lance un pod *sans GPU* tournant l'image `ghcr.io/nearai-interreg/ray-sam3:staging` la même que les workers du RayCluster. Ce pod n'est qu'un driver, càd  qu'il se connecte au RayCluster permanent (`ray://ray-cluster-head-svc:10001`), liste les images du préfixe d'entrée et les distribue sur `num_workers` acteurs GPU. Chaque worker écrit ses résultats en Parquet à l'URI de sortie. On transmet donc le bucket et le préfixe des images source, le préfixe de sortie des fichiers Parquet, les labels et le nombre de workers.
 
 === Construction dynamique des Jobs (buildJob)
-// TODO: V1Job / V1PodSpec / V1Container via le SDK Python. env via secretKeyRef (minio-secret, hf-secret), S3_ENDPOINT_URL. resources nvidia.com/gpu, runtimeClassName nvidia, imagePullSecrets ghcr-secret, restart Never, ttl 3600.
+
+La fonction `buildJob` assemble un `V1Job` du SDK Python Kubernetes à partir des paramètres de la requête : un `V1Container` (image, commande, arguments, variables d'environnement, ressources) dans un `V1PodSpec`, lui-même dans le template du `V1Job`. Les paramètres variables (GPU ou non, nom de la variable de clé d'accès) sont passés en arguments pour mutualiser le code entre solo et batch.
+
+Les secrets ne sont jamais inscrits dans l'image : les credentials MinIO (`minio-secret`) et le token HuggingFace (`hf-secret`) sont injectés à l'exécution via `secretKeyRef`, et `S3_ENDPOINT_URL` via une variable simple. Le pod tire l'image depuis le registre privé grâce à `imagePullSecrets: ghcr-secret`. Les Jobs à GPU déclarent `runtimeClassName: nvidia` et la ressource `nvidia.com/gpu`. Chaque Job utilise `restartPolicy: Never` et `ttlSecondsAfterFinished: 3600` pour disparaître une heure après sa fin.
 
 === Récupération du résultat depuis S3
-// TODO: submitSolo passe --resultKey results/<job>.json ; le solo upload le JSON sur S3. get_result lit cet objet (boto3 + minio-secret côté API). Durable, indépendant du TTL des Jobs.
 
-=== Frictions du client Kubernetes
-// TODO: (1) read_namespaced_pod_log renvoie repr(bytes) sur kubernetes-client 36.x → _preload_content=False + .data.decode("utf-8"). (2) jobs/status est une sous-ressource RBAC distincte de jobs → read_namespaced_job au lieu de read_namespaced_job_status.
+`submitSolo` passe `--resultKey results/<job>.json` au Job. Le solo, en fin de traitement, dépose son JSON à cette clé sur S3. L'endpoint `get_result` relit ensuite l'objet avec `boto3` (les credentials MinIO côté API proviennent du même `minio-secret`). Le résultat est ainsi durable et indépendant du TTL des Jobs : le pod peut être supprimé, le JSON reste lisible.
+
+=== Frictions du client Kubernetes <impl-frictions-k8s>
+
+Deux frictions du client Python ont demandé un contournement.
+
+D'abord, `read_namespaced_pod_log` renvoie le `repr()` d'un objet `bytes` (la chaîne littérale `b'...'`) sur `kubernetes-client` 36.x au lieu du texte décodé. Le contournement passe `_preload_content=False` puis décode manuellement via `.data.decode("utf-8")`.
+
+Ensuite, `jobs/status` est une sous-ressource RBAC distincte de `jobs` (cf. @arch-rbac). Appeler `read_namespaced_job_status` exige une permission séparée et échoue en `403` sans elle. On lit donc la ressource `jobs` complète avec `read_namespaced_job`, déjà autorisée, et on en extrait le champ statut.
 
 
 Pour la segmentation à la demande, un utilisateur peut simplement passer à l'API l'url ainsi que les items à re-passer en inférance :
