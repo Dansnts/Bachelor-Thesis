@@ -1,0 +1,8 @@
+# Règles de chiffrement SOPS.
+# Seules les valeurs sous `data`/`stringData` sont chiffrées : le reste du
+# manifeste (kind, metadata...) reste lisible pour garder des diffs Git propres.
+# La clé privée age vit dans ~/.config/sops/age/keys.txt (hors dépôt).
+creation_rules:
+  - path_regex: deploy/secrets/.*\.enc\.yaml$
+    encrypted_regex: ^(data|stringData)$
+    age: age1ehjx7983sy8649u4mh5egu35kyd827fn8rvew2rx5kcj6krvsepq37ykml

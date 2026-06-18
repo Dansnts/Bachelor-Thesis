@@ -2,6 +2,12 @@
 **/.env
 *.env
 .venv/
+
+# SOPS : on versionne les *.enc.yaml (chiffrés), jamais les déchiffrés ni la clé age
+*.dec.yaml
+deploy/secrets/*.plain.yaml
+keys.txt
+*.agekey
 __pycache__/
 *.pyc
 *.zip
