@@ -396,6 +396,7 @@ Toute utilisation, même partielle, de ce TB doit être faite dans le respect du
     [*KubeRay*], [Opérateur Kubernetes pour déployer des clusters Ray],
     [*KEDA*],
     [Kubernetes Event-Driven Autoscaling : autoscaler qui ajuste le nombre de réplicas en fonction d'événements externes, et sait descendre jusqu'à zéro],
+
     [*Ray*], [Framework Python de calcul distribué, optimisé pour les workloads GPU],
     [*SAM3*], [Segment Anything Model v3 : modèle de segmentation d'images de Meta AI],
     [*ZARR*], [Format N-dimensionnel orienté chunking, évalué comme optimisation optionnelle],
@@ -497,6 +498,11 @@ Toute utilisation, même partielle, de ce TB doit être faite dans le respect du
 
     [*ETL*],
     [Extract Transform Load, pipeline d'extraction, transformation et chargement de données. Cas d'usage principal d'Apache Spark],
+
+    [*PVC*],
+    [Persistant Volume Claim, contrat de location entre un pod et un noeud avec une capacité et des droits spécifiques],
+
+    [*NFS*], [Network File System, protocole pour partage de système de fichier sur un réesau.],
   ),
   caption: [Glossaire],
 )
