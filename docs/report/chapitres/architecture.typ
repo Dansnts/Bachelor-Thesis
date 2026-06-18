@@ -29,7 +29,6 @@ La pipeline suit un flux linéaire en cinq étapes :
 #let wt(it) = text(fill: white, it)
 #let e-stroke = 1.2pt + rgb("#94A3B8")
 
-
 #linebreak()
 
 #figure(
@@ -178,12 +177,15 @@ Sans cette configuration, chaque appel S3 depuis un Actor échoue avec `NoCreden
 
 Les poids du modèle SAM3 représentent 3,3 GB téléchargés depuis HuggingFace Hub. Sans cache persistant, chaque recréation de pod lance un nouveau téléchargement, ajoutant plusieurs minutes de latence avant que le worker soit opérationnel.
 
+Pour cela il faut ajouter un `StorageClass` et un `PersistantVolumClaim`.
+
 Un PVC Longhorn de 10 Gi est partagé entre tous les workers Ray. HuggingFace Hub vérifie ce répertoire avant tout téléchargement. Si les poids sont présents, il les charge directement sans accès réseau. Le PVC survit aux redéploiements du RayCluster car les poids ne sont téléchargés qu'une seule fois.
 
 Le mode `ReadWriteMany` est retenu car les workers s'exécutent sur deux nœuds distincts (`iict-suchet` et `iict-k8s-node4-rad`). Un PVC `ReadWriteOnce` ne peut être monté que par un seul nœud à la fois, ce qui bloquerait les workers sur le second nœud.
 
-=== Prérequis NFS sur les nœuds
-// TODO: RWX Longhorn = NFS share-manager → mount.nfs (paquet nfs-common) requis sur CHAQUE nœud GPU. iict-chasseron sans nfs-common → FailedMount "bad option". Une StorageClass RWX ne suffit pas : elle impose une homogénéité des nœuds. Un pod sans affinité tombant sur un nœud incompatible échoue au montage.
+Longhorn implémente le `ReadWriteMany` via un share-manager NFS. Chaque nœud qui monte le volume agit comme client NFS et a besoin de `mount.nfs`, fourni par le paquet `nfs-common`. Ce paquet doit être installé sur tous les noeuds sinon tout pod ordonnancé dessus échourait au montage avec `FailedMount` : "bad option".
+
+Déclarer une StorageClass RWX ne suffit donc pas car elle peut supposer implicitement que tous les nœuds candidats sont homogènes. Un pod sans affinité tombant sur un nœud sans `nfs-common` reste bloqué. Une verifications de la dépendance d'infrastructure ßßßdoit être vérifiée avant de compter sur le RWX.
 
 == Stratégie de tuilage
 
@@ -197,8 +199,14 @@ Il faut donc jouer avec la taille des tuilles et ses nombres.
 
 Nous devons donc définir par défaut des valeurs des nombre de Tuiles et leurs dimmensions à travers de variables pour l'API.
 
+#figure(
+  image("../images/tillingExplanation.jpg", width: 100%),
+  caption: [
+    SAM3 comme tout modèée à base de ViT, attend une entrée carrée de taille fixe. Un objet à cheval sur une bordure de tuile se retrouve grâce au striding, au moins sur une tuile voisine.
+  ],
+) <Tilling-Explanation>
 
-
+== Segmentation à la volée
 
 == Format de sortie Parquet
 
@@ -276,11 +284,7 @@ Prometheus scrape deux sources de métriques toutes les 15 secondes depuis 2 sou
 
 *RayCluster* : métriques Ray exposées par le head node (`ray_running_jobs`, `ray_gcs_actors_count`).
 
-
-
 DCGM tourne via un DeamonSet sur chaque node. Via un endpoint `/metrics` sur le port [9400] et le DNS de K8s, les données peuvent être scrapées individuellment, ce qui permet de garder le `hostname` pour chaque métrique.
-
-
 
 Alloy est déployé en Deployment unique dans le namespace `dani`. Il lit les logs de tous les pods via l'API Kubernetes (`loki.source.kubernetes`) sans monter le système de fichiers du nœud hôte et les pousse vers Loki en continu.
 
@@ -367,30 +371,96 @@ L'API tourne comme un `Deployment` dans le namespace `dani`, avec un `ServiceAcc
 ) <tab-api-endpoints>
 
 === Orchestration par Jobs Kubernetes
-// TODO: l'API construit des V1Job dynamiquement (buildJob) car les params changent par requête (impossible en YAML statique). image_pull_policy Always, ttl 3600, runtimeClassName nvidia, resources nvidia.com/gpu, restart Never. Découple l'API de l'état du RayCluster.
 
-=== RBAC et ServiceAccount
-// TODO: SA sam3-api + Role (jobs create/get/list/watch/delete ; pods + pods/log get) + RoleBinding. Moindre privilège. Subtilité : jobs/status est une sous-ressource distincte → 403 ; on utilise read_namespaced_job (ressource jobs).
+Les paramètres d'un traitement (image source, labels, nombre de workers, tuilage) changent à chaque requête. Un manifeste YAML statique ne peut pas les porter ; l'API construit donc chaque `V1Job` dynamiquement à partir du corps de la requête. Le Job hérite de `imagePullPolicy: Always` (toujours tirer la dernière image `:staging`), `restartPolicy: Never`, `runtimeClassName: nvidia` et des ressources `nvidia.com/gpu` pour les pods à GPU, et `ttlSecondsAfterFinished: 3600` pour l'auto-nettoyage.
+
+Ce modèle découple l'API de l'état du RayCluster : un Job batch n'est qu'un driver éphémère qui se connecte au cluster permanent, tandis qu'un Job solo embarque son propre GPU. L'API n'a pas à connaître la topologie Ray, elle ne fait que soumettre des Jobs.
+
+=== RBAC et ServiceAccount <arch-rbac>
+
+L'API tourne sous le ServiceAccount `sam3-api`, lié par un `RoleBinding` à un `Role` au moindre privilège : `create/get/list/watch/delete` sur les `jobs`, `get` sur les `pods` et `pods/log`, et `get/patch` sur les `deployments/scale` pour le réveil du service de segmentation.
+
+Une subtilité du modèle RBAC a coûté du temps : `jobs/status` est une sous-ressource distincte de `jobs`. Lire le statut d'un Job via `read_namespaced_job_status` exige une permission séparée et renvoie un `403` sans elle. La solution lit la ressource `jobs` complète avec `read_namespaced_job`, déjà couverte par le verbe `get`, et extrait le statut du résultat.
 
 === Récupération des résultats
-// TODO: solo écrit results/<job>.json sur S3 ; get_result lit S3 (durable, indépendant du TTL). Comparaison logs (éphémère + bug client bytes) vs SQLite (inadapté distribué/NFS) vs S3 (retenu).
+
+Le Job solo écrit son résultat (`results/<job>.json`) sur S3, et l'endpoint `get_result` relit cet objet. Le stockage S3 est durable et indépendant du TTL des Jobs : le résultat survit à la suppression automatique du pod après une heure.
+
+Deux alternatives ont été écartées. Les logs du pod sont éphémères (effacés avec le pod) et, sur `kubernetes-client` 36.x, leur lecture souffre d'un bug d'encodage (cf. @impl-frictions-k8s). Une base SQLite est inadaptée à un accès distribué et à un montage NFS partagé. S3 est déjà la source des données et le puits des prédictions : l'y conserver les résultats évite toute pièce supplémentaire.
 
 == Segmentation interactive
 
 === Prompt visuel (PVS) vs prompt concept (PCS)
-// TODO: PVS (point/box) = OÙ, masque class-agnostic sans type. PCS (texte/exemplar) = QUOI, trouve toutes les instances du concept fourni. Batch/solo = PCS (label texte) ; endpoint interactif = PVS (point), le label est fourni en entrée et sert à étiqueter la sortie.
 
-=== Service persistant à modèle chaud
-// TODO: clic→contour = interactif → modèle chargé une fois (FastAPI lifespan), pas un Job par requête (cold start = pull image + load modèle = minutes). Tient 1 GPU en permanence (coût vs pénurie GPU).
+SAM3 accepte deux familles de prompts. Le *prompt visuel* (PVS — point ou boîte) répond à la question « OÙ » : il produit un masque class-agnostic à l'endroit désigné, sans nommer l'objet. Le *prompt concept* (PCS — texte ou exemplar) répond à « QUOI » : il trouve toutes les instances du concept fourni dans l'image.
+
+La pipeline batch et le job solo utilisent le PCS : on leur passe des labels texte (`sign`, `road_marking`) et SAM3 détecte chaque occurrence. L'endpoint interactif utilise le PVS : l'annotateur clique un point, SAM3 retourne le contour de l'objet sous le curseur. Le label n'oriente pas la détection ici — il est fourni en entrée et sert uniquement à étiqueter le masque retourné.
+
+=== Service à modèle chaud et scale-to-zero
+
+Le geste interactif (clic → contour) impose une latence faible. Lancer un Job par requête est exclu : chaque clic paierait le démarrage à froid (pull de l'image puis chargement du modèle, de l'ordre de la minute). Le service de segmentation est donc un Deployment qui charge SAM3 une seule fois, au démarrage du pod (FastAPI lifespan), et garde le modèle chaud en VRAM pour toute la session.
+
+Garder ce pod actif en permanence monopoliserait un GPU sur les deux disponibles, même hors session d'annotation. Le Deployment reste donc à zéro réplica par défaut, et l'API le pilote : `POST /segment/up` le réveille en début de session (un unique cold start), `POST /segment/down` le rendort et libère le GPU. Le détail de ce mécanisme et le choix d'écarter KEDA sont traités au chapitre implémentation.
 
 === Ultralytics
-// TODO: API points/box triviale (model.predict(points=, labels=)) vs le pipeline complet (_make_datapoint/collate/postprocessor). Image plus légère. Modèle sam3.pt. Pas d'auth (exposé via Ingress).
 
-== Variables environement
+L'endpoint interactif s'appuie sur l'API Ultralytics, qui expose la prédiction par point ou boîte en un seul appel (`model.predict(points=, labels=)`). Elle évite le pipeline complet du mode batch (`_make_datapoint`, collate, postprocessor), inutile pour une inférence ponctuelle. L'image en est plus légère et charge le modèle `sam3.pt`. Le service n'a pas d'authentification propre : il est exposé via l'Ingress et protégé au niveau du cluster.
 
-== Gestion des secrets
+
+== Variables d'environnement
+Toutes les valeurs interchangeables du projet sont définies dans un fichier `.env` unique situé à la racine du projet. L'API les lit via `os.getenv`, avec une valeur par défaut raisonnable pour chacune. En développement local, `load_dotenv()` charge ce `.env`. Un `.env.example` versionné sert de modèle et ne contient aucun secret. En production, ces variables sont injectées par le Deployment Kubernetes.
+
+#figure(
+  table(
+    columns: (auto, 1fr),
+    align: (left, left),
+    fill: (_, row) => if row == 0 { col-blue } else if calc.odd(row) { rgb("#F1F5F9") } else { white },
+    table.header(text(fill: white)[*Variable*], text(fill: white)[*Rôle*]),
+    [`NAMESPACE`], [Namespace où l'API crée les Jobs et scale le service de segmentation],
+    [`S3_ENDPOINT_URL`], [Endpoint du stockage objet MinIO],
+    [`BUCKET`], [Bucket par défaut pour la lecture des images et l'écriture des résultats],
+    [`BATCH_IMAGE`], [Image du driver batch (identique aux workers Ray)],
+    [`SOLO_IMAGE`], [Image du Job solo],
+    [`SEGMENT_URL`], [URL interne du service de segmentation interactive],
+    [`SEGMENT_DEPLOYMENT`], [Nom du Deployment scalé par `/segment/up` et `/segment/down`],
+    [`PORT`], [Port HTTP exposé par l'API],
+    [`V4_ADDRESS`], [Adresse d'écoute du serveur],
+  ),
+  caption: [Variables d'environnement de l'API],
+) <tab-env-vars>
+
+Ces variables configurent le comportement de l'API, elles ne sont pas sensibles et peuvent figurer en clair. Les credentials MinIO (`AWS_ACCESS_KEY`, `AWS_SECRET_ACCESS_KEY`) et le token HuggingFace (`HF_TOKEN`) sont au contraire des secrets k8s, ils ne sont jamais inscrits dans l'image ni dans le `.env.example`, et proviennent de Secrets Kubernetes dédiés (cf. @arch-secrets).
+
+== Gestion des secrets <arch-secrets>
+
+Trois secrets alimentent la pipeline : les credentials MinIO (`minio-secret`), le token HuggingFace (`hf-secret`) et les identifiants du registre privé (`ghcr-secret`). Aucun n'est inscrit dans une image ni dans un fichier en clair du dépôt. Ils existent comme Secrets Kubernetes dans le namespace `dani`, et les pods les consomment au runtime via `secretKeyRef`.
+
 === SOPS
+
+Créer ces Secrets uniquement à la main (`kubectl create secret`) les laisse hors du contrôle de version, rien ne documente leur structure, et un secret perdu doit être reconstitué de mémoire. SOPS résout ce problème en chiffrant les valeurs avant de les commiter.
+
+Le fichier `.sops.yaml` déclare une règle qui chiffre, via une clé publique age, les seules valeurs sous `stringData` (`encrypted_regex`). Le reste du manifeste reste en clair, ce qui préserve des diffs Git lisibles. La clé privée `age` vit hors du dépôt (`~/.config/sops/age/keys.txt`) ; elle seule permet le déchiffrement.
+
+Un secret chiffré ressemble à ceci, sûr à versionner :
+
+```yaml
+stringData:
+    access_key: ENC[AES256_GCM,data:DjC2SqT5...,type:str]
+    secret_key: ENC[AES256_GCM,data:qduNJEEj...,type:str]
+```
+
+Le déploiement déchiffre à la volée vers `kubectl`, sans jamais écrire le secret en clair sur le disque :
+
+```sh
+sops -d deploy/secrets/minio-secret.enc.yaml | kubectl apply -f -
+```
+
+Cette approche reste volontairement simple car le déchiffrement est manuel au moment du déploiement. Un déchiffrement automatique en GitOps (Flux ou ArgoCD avec ksops) exigerait d'installer des composants à l'échelle du cluster, hors de portée du namespace dans notre cas.
+
 === Kubernetes API python
+
+Une fois le Secret présent dans le cluster, l'API ne manipule jamais sa valeur : elle déclare seulement, dans le `V1Job` qu'elle construit, que telle variable d'environnement doit être tirée de telle clé d'un Secret. Le `kubelet` résout la référence au démarrage du pod.
+
 ```python
 from kubernetes import client
 
@@ -399,10 +469,10 @@ env = [
         name="AWS_ACCESS_KEY",
         value_from=client.V1EnvVarSource(
             secret_key_ref=client.V1SecretKeySelector(
-                name="XXXXXXX"
-                key="YYYYYY"
+                name="minio-secret",
+                key="access_key",
             )
-        )
+        ),
     )
 ]
 ```
