@@ -415,4 +415,23 @@
 | Report : Solo/Batch correction, Sérialisation des inférences, Pourquoi pas KEDA, KEDA glossary entry | Done | 2h |
 | extract.py cleanup (formatting, imports) | Done | 30min |
 | **Subtotal** |    | 11h30 |
-| **Total** |    | **31h** |
+
+---
+
+*Thursday June 18, 2026*
+
+| Task              | Status | Time |
+| :---------------- | :------: | ----: |
+| Report architecture : fill TODOs (NFS prereq, jobs orchestration, RBAC/ServiceAccount, result retrieval, PVS vs PCS, hot-model + scale-to-zero, Ultralytics) | Done | 2h |
+| Report implementation : fill TODOs (buildJob, S3 result retrieval, Kubernetes client frictions) | Done | 1h |
+| Report architecture : env vars section (+ table) and secrets sections (Gestion des secrets, SOPS, K8s python) | Done | 1h30 |
+| SOPS setup : install sops/age, age key, .sops.yaml, encrypt minio/hf/ghcr secrets, README, gitignore, round-trip tests | Done | 5h |
+| Report : state of the art on secret management (SOPS/age) + bibliography entries | Done | 1h30 |
+| Deploy SOPS secrets to cluster + debug ghcr ImagePullBackOff 403 (placeholder creds) | Done | 1h |
+
+| Tiling : explanation, review tiling image + fix legend, drop duplicate section in report | Done | 1h15 |
+| Glossary entries (KEDA, PVC, NFS) | Done | 15min |
+| Git : organize thematic commits (batch, SOPS, .env.example, report x5) + untrack .DS_Store | Done | 30min |
+| Journal week 18 | Done | 15min |
+| **Subtotal** |    | 14h15 |
+| **Total** |    | **45h15** |
