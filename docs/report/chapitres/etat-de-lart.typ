@@ -173,6 +173,21 @@ Les URLs `s3://nearai/...` sont converties en URLs HTTP temporaires signées, ce
 
 XXXX Parler ici de NearLabel, le projet fait par mon collègue Valentin Ricard.
 
+== Gestion des secrets
+
+Trois secrets pilotent la pipeline : les credentials MinIO, le token HuggingFace et les identifiants du registre privé. Un Secret Kubernetes ne les protège pas en soi car son contenu n'est encodé qu'en base64, trivialement réversible. Le créer à la main (`kubectl create secret`) le laisse de plus hors du contrôle de version, sans trace de sa structure.
+
+
+Pour versionner des secrets sans les exposer les logiques utilisée dans l'industrie sont :
+
+*Sealed Secrets* @sealed-secrets chiffre un Secret avec la clé publique d'un contrôleur installé dans le cluster ; seul ce contrôleur peut le déchiffrer.
+
+*External Secrets Operator* @external-secrets et *Vault* @vault vont plus loin, les secrets vivent dans un coffre externe et un opérateur les synchronise dans le cluster à la demande. Ces trois solutions partagent un prérequis rédhibitoire ici car elles imposent l'installation d'un composant à l'échelle du cluster (contrôleur ou opérateur), donc des droits d'administrateur hors de portée du namespace dans notre cas.
+
+*SOPS* @sops chiffre directement les fichiers de manifeste, sans aucun composant côté cluster. Il délègue le chiffrement à un backend PGP, KMS cloud, ou *age* @age, un outil de chiffrement asymétrique moderne réduit à une paire de clés dans un fichier. SOPS ne chiffre que les valeurs (`encrypted_regex` sur `stringData`), laissant le reste du manifeste lisible pour des diffs Git propres. Le déchiffrement est manuel, au moment du déploiement.
+
+SOPS combiné à age est retenu, il versionne les secrets chiffrés dans Git sans rien installer sur le cluster, ce qui convient à un accès limité à un seul namespace. Le compromis assumé est l'absence de synchronisation automatique acceptable pour trois secrets statiques, la complexitée du projet et le déplacement du problème vers la protection de la clé privée age, qui ne doit jamais être commitée.
+
 == Observabilité
 
 *Prometheus* collecte des métriques en temps réel et génère des alertes. Les données sont stockées au format TSDB et interrogées via PromQL, un langage de requête basé sur les vecteurs instantanés, de portée et scalaires.

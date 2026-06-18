@@ -117,6 +117,41 @@ loki-storage:
   date: 2024
   url: https://grafana.com/docs/loki/latest/operations/storage/
 
+sops:
+  type: Web
+  title: "SOPS: Secrets OPerationS"
+  author: "CNCF / getsops"
+  date: 2024
+  url: https://github.com/getsops/sops
+
+age:
+  type: Web
+  title: "age: A simple, modern and secure file encryption tool"
+  author: "Filippo Valsorda"
+  date: 2024
+  url: https://github.com/FiloSottile/age
+
+sealed-secrets:
+  type: Web
+  title: "Sealed Secrets for Kubernetes"
+  author: "Bitnami"
+  date: 2024
+  url: https://github.com/bitnami-labs/sealed-secrets
+
+external-secrets:
+  type: Web
+  title: "External Secrets Operator"
+  author: "External Secrets Inc."
+  date: 2024
+  url: https://external-secrets.io/
+
+vault:
+  type: Web
+  title: "HashiCorp Vault"
+  author: "HashiCorp"
+  date: 2024
+  url: https://www.vaultproject.io/
+
 k8s-heig:
   type: Web
   title: "Kubernetes Documentation — IICT HEIG-VD"
