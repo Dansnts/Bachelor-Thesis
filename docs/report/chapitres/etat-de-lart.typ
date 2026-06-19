@@ -34,6 +34,8 @@ Ce modèle accepte des images jusqu'à 1'024 x 1'024 pixels. Une panoramique de 
 
 Les images équirectangulaires présentent une distorsion géométrique croissante vers le zénith et le nadir. Les objets cibles (panneaux, marquages) se concentrent dans la bande centrale de l'image, correspondant à ±30° d'élévation, là où la distorsion est minimale. La correction de projection n'est donc pas implémentée, elle apporterait un gain marginal pour un coût d'implémentation élevé. Le bas du panorama est en grande partie occulté par la carrosserie du véhicule. Ce choix est documenté comme limitation connue.
 
+== Ultralytics
+
 == Calcul distribué
 
 

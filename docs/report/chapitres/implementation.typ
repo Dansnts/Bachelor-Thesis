@@ -209,3 +209,13 @@ Enfin, et surtout, KEDA n'élimine pas le démarrage à froid (le chargement du 
 Pour un usage ponctuel et séquentiel d'un seul annotateur et une image à la fois, le pilotage manuel par `/segment/up` et `/segment/down` offre la même expérience réelle, un unique démarrage à froid en début de session, sans dépendance d'infrastructure ni composant réseau additionnel.
 
 Finnalement, le service ne dispose que d'un GPU. Comme une seule inférence peut tourner à la fois, un `threading.Lock` met les appels en file et les traite l'un après l'autre. En pratique l'usage est séquentiel, un annotateur, une image à la fois, donc la file ne bloque jamais.
+
+=== Ultralytics
+
+== Observabilité
+
+=== Déploiement de la stack (Prometheus, Loki, Alloy)
+
+=== Métriques GPU (DCGM)
+
+=== Dashboard Grafana
