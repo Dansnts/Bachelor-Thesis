@@ -1049,3 +1049,16 @@ Instead of exposing `sam3-segment` publicly, the main API **proxies** `/segment`
 ## Open / security
 
 No authentication yet on the API or the segment service. Exposed via Ingress = anyone on the network can consume GPU. Token / API key is a future improvement.
+
+
+# Week 18
+
+ajout de section d'avancement dans lle raport ou on compare le l'avancement avec ce qui était prévu de base
+
+Faire une image qui explique comment le docupage en tuilel foncitonne
+
+Les API c'est bon --> repaser dessus pour refactor
+
+Les logs --> Verifier que ils sont bien enregistre puis check la config map 
+
+Documenté la sections api
