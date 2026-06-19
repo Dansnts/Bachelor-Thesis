@@ -434,4 +434,19 @@
 | Git : organize thematic commits (batch, SOPS, .env.example, report x5) + untrack .DS_Store | Done | 30min |
 | Journal week 18 | Done | 15min |
 | **Subtotal** |    | 14h15 |
-| **Total** |    | **45h15** |
+
+---
+
+*Friday June 19, 2026*
+
+| Task              | Status | Time |
+| :---------------- | :------: | ----: |
+| Configure 6 fine-grained labels in Label Studio (replacing the 2 generic classes) | Done | 1h |
+| Launch + monitor HSN production run (~21k images) | Done | 2h |
+| Report Résultats : write full chapter from benchmark data (tiling 512/1024, downsampling, scalability, L40S vs A40, observability), TODO placeholders for pending measurements | Done | 4h30 |
+| Cross-chapter coverage audit (state of the art / architecture / implementation) + add missing symmetry titles (Ultralytics, Observabilité) | Done | 2h |
+| Verify report compiles end to end | Done | 15min |
+| Review remaining budget / weekly pace vs deadline | Done | 30min |
+| Journal week 18 | Done | 25min |
+| **Subtotal** |    | 10h40 |
+| **Total** |    | **55h55** |
