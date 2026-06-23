@@ -449,4 +449,32 @@
 | Review remaining budget / weekly pace vs deadline | Done | 30min |
 | Journal week 18 | Done | 25min |
 | **Subtotal** |    | 10h40 |
-| **Total** |    | **55h55** |
+
+---
+
+*Saturday June 20, 2026*
+
+| Task              | Status | Time |
+| :---------------- | :------: | ----: |
+| Analyze + verify Vevey production run results (21 819 images, 6 labels, 34h17) | Done | 3h |
+| Report Résultats : fill Vevey run section with final numbers | Done | 1h |
+| **Subtotal** |    | 4h |
+| **Total** |    | **59h55** |
+
+---
+
+# Week 19
+*Monday June 22, 2026*
+
+| Task              | Status | Time |
+| :---------------- | :------: | ----: |
+| Batch progress counter : per-image counter + "Progress: X %" logs + S3 status file + /jobs/{name}/status endpoint | Done | 2h |
+| Live elapsed time in /status : driver writes started_at, API recomputes elapsed on each read, Cache-Control no-store | Done | 1h |
+| Structured API logging : logfmt format, per-request middleware (method/path/status/duration), per-endpoint domain logs | Done | 1h30 |
+| Tests : unit tests on write_status + endpoints, end-to-end validation on cluster | Done | 1h |
+| Docker : build + push 4 images, tag convention (staging + short sha) | Done | 1h30 |
+| Diagnose + fix stale Ray cluster (sam3core -> jobCore module mismatch), restart cluster | Done | 1h |
+| Refactor deploy/ to English + snake_case (functions, variables, comments, logs ; Pydantic API fields kept camelCase) | Done | 2h |
+| Deploy + validate on cluster (rollout sam3-api, restart Ray pods, GPU contention) | Done | 30min |
+| **Subtotal** |    | 10h30 |
+| **Total** |    | **10h30** |
