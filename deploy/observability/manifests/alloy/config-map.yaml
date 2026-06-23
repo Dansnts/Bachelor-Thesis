@@ -35,7 +35,7 @@ data:
       }
     }
 
-    // Stream logs from pods via K8s API (no host filesystem mount required)
+    // Stream logs from pods via K8s API
     loki.source.kubernetes "pods" {
       targets    = discovery.relabel.pods.output
       forward_to = [loki.write.loki.receiver]

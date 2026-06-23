@@ -10,7 +10,7 @@ data:
       scrape_interval: 15s
 
     scrape_configs:
-      # Métriques GPU via DCGM Exporter (headless service — tous les nœuds via DNS A records)
+      # Métriques GPU via DCGM Exporter (headless service, tous les noeuds via DNS A records)
       - job_name: dcgm-exporter
         dns_sd_configs:
           - names:

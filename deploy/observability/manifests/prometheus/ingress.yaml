@@ -1,18 +1,17 @@
-# Ingress Grafana
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: grafana-ingress
+  name: prometheus-ingress
   namespace: dani
 spec:
   rules:
-    - host: grafana.iict-rad.iict-heig-vd.in
+    - host: prometheus.iict-rad.iict-heig-vd.in
       http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: grafana-svc
+                name: prometheus-svc
                 port:
-                  number: 3000
+                  number: 9090

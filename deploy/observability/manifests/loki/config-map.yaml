@@ -34,8 +34,6 @@ data:
         active_index_directory: /loki/index
         cache_location: /loki/cache
       aws:
-        # MinIO est en HTTPS (cert auto-signé) sur le port 9000. L'ancienne config
-        # utilisait http:// -> MinIO répondait 400 et AUCUN chunk n'était persisté.
         endpoint: storage-kubernetes.iict-heig-vd.in:9000
         bucketnames: nearai-logs
         region: ch

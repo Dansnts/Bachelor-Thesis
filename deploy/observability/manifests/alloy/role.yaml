@@ -4,6 +4,7 @@ metadata:
   name: alloy
   namespace: dani
 rules:
+  # Lecture et suivi des pods, logs et namespace
   - apiGroups: [""]
     resources: ["pods", "pods/log", "namespaces", "nodes"]
     verbs: ["get", "list", "watch"]
