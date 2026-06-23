@@ -1,0 +1,22 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Single entry point: `kubectl apply -k deploy/` deploys the whole stack.
+# Secrets are NOT here (they are SOPS-encrypted): apply them first with deploy.sh.
+namespace: dani
+
+resources:
+  - ray/manifests
+  - api/manifests
+  - segment/manifests
+  - observability/manifests
+
+# Central place to bump the image tag of the internal images. Change newTag
+# here instead of editing each deployment (e.g. staging -> staging-<sha>).
+images:
+  - name: ghcr.io/nearai-interreg/sam3-api
+    newTag: staging
+  - name: ghcr.io/nearai-interreg/sam3-segment
+    newTag: staging
+  - name: ghcr.io/nearai-interreg/ray-sam3
+    newTag: staging

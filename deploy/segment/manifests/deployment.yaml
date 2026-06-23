@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sam3-segment
+  namespace: dani
+  labels:
+    app: sam3-segment
+spec:
+  # 0 par défaut : le GPU reste libre. L'API réveille le service à la demande
+  replicas: 0
+  selector:
+    matchLabels:
+      app: sam3-segment
+  template:
+    metadata:
+      labels:
+        app: sam3-segment
+    spec:
+      runtimeClassName: nvidia
+      imagePullSecrets:
+        - name: ghcr-secret
+      containers:
+        - name: segment
+          image: ghcr.io/nearai-interreg/sam3-segment:staging
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+          env:
+            - name: BUCKET
+              value: "nearai"
+            - name: S3_ENDPOINT_URL
+              value: "https://storage-kubernetes.iict-heig-vd.in:9000"
+            - name: SAM3_MODEL
+              value: "sam3.pt"
+            - name: AWS_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secret
+                  key: access_key
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secret
+                  key: secret_key
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: hf-secret
+                  key: HF_TOKEN
+          resources:
+            requests:
+              cpu: "2"
+              memory: "8Gi"
+            limits:
+              nvidia.com/gpu: "1"
+              cpu: "4"
+              memory: "16Gi"
+          # Le 1er démarrage télécharge et charge le modèle (lent) → startupProbe
+          # tolérante ; tant qu'elle n'a pas réussi, le pod n'est pas Ready.
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 15
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 30

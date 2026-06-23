@@ -1,0 +1,102 @@
+apiVersion: ray.io/v1
+kind: RayCluster
+metadata:
+  name: ray-cluster
+  namespace: dani
+spec:
+  rayVersion: "2.54.0"
+
+  headGroupSpec:
+    rayStartParams:
+      dashboard-host: "0.0.0.0"
+    template:
+      spec:
+        imagePullSecrets:
+          - name: ghcr-secret
+        containers:
+          - name: ray-head
+            image: ghcr.io/nearai-interreg/ray-sam3:staging
+            imagePullPolicy: Always
+            ports:
+              - containerPort: 6379 # Ray GCS
+              - containerPort: 8265 # Dashboard
+              - containerPort: 10001 # Ray client
+            resources:
+              limits:
+                cpu: "2"
+                memory: 4Gi
+              requests:
+                cpu: "2"
+                memory: 4Gi
+
+  workerGroupSpecs:
+    - groupName: workers
+      replicas: 3
+      rayStartParams: {}
+      template:
+        spec:
+          runtimeClassName: nvidia
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                  - matchExpressions:
+                      - key: nvidia.com/gpu.present
+                        operator: In
+                        values:
+                          - "true"
+              preferredDuringSchedulingIgnoredDuringExecution:
+                - weight: 100
+                  preference:
+                    matchExpressions:
+                      - key: nvidia.com/gpu.product
+                        operator: In
+                        values:
+                          - NVIDIA-L40S
+                - weight: 50
+                  preference:
+                    matchExpressions:
+                      - key: nvidia.com/gpu.product
+                        operator: In
+                        values:
+                          - NVIDIA-A40
+                - weight: 10
+                  preference:
+                    matchExpressions:
+                      - key: nvidia.com/gpu.product
+                        operator: In
+                        values:
+                          - NVIDIA-L4
+          imagePullSecrets:
+            - name: ghcr-secret
+          containers:
+            - name: ray-worker
+              image: ghcr.io/nearai-interreg/ray-sam3:staging
+              imagePullPolicy: Always
+              env:
+                - name: HF_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: hf-secret
+                      key: HF_TOKEN
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: minio-secret
+                      key: access_key
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: minio-secret
+                      key: secret_key
+                - name: S3_ENDPOINT_URL
+                  value: https://storage-kubernetes.iict-heig-vd.in:9000
+              resources:
+                limits:
+                  nvidia.com/gpu: "1"
+                  cpu: "8"
+                  memory: 32Gi
+                requests:
+                  nvidia.com/gpu: "1"
+                  cpu: "4"
+                  memory: 16Gi
