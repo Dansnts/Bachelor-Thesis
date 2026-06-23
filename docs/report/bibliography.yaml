@@ -163,3 +163,17 @@ parquet-query:
   type: Article
   title: "Efficient Query Processing with Parquet"
   author: "Alice Rey"
+
+l40s-datasheet:
+  type: Web
+  title: "NVIDIA L40S Datasheet"
+  author: "NVIDIA Corporation"
+  date: 2023
+  url: https://www.nvidia.com/en-us/data-center/l40s/
+
+a40-datasheet:
+  type: Web
+  title: "NVIDIA A40 Datasheet"
+  author: "NVIDIA Corporation"
+  date: 2022
+  url: https://www.nvidia.com/en-us/data-center/a40/
