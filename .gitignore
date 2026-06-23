@@ -1,14 +1,19 @@
+# ENV
 .env
 **/.env
 *.env
-.venv/
 
-# SOPS : on versionne les *.enc.yaml (chiffrés), jamais les déchiffrés ni la clé age
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# SOPS
 *.dec.yaml
 deploy/secrets/*.plain.yaml
 keys.txt
 *.agekey
-__pycache__/
-*.pyc
+
+# Others
 *.zip
 *.DS_Store
