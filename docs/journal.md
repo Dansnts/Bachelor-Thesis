@@ -477,4 +477,46 @@
 | Refactor deploy/ to English + snake_case (functions, variables, comments, logs ; Pydantic API fields kept camelCase) | Done | 2h |
 | Deploy + validate on cluster (rollout sam3-api, restart Ray pods, GPU contention) | Done | 30min |
 | **Subtotal** |    | 10h30 |
-| **Total** |    | **10h30** |
+
+---
+
+*Tuesday June 23, 2026*
+
+| Task              | Status | Time |
+| :---------------- | :------: | ----: |
+| Downsampling feature : add `downsample` parameter across the pipeline (worker, solo, batch, API) | Done | 2h |
+| Report Résultats : design OFAT benchmark plan + placeholder tables (tile size, downsampling, label granularity, batch scalability) | Done | 1h30 |
+| Meeting with Bertil | Done | 30min |
+| L40S vs A40 : read both NVIDIA datasheets, write spec comparison table + analysis (measured 1.45x vs theoretical BF16 2.42x), add bibliography entries | Done | 1h15 |
+| Report Résultats : rework Vevey table into 2/3/6 label comparison + linear-with-labels analysis | Done | 30min |
+| Benchmark dataset prep : sample 40 random Vevey images (seed 42) + copy to dedicated S3 prefix | Done | 45min |
+| dataset_info.txt : aggregate EXIF metadata (camera, resolution, GPS coverage) into a summary at the results root | Done | 1h15 |
+| Logs : silence InsecureRequestWarning + per-percent progress, document in report | Done | 45min |
+| Fix Dockerfile COPY paths after deploy/ reorg (api, batch, solo) | Done | 30min |
+| Kustomize : per-component + root kustomization + deploy.sh for one-shot deploy | Done | 1h30 |
+| SOPS age key fix + GPU reservation email | Done | 20min |
+| Git : clean + commit deploy YAML manifest reorg (kustomize, drop legacy paths) | Done | 1h |
+| Journal week 19 | Done | 15min |
+| **Subtotal** |    | 11h20 |
+
+---
+
+*Wednesday June 24, 2026*
+
+| Task              | Status | Time |
+| :---------------- | :------: | ----: |
+| API endpoints : implement GET /health (k8s liveness probe) + GET /jobs/ (list batch/solo jobs, kind filter) | Done | 45min |
+| Deduplicate segment <--> jobCore : import shared mask_to_polygon / make_s3_client, switch segment Docker build context to deploy/ | Done | 45min |
+| Section headers + section ordering across all deploy/ Python files to match the API layout | Done | 45min |
+| /import endpoint : convert Parquet predictions to Label Studio import payload (+ pyarrow in API image) | Done | 1h |
+| Local smoke tests : 8 module imports + pure-logic helpers (tiling, EXIF, dataset_info, LS conversion) | Done | 30min |
+| Docker : build + push 4 images, fix userdel UID 1000 conflict on Ubuntu 24 base image | Done | 1h |
+| Redeploy + diagnose/fix node DiskPressure eviction storm  | Done | 1h |
+| /import scalability rework after OOM/504 on 14k files : streaming response + parallel reads + multipart S3 write + bump API memory 256->512Mi | Done | 1h30 |
+| Rebuild/redeploy API + validate /import on Vevey 14k (147 MB JSON written to MinIO, bounded memory) | Done | 45min |
+| Full API test campaign + small batch run : validate downsampling, dataset_info, /status, segment scaling | Done | 1h |
+| Fix RBAC Role (live missing deployments/scale -> /segment 403) | Done | 15min |
+| Investigate Ray actor INFO logging gap + note | Done | 30min |
+| Journal | Done | 15min |
+| **Subtotal** |    | 10h |
+| **Total** |    | **31h50** |
