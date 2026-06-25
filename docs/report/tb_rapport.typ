@@ -422,6 +422,9 @@ Toute utilisation, même partielle, de ce TB doit être faite dans le respect du
     [*DAG*],
     [Directed Acyclic Graph, système de séquences pour optimiser l'exécution en étapes non cycliques permettant un traitement parallèle efficace et avec une tolérance aux pannes],
 
+    [*PIL*],
+    [Python Image Library, bibliothèque historique de traitement d'images permettant l'ouverture, la manipulation et la sauvegarde de nombreux formats graphiques],
+
     [*BLOB*],
     [Binary Large Object, fichier binaire non structuré (image JPEG, poids de modèle). Stocké dans un système de stockage objet (S3/MinIO) plutôt qu'en base de données],
 
@@ -507,9 +510,9 @@ Toute utilisation, même partielle, de ce TB doit être faite dans le respect du
   caption: [Glossaire],
 )
 
-//#include "chapitres/outils-utilises.typ"
+#include "chapitres/outils-utilises.typ"
 
 #set page(flipped: true)
-//#include "chapitres/journal-de-travail.typ"
+#include "chapitres/journal-de-travail.typ"
 
 // ------------------------------------
