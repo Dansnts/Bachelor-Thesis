@@ -519,4 +519,22 @@
 | Investigate Ray actor INFO logging gap + note | Done | 30min |
 | Journal | Done | 15min |
 | **Subtotal** |    | 10h |
-| **Total** |    | **31h50** |
+
+---
+
+*Thursday June 25, 2026*
+
+| Task              | Status | Time |
+| :---------------- | :------: | ----: |
+| Plan the day + audit report for gaps (read all chapters, list missing/placeholder sections) | Done | 1h |
+| État de l'art : write Ultralytics section + bibliography entry | Done | 1h30 |
+| Implementation : write Ultralytics section (segment service, SAM() loading, .pt weights, mask --> polygon) | Done | 1h |
+| Architecture : fix Ultralytics paragraph (point-only prompt, not box) + reword .pt loading line | Done | 45min |
+| Report journal : extend journal-de-travail.typ to weeks 12-19 from journal.md (split merged week 12/13, per-category hour breakdown), uncomment include | Done | 2h30 |
+| Verify solo/batch/segment write behavior in code + fix report (solo conditional on --result_key, segment never writes, fix flag name) | Done | 1h |
+| Outils utilisés : write full tool inventory chapter (8 grouped tables) + uncomment include | Done | 2h |
+| Cross-chapter consistency pass (segmentation, Ultralytics, job outputs) | Done | 45min |
+| Code walkthrough + clarifications (K8s client frictions, .pt format, model lifecycle, Ultralytics role) | Done | 1h15 |
+| Git + deploy help (untrack Docker/, segment kubectl apply -k) | Done | 15min |
+| **Subtotal** |    | 12h |
+| **Total** |    | **43h50** |
