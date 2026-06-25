@@ -30,14 +30,26 @@ SAM3 a été entraîné sur SA-1B, un corpus de 1,1 milliard de masques sur 11 m
 
 Ce modèle accepte des images jusqu'à 1'024 x 1'024 pixels. Une panoramique de 8'192 x 4'096 pixels doit donc être découpée avant l'inférence. Ce travail adopte des tuiles de 512 x 512 pixels, ce qui produit 128 tuiles par image à pleine résolution. Un downsampling à 50 % ramène ce nombre à 32 tuiles et réduit le temps d'inférence d'un facteur 4, au prix d'une perte de détail acceptable pour les classes cibles.
 
-=== TO DO : EXPLICATION DU TUILAGE VIA UNE IMAGE
-
 Les images équirectangulaires présentent une distorsion géométrique croissante vers le zénith et le nadir. Les objets cibles (panneaux, marquages) se concentrent dans la bande centrale de l'image, correspondant à ±30° d'élévation, là où la distorsion est minimale. La correction de projection n'est donc pas implémentée, elle apporterait un gain marginal pour un coût d'implémentation élevé. Le bas du panorama est en grande partie occulté par la carrosserie du véhicule. Ce choix est documenté comme limitation connue.
+
+La compléxité est due que rien ne garanti à 100% que un signe ou feu de signaisaiton ne soit présent sur le Zenith de l'image du à l'angle de la prise.
+
+
+#linebreak()
+#figure(
+  image("../images/zenithNadir.png", width: 90%),
+  caption: [
+    Dans ce cas, on peut voir en zone que même si non découpe le Nadir, nous pouvons perdre des éléments.
+  ],
+) <sam3promtp>
 
 == Ultralytics
 
-== Calcul distribué
+Ultralytics est une librairie Python open-source qui unifie l'usage de modèles de vision sous une interface unique @ultralytics. Connue pour son implémentation de YOLO, elle intègre aussi la famille Segment Anything, dont SAM3. Là où le dépôt de référence de Meta expose un pipeline bas niveau (préparation des tenseurs, collation des tuiles, post-traitement manuel), Ultralytics réduit l'inférence à un seul appel `model.predict` en chargeant les poids depuis un fichier `.pt` puis place le modèle sur le GPU et renvoie directement les masques.
 
+Cette abstraction sert la segmentation interactive. SAM3 accepte un prompt visuel (un point ou une boîte) qui désigne un objet à un endroit précis de l'image. L'appel `model.predict(points=, labels=)` suffit alors à retourner le contour de l'objet sous le curseur, sans le pipeline de tuilage requis par le traitement par lot. Le coût est une moindre maîtrise des étapes internes. Ultralytics fige le pré- et le post-traitement, là où le dépôt de Meta les laisse configurables.
+
+== Calcul distribué
 
 Apache Spark est le framework de calcul distribué dominant pour les workloads analytiques sur données structurées. Son modèle d'exécution repose sur un DAG de transformations sur des RDDs ou DataFrames, optimisé pour les opérations SQL et les pipelines ETL à large échelle sur clusters homogènes.
 

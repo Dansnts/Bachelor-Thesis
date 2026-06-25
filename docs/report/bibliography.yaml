@@ -177,3 +177,10 @@ a40-datasheet:
   author: "NVIDIA Corporation"
   date: 2022
   url: https://www.nvidia.com/en-us/data-center/a40/
+
+ultralytics:
+  type: Web
+  title: "Ultralytics YOLO Docs"
+  author: "Ultralytics"
+  date: 2023
+  url: https://docs.ultralytics.com/

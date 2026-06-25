@@ -206,7 +206,6 @@ Nous devons donc définir par défaut des valeurs des nombre de Tuiles et leurs 
   ],
 ) <Tilling-Explanation>
 
-== Segmentation à la volée
 
 == Format de sortie Parquet
 
@@ -234,10 +233,6 @@ La compression Snappy est appliquée. Les fichiers sont interrogeables directeme
 
 == Intégration Label Studio
 
-=== Configuration S3
-
-=== Interface de labeling
-
 === Pré-annotations
 
 Label Studio est connecté à MinIO comme _source storage_ S3. Les URLs `s3://nearai/...` sont converties en URLs HTTP temporaires pré-signées, servies directement du stockage au navigateur sans proxy.
@@ -259,9 +254,39 @@ Les pré-annotations importées doivent utiliser `from_name: "label"` et `to_nam
 
 == Intégration Near Label
 
-=== API
+=== Récupération des données
 
-=== Segmentation manuelle (Call endpoint /segment)
+=== Conversion des données Parquet --> JSON
+
+=== Segmentation manuelle
+
+Concernant la *segmentation à la demande*, un utilisateur peut simplement passer à l'API l'url ainsi que les items à re-passer en inférance :
+```JSON
+{
+  "url": "data/acquisitions/20241003-Nyon/01_images/S003/20241003-Nyon_S003_ladybug5plus_000001.jpg",
+  "items": [
+    { "point": [4637, 2675], "label": "manhole" },
+    { "point": [1200, 800],  "label": "road_marking" }
+  ]
+}
+```
+
+L'endpoit `/segment` lance alors une opération sur le pod `sam3-segment-*` et retourne en JSON le résulat des recherches demandées.
+
+Afin d'avoir une attente régulière sur le service, le choix de laisser un pod prêt à agir à été choisi.
+
+Le réveil aurait pu être automatisé avec KEDA et son extension HTTP, qui réveille un service dès qu'une requête arrive. Cette piste a été écartée pour trois raisons.
+
+Le problème dans notre cas, KEDA s'installe à l'échelle du cluster et requiert des droits d'administrateur, hors de portée du namespace actuel : il faudrait passer par l'admin de l'infrastructure.
+
+Ensuite, l'extension HTTP insère un _interceptor_ devant le service pour retenir la requête le temps que le pod démarre, ajoutant une pièce supplémentaire dans le chemin réseau.
+
+Enfin, et surtout, KEDA n'élimine pas le démarrage à froid (le chargement du modèle en mémoire GPU, de l'ordre de 20 à 30 secondes) : il ne fait que le déclencher automatiquement.
+
+Pour un usage ponctuel et séquentiel d'un seul annotateur et une image à la fois, le pilotage manuel par `/segment/up` et `/segment/down` offre la même expérience réelle, un unique démarrage à froid en début de session, sans dépendance d'infrastructure ni composant réseau additionnel.
+
+
+Le pod charge le modèle via Ultralytics, qui lit un fichier `sam3.pt` (format PyTorch) contenant les poids de SAM3. Le détail de cette intégration est traité au chapitre implémentation.
 
 #pagebreak()
 == Observabilité
@@ -330,6 +355,15 @@ Grafana intéroge les résultats interroge via LogQL avec `regexp` et `unwrap` p
 
 Une API REST expose la pipeline aux utilisateurs et aux systèmes externes. Elle permet de soumettre des jobs batch ou on-demand, de consulter leur état et d'importer automatiquement les résultats dans NearLabel ou sans accès direct au cluster Kubernetes.
 
+#figure(
+  image("../images/API.png", width: 100%),
+  caption: [
+    L'API permet de créer les pods, lire leurs status via les librairires K8s et de retourner le résultats post traitement.
+  ],
+) <Schema-Observability>
+
+#linebreak()
+
 L'API tourne comme un `Deployment` dans le namespace `dani`, avec un `ServiceAccount` disposant des droits `create/get/list` sur les `Jobs` Kubernetes. Elle soumet les jobs en créant des ressources `Job` via le SDK Kubernetes Python, ce qui découple l'API de l'état interne du RayCluster.
 
 #figure(
@@ -370,25 +404,22 @@ L'API tourne comme un `Deployment` dans le namespace `dani`, avec un `ServiceAcc
   caption: [Endpoints de l'API REST],
 ) <tab-api-endpoints>
 
-=== Orchestration par Jobs Kubernetes
-
 Les paramètres d'un traitement (image source, labels, nombre de workers, tuilage) changent à chaque requête. Un manifeste YAML statique ne peut pas les porter ; l'API construit donc chaque `V1Job` dynamiquement à partir du corps de la requête. Le Job hérite de `imagePullPolicy: Always` (toujours tirer la dernière image `:staging`), `restartPolicy: Never`, `runtimeClassName: nvidia` et des ressources `nvidia.com/gpu` pour les pods à GPU, et `ttlSecondsAfterFinished: 3600` pour l'auto-nettoyage.
 
 Ce modèle découple l'API de l'état du RayCluster : un Job batch n'est qu'un driver éphémère qui se connecte au cluster permanent, tandis qu'un Job solo embarque son propre GPU. L'API n'a pas à connaître la topologie Ray, elle ne fait que soumettre des Jobs.
-
-=== RBAC et ServiceAccount <arch-rbac>
 
 L'API tourne sous le ServiceAccount `sam3-api`, lié par un `RoleBinding` à un `Role` au moindre privilège : `create/get/list/watch/delete` sur les `jobs`, `get` sur les `pods` et `pods/log`, et `get/patch` sur les `deployments/scale` pour le réveil du service de segmentation.
 
 Une subtilité du modèle RBAC a coûté du temps : `jobs/status` est une sous-ressource distincte de `jobs`. Lire le statut d'un Job via `read_namespaced_job_status` exige une permission séparée et renvoie un `403` sans elle. La solution lit la ressource `jobs` complète avec `read_namespaced_job`, déjà couverte par le verbe `get`, et extrait le statut du résultat.
 
-=== Récupération des résultats
 
 Le Job solo écrit son résultat (`results/<job>.json`) sur S3, et l'endpoint `get_result` relit cet objet. Le stockage S3 est durable et indépendant du TTL des Jobs : le résultat survit à la suppression automatique du pod après une heure.
 
-Deux alternatives ont été écartées. Les logs du pod sont éphémères (effacés avec le pod) et, sur `kubernetes-client` 36.x, leur lecture souffre d'un bug d'encodage (cf. @impl-frictions-k8s). Une base SQLite est inadaptée à un accès distribué et à un montage NFS partagé. S3 est déjà la source des données et le puits des prédictions : l'y conserver les résultats évite toute pièce supplémentaire.
+Deux alternatives ont été écartées. Les logs du pod sont éphémères (effacés avec le pod) et, sur `kubernetes-client` 36.x, leur lecture souffre d'un bug d'encodage. Une base SQLite est inadaptée à un accès distribué et à un montage NFS partagé. S3 est déjà la source des données et le puits des prédictions : l'y conserver les résultats évite toute pièce supplémentaire.
 
 == Segmentation interactive
+
+...
 
 === Prompt visuel (PVS) vs prompt concept (PCS)
 
@@ -404,7 +435,7 @@ Garder ce pod actif en permanence monopoliserait un GPU sur les deux disponibles
 
 === Ultralytics
 
-L'endpoint interactif s'appuie sur l'API Ultralytics, qui expose la prédiction par point ou boîte en un seul appel (`model.predict(points=, labels=)`). Elle évite le pipeline complet du mode batch (`_make_datapoint`, collate, postprocessor), inutile pour une inférence ponctuelle. L'image en est plus légère et charge le modèle `sam3.pt`. Le service n'a pas d'authentification propre : il est exposé via l'Ingress et protégé au niveau du cluster.
+L'endpoint interactif s'appuie sur l'API Ultralytics, qui expose la prédiction par prompt visuel en un seul appel (`model.predict(points=, labels=)`). Le service n'utilise que le prompt par point : l'annotateur clique, SAM3 renvoie le masque de l'objet sous le curseur. Cette API évite le pipeline complet du mode batch (tuilage, collate, postprocessor), inutile pour une inférence ponctuelle ; l'image en est plus légère. Le service n'a pas d'authentification propre : il est exposé via l'Ingress et protégé au niveau du cluster.
 
 
 == Variables d'environnement

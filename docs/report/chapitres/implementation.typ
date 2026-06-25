@@ -73,15 +73,23 @@ Done: 40 images, 2230 detections — 111.0s/image (total 4440s)
 
 Ce résumé est capté par Alloy et transmis à Loki, permettant de vérifier le débit sans interroger les fichiers Parquet.
 
+=== Maîtrise du volume de logs
+
+Deux sources de pollution des logs ont été identifiées et neutralisées, sans quoi un run de production noierait les messages utiles.
+
+La première est la progression. Journaliser une ligne par image produirait 21'819 lignes pour le run Vevey, illisible dans Loki. Le driver ne logge donc `Progress: X %` que lorsque le pourcentage entier change, soit au plus 100 lignes par run quelle que soit la taille du dataset. La comparaison se fait sur une variable `last_percent` réévaluée à chaque image complétée.
+
+La seconde est le certificat auto-signé de MinIO. Les clients S3 se connectent avec `verify=False`, ce qui pousse `urllib3` à émettre un `InsecureRequestWarning` à _chaque_ requête HTTP. Avec plusieurs milliers de `GET`/`PUT` par run (téléchargement des images, écriture des Parquet), ce warning se répète à l'infini. Il est désactivé une fois pour toutes via `urllib3.disable_warnings(InsecureRequestWarning)` dans chaque fabrique de client S3 (driver, workers, API, segmentation).
+
 == Manifestes Kubernetes
 
 Trois manifestes couvrent les scénarios de déploiement.
 
 Le fichier `deploy/ray/rayCluster.yaml` : déclare le cluster Ray permanent avec 1 head (2 CPU, 4 Gi) et jusqu'à 3 workers GPU (1 GPU, 8 CPU, 32 Gi). Le `nodeAffinity` préfère les L40S (poids 100) aux A40 (poids 50). Les credentials MinIO (`minio-secret`) et le token HuggingFace (`hf-secret`) sont injectés via `secretKeyRef` dans le spec worker, pas dans le head, qui n'exécute aucune tâche GPU.
 
-Pour lancer le job, le fichier `deploy/ray/job-sam3-driver.yaml` fait que un HEAD sans GPU se connecte au RayCluster et orchestre le traitement d'un préfixe S3. Il se termine dès que l'ensemble des images est traité. `ttlSecondsAfterFinished: 3600`#footnote[Sans ce champ, les Jobs terminés restent indéfiniment dans etcd et leurs pods en état `Completed` occupent des slots sur les nœuds. Après plusieurs runs, le cluster se retrouve saturé de pods zombies.] supprime le Job automatiquement après une heure.
+Le lancement d'un run batch ne passe pas par un manifeste statique : l'API construit le Job Kubernetes à la volée (`build_job` assemble un `V1Job` soumis via `create_namespaced_job`). Le pod ainsi créé est un HEAD sans GPU qui se connecte au RayCluster et orchestre le traitement d'un préfixe S3, puis se termine dès que l'ensemble des images est traité. Le champ `ttlSecondsAfterFinished: 3600`#footnote[Sans ce champ, les Jobs terminés restent indéfiniment dans etcd et leurs pods en état `Completed` occupent des slots sur les nœuds. Après plusieurs runs, le cluster se retrouve saturé de pods zombies.] supprime le Job automatiquement après une heure.
 
-Arguments typiques :
+L'API passe au driver des arguments de cette forme :
 
 ```yaml
 args:
@@ -100,6 +108,8 @@ args:
 Pour faire les tests le fichier `tests/RAY/job-sam3-ray-test.yaml` est utilisé pour valider la pipeline sans cluster Ray (`--local --num_workers 1`). Il monte le PVC HuggingFace à `/root/.cache/huggingface` et un volume `emptyDir` de 16 Gi en mémoire sur `/dev/shm` pour accélérer le partage de tenseurs entre les processus PyTorch.#footnote[Sans `medium: Memory`, `/dev/shm` est limité à 64 MB par défaut dans un conteneur Docker — PyTorch échoue immédiatement au premier transfert de tenseur entre processus avec `Bus error`.] `hostIPC: true`#footnote[Sans `hostIPC: true`, les segments de mémoire partagée POSIX créés par PyTorch ne sont pas visibles entre processus dans le pod — l'inférence multi-GPU s'arrête avec `RuntimeError: unable to open shared memory object`.] est activé pour permettre la communication inter-processus via la mémoire partagée du nœud.
 
 Pour le cache des poids HuggingFace, `tests/RAY/pvc-hf-cache.yaml` crée un PVC Longhorn de 10 Gi en mode `ReadWriteOnce`. Monté sur le pod worker à `/root/.cache/huggingface`. Le volume reste lié entre les redéploiements, évitant le re-téléchargement des 3,3 GB du modèle SAM3 à chaque run.
+
+=== Kustomization.yaml
 
 == Conversion vers Label Studio
 
@@ -139,7 +149,7 @@ La prochaine étape est d'automatiser cette conversion et l'appel à l'API REST 
 
 Les parties communes entre `Solo` et `Batch` sont regroupées dans une libraire *jobCore* séparée en 4 fichiers.
 
-*postprocess.py* : Recolle les masques produits tuile par tuile sur l'image entière (merge_masks), sépare les objets en composantes connexes, puis convertit chaque masque en polygone au format Label Studio (mask_to_polygon). PIL travaille avec un masque sur 8 bit (0 --> 255) la sortie attendue est binaire car un masque de segmentation répond, pour chaque pixel, à une question : ce pixel appartient-il à l'objet détecté (1 = oui) ou (0 = non) ?
+*postprocess.py* : Recolle les masques produits tuile par tuile sur l'image entière (merge_masks), sépare les objets en composantes connexes, puis convertit chaque masque en polygone au format Label Studio (mask_to_polygon). PIL (Python Image Library) travaille avec un masque sur 8 bit (0 --> 255) la sortie attendue est binaire car un masque de segmentation répond, pour chaque pixel, à une question : ce pixel appartient-il à l'objet détecté (1 = oui) ou (0 = non) ?
 
 *s3.py* : Ouvre une session s3 avec `boto3` pour être utilsée lors de la lecture/écriture sur le bucket.
 
@@ -147,45 +157,42 @@ Les parties communes entre `Solo` et `Batch` sont regroupées dans une libraire 
 
 *worker.py* : La classe Sam3Model charge le modèle SAM3 une seule fois, puis détecte sur une image les concepts décrits par des labels texte. Elle découpe l'image en tuiles (tling.py), lance l'inférence par batch sur GPU, recolle et vectorise les résultats (postprocess.py), et renvoie la liste des polygones (label, points, score). Indépendante de Ray et des I/O : Solo et Batch l'enveloppent chacun dans leur propre acteur Ray.
 
-Le job *solo* traite une seule image. L'API crée un Job Kubernetes qui lance un pod à GPU unique tournant l'image `ghcr.io/nearai-interreg/sam3-solo:staging`. Le pod appelle `ray.init()` localement sans cluster Ray et instancie un `SoloWorker` (acteur `@ray.remote(num_gpus=1)`) qui charge SAM3 une fois et infère sur l'image transmise avec les paramètres de tuilage définis. Le résultat est écrit au format JSON Label Studio sur le bucket S3, à la clé `results/<job>.json` passée via `--resultKey`. Cette clé est ensuite relue par l'endpoint `/jobs/{name}/result`.
+Le job *solo* traite une seule image. L'API crée un Job Kubernetes qui lance un pod à GPU unique tournant l'image `ghcr.io/nearai-interreg/sam3-solo:staging`. Le pod appelle `ray.init()` localement sans cluster Ray et instancie un `SoloWorker` (acteur `@ray.remote(num_gpus=1)`) qui charge SAM3 une fois et infère sur l'image transmise avec les paramètres de tuilage définis. Le résultat est toujours imprimé sur stdout au format JSON Label Studio. Si le pod reçoit l'argument `--result_key`, il l'écrit en plus sur le bucket S3 à la clé `results/<job>.json` — ce que fait systématiquement l'API. Cette clé est ensuite relue par l'endpoint `/jobs/{name}/result`.
 
 Le job *batch* traite un préfixe S3 entier. L'API crée un Job Kubernetes qui lance un pod *sans GPU* tournant l'image `ghcr.io/nearai-interreg/ray-sam3:staging` la même que les workers du RayCluster. Ce pod n'est qu'un driver, càd  qu'il se connecte au RayCluster permanent (`ray://ray-cluster-head-svc:10001`), liste les images du préfixe d'entrée et les distribue sur `num_workers` acteurs GPU. Chaque worker écrit ses résultats en Parquet à l'URI de sortie. On transmet donc le bucket et le préfixe des images source, le préfixe de sortie des fichiers Parquet, les labels et le nombre de workers.
-
-=== Construction dynamique des Jobs (buildJob)
 
 La fonction `buildJob` assemble un `V1Job` du SDK Python Kubernetes à partir des paramètres de la requête : un `V1Container` (image, commande, arguments, variables d'environnement, ressources) dans un `V1PodSpec`, lui-même dans le template du `V1Job`. Les paramètres variables (GPU ou non, nom de la variable de clé d'accès) sont passés en arguments pour mutualiser le code entre solo et batch.
 
 Les secrets ne sont jamais inscrits dans l'image : les credentials MinIO (`minio-secret`) et le token HuggingFace (`hf-secret`) sont injectés à l'exécution via `secretKeyRef`, et `S3_ENDPOINT_URL` via une variable simple. Le pod tire l'image depuis le registre privé grâce à `imagePullSecrets: ghcr-secret`. Les Jobs à GPU déclarent `runtimeClassName: nvidia` et la ressource `nvidia.com/gpu`. Chaque Job utilise `restartPolicy: Never` et `ttlSecondsAfterFinished: 3600` pour disparaître une heure après sa fin.
 
-=== Récupération du résultat depuis S3
-
-`submitSolo` passe `--resultKey results/<job>.json` au Job. Le solo, en fin de traitement, dépose son JSON à cette clé sur S3. L'endpoint `get_result` relit ensuite l'objet avec `boto3` (les credentials MinIO côté API proviennent du même `minio-secret`). Le résultat est ainsi durable et indépendant du TTL des Jobs : le pod peut être supprimé, le JSON reste lisible.
-
-=== Frictions du client Kubernetes <impl-frictions-k8s>
+`submitSolo` passe `--result_key results/<job>.json` au Job. Le solo, en fin de traitement, dépose son JSON à cette clé sur S3. L'endpoint `get_result` relit ensuite l'objet avec `boto3` (les credentials MinIO côté API proviennent du même `minio-secret`). Le résultat est ainsi durable et indépendant du TTL des Jobs et le pod peut être supprimé, le JSON reste lisible.
 
 Deux frictions du client Python ont demandé un contournement.
 
-D'abord, `read_namespaced_pod_log` renvoie le `repr()` d'un objet `bytes` (la chaîne littérale `b'...'`) sur `kubernetes-client` 36.x au lieu du texte décodé. Le contournement passe `_preload_content=False` puis décode manuellement via `.data.decode("utf-8")`.
+La première, `read_namespaced_pod_log` renvoie le `repr()` d'un objet `bytes` (la chaîne littérale `b'...'`) sur `kubernetes-client` 36.x au lieu du texte décodé.
 
-Ensuite, `jobs/status` est une sous-ressource RBAC distincte de `jobs` (cf. @arch-rbac). Appeler `read_namespaced_job_status` exige une permission séparée et échoue en `403` sans elle. On lit donc la ressource `jobs` complète avec `read_namespaced_job`, déjà autorisée, et on en extrait le champ statut.
-
-
-Pour la segmentation à la demande, un utilisateur peut simplement passer à l'API l'url ainsi que les items à re-passer en inférance :
-```JSON
-{
-  "url": "data/acquisitions/20241003-Nyon/01_images/S003/20241003-Nyon_S003_ladybug5plus_000001.jpg",
-  "items": [
-    { "point": [4637, 2675], "label": "manhole" },
-    { "point": [1200, 800],  "label": "road_marking" }
-  ]
-}
+Exemple de output :
+```text
+b'Done: 40 images, 2230 detections\n'
 ```
 
-L'endpoit `/segment` lance alors une opération sur le pod `sam3-segment-*` et retourne en JSON le résulat des recherches demandées.
+Le contournement passe `_preload_content=False` puis décode manuellement via `.data.decode("utf-8")`.
 
-Afin d'avoir une attente régulière sur le service, le choix de laisser un pod prêt à agir à été choisi.
+Ensuite, `jobs/status` est une sous-ressource RBAC distincte de `jobs`. Appeler `read_namespaced_job_status` exige une permission séparée et échoue en `403` sans elle. La soution est de lire la ressource `jobs` complète avec `read_namespaced_job`, déjà autorisée, et on en extrait le champ statut. Ainsi on évite le fait de recréer un deuxième accès uniquement pour lire une information que on pouvait déja trouver ailleurs.
 
-La mise en veille et la reprise se fait simplement via un autre appel de la librairie K8s en exploitant le principe de replicas :
+
+Pour la *segmentation à la volée*, un pod indépendant tourne et exploite une grande partie des librairies *jobCore*. L'unique différence est que nous expoitons la fonctionnalité de SAM3 pour la segmentation sur une zone spécifique :
+
+```python
+x, y = item.point
+preds = model.predict(
+    source=image, points=[[x, y]], labels=[1], verbose=False
+)
+```
+
+On récupère les prédictions et ainsi nous pouvons vérifier si le label demandé aux cordonnées entrées est présent ou non afin de retourner le résultat. Contrairement aux jobs solo et batch, le service de segmentation n'écrit aucun fichier : le résultat est renvoyé directement dans la réponse HTTP de l'endpoint `/segment`.
+
+La mise en veille et la reprise du pod se fait simplement via un autre appel de la librairie K8s en exploitant le principe de replicas :
 
 ```python
 apps_v1.patch_namespaced_deployment_scale(
@@ -198,19 +205,30 @@ apps_v1.patch_namespaced_deployment_scale(
 
 `/segment/up` va faire un appel de la fonction avec la valeure *1* en paramètre, tandis que `/segment/down`, passe en paramètre *0*.
 
-Le réveil aurait pu être automatisé avec KEDA et son extension HTTP, qui réveille un service dès qu'une requête arrive. Cette piste a été écartée pour trois raisons.
-
-Le problème dans notre cas, KEDA s'installe à l'échelle du cluster et requiert des droits d'administrateur, hors de portée du namespace actuel : il faudrait passer par l'admin de l'infrastructure.
-
-Ensuite, l'extension HTTP insère un _interceptor_ devant le service pour retenir la requête le temps que le pod démarre, ajoutant une pièce supplémentaire dans le chemin réseau.
-
-Enfin, et surtout, KEDA n'élimine pas le démarrage à froid (le chargement du modèle en mémoire GPU, de l'ordre de 20 à 30 secondes) : il ne fait que le déclencher automatiquement.
-
-Pour un usage ponctuel et séquentiel d'un seul annotateur et une image à la fois, le pilotage manuel par `/segment/up` et `/segment/down` offre la même expérience réelle, un unique démarrage à froid en début de session, sans dépendance d'infrastructure ni composant réseau additionnel.
-
 Finnalement, le service ne dispose que d'un GPU. Comme une seule inférence peut tourner à la fois, un `threading.Lock` met les appels en file et les traite l'un après l'autre. En pratique l'usage est séquentiel, un annotateur, une image à la fois, donc la file ne bloque jamais.
 
 === Ultralytics
+
+Contrairement aux modes batch et solo, qui pilotent SAM3 via la librairie *jobCore* (tuilage, détection par concept, post-traitement), le service interactif s'appuie sur le wrapper `SAM` de la librairie Ultralytics. Celui-ci expose l'inférence par prompt visuel en un seul appel, sans le pipeline de tuilage inutile pour une prédiction ponctuelle.
+
+Au démarrage du pod, les poids sont téléchargés depuis HuggingFace puis chargés une seule fois :
+
+```python
+from ultralytics import SAM
+weights = hf_hub_download(repo_id="facebook/sam3", filename="sam3.pt")
+model = SAM(weights)
+```
+
+Le fichier `sam3.pt` est le conteneur PyTorch des poids du modèle (3,3 GB). `SAM(weights)` reconstruit le réseau et le charge en VRAM ; l'objet reste chaud pour toute la session, évitant de repayer le chargement à chaque requête.
+
+Le masque renvoyé par `predict` est ensuite reconverti en polygone par `mask_to_polygon`, seule fonction de *jobCore* réutilisée par le service :
+
+```python
+mask = preds[0].masks.data[0].cpu().numpy()
+points = mask_to_polygon(mask, w, h)
+```
+
+Si SAM3 ne trouve aucun objet sous le point, `masks` est vide et le service renvoie `found: false` pour cet item. Le label fourni n'oriente pas la détection : il étiquette simplement le masque retourné.
 
 == Observabilité
 
