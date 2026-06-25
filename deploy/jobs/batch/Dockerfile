@@ -30,9 +30,15 @@ RUN git clone https://github.com/facebookresearch/sam3.git && \
 COPY jobs/batch/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# cœur commun + pipeline batch
-COPY jobCore /app/jobCore
+# coeur commun + pipeline batch
+COPY jobs/jobCore /app/jobCore
 COPY jobs/batch/main.py /app/main.py
 ENV PYTHONPATH=/app
+
+# Utilisateur non-root pour l'exécution.
+# Ubuntu 24.04 fournit déjà un utilisateur "ubuntu" en UID 1000 : on le retire
+# avant de créer appuser pour éviter le conflit "UID 1000 is not unique".
+RUN userdel -r ubuntu 2>/dev/null || true && useradd --create-home --uid 1000 appuser
+USER appuser
 
 CMD ["python3.12", "/app/main.py"]

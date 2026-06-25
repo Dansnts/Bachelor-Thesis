@@ -4,3 +4,4 @@ kubernetes
 python-dotenv
 boto3
 requests
+pyarrow

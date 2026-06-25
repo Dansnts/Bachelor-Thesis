@@ -7,20 +7,25 @@ import torch
 from jobCore.postprocess import mask_to_polygon, merge_masks
 from jobCore.tiling import extract_tiles
 
+# Variables --------------------------------------------------
 CONF_THRESHOLD = 0.5
 DEFAULT_TILE_SIZE = 1008
 DEFAULT_TILE_STRIDE = 768
 DEFAULT_BATCH_SIZE = 4
+DEFAULT_DOWNSAMPLE = 1.0
 
+
+# Logging --------------------------------------------------
 log = logging.getLogger(__name__)
 
 
+# Classes --------------------------------------------------
 class Sam3Model:
-    """Charge SAM3 une fois et détecte des concepts (labels texte) sur une image.
+    """Loads SAM3 once and detects concepts (text labels) on an image.
 
-    Indépendant de Ray et des entrées/sorties : on lui donne une image PIL et
-    une liste de labels, il renvoie des polygones. Les modes solo et batch
-    l'enveloppent chacun dans leur propre acteur Ray avec leur I/O.
+    Independent of Ray and of I/O: given a PIL image and a list of labels, it
+    returns polygons. The solo and batch modes each wrap it in their own Ray
+    actor with their own I/O.
     """
 
     def __init__(
@@ -28,6 +33,7 @@ class Sam3Model:
         tile_size=DEFAULT_TILE_SIZE,
         tile_stride=DEFAULT_TILE_STRIDE,
         batch_size=DEFAULT_BATCH_SIZE,
+        downsample=DEFAULT_DOWNSAMPLE,
     ):
         from huggingface_hub import login
         from sam3 import build_sam3_image_model
@@ -48,6 +54,7 @@ class Sam3Model:
         self.tile_size = tile_size
         self.tile_stride = tile_stride
         self.batch_size = batch_size
+        self.downsample = downsample
         self._counter = 1
 
         self.model = build_sam3_image_model(
@@ -74,7 +81,7 @@ class Sam3Model:
             detection_threshold=CONF_THRESHOLD,
             to_cpu=True,
         )
-        log.info("Sam3Model prêt sur %s", self.device)
+        log.info("Sam3Model ready on %s", self.device)
 
     def _make_datapoint(self, tile_image, labels):
         from sam3.train.data.sam3_image_dataset import (
@@ -113,24 +120,42 @@ class Sam3Model:
         return self.transform(dp), query_id_to_label
 
     def infer(self, image, labels):
-        """image : PIL.Image. Renvoie (polygons, width, height) où
-        polygons est une liste de (label, points, score)."""
+        """image: PIL.Image. Returns (polygons, width, height) where
+        polygons is a list of (label, points, score)."""
         from sam3.model.utils.misc import copy_data_to_device
         from sam3.train.data.collator import collate_fn_api as collate
 
+        from PIL import Image
+
         image = image.convert("RGB")
+        original_w, original_h = image.size
+
+        # optional downsampling: shrink the image before tiling to cut the
+        # number of tiles (and inference time). Polygons are emitted as
+        # percentages of the image size, so they map back onto the
+        # full-resolution image without any rescaling. We keep the original
+        # dimensions to report them to Label Studio.
+        if self.downsample and self.downsample < 1.0:
+            new_w = int(original_w * self.downsample)
+            new_h = int(original_h * self.downsample)
+            image = image.resize((new_w, new_h), Image.BILINEAR)
+            log.info(
+                "Downsampling %dx%d -> %dx%d (factor %.2f)",
+                original_w, original_h, new_w, new_h, self.downsample,
+            )
+
         img_w, img_h = image.size
 
-        # 1. découper l'image en tuiles
+        # 1. split the image into tiles
         tiles = extract_tiles(image, self.tile_size, self.tile_stride)
 
-        # 2. emballer chaque tuile en Datapoint (image + labels)
+        # 2. wrap each tile into a Datapoint (image + labels)
         tile_data = []
         for tile_image, coords in tiles:
             dp, qmap = self._make_datapoint(tile_image, labels)
             tile_data.append((dp, coords, qmap))
 
-        # 3. inférence batchée → liste de (mask, coords, score, label)
+        # 3. batched inference -> list of (mask, coords, score, label)
         detections = []
         for i in range(0, len(tile_data), self.batch_size):
             batch = tile_data[i : i + self.batch_size]
@@ -164,7 +189,7 @@ class Sam3Model:
                             )
                             detections.append((m, coords, s, label))
 
-        # 4. regrouper par label puis recoller les tuiles
+        # 4. group by label then stitch the tiles back together
         label_groups = {}
         for mask, coords, score, label in detections:
             g = label_groups.setdefault(
@@ -174,7 +199,7 @@ class Sam3Model:
             g["coords"].append(coords)
             g["scores"].append(score)
 
-        # 5. convertir chaque masque fusionné en polygone
+        # 5. convert each merged mask into a polygon
         polygons = []
         for label, g in label_groups.items():
             for mask, score in merge_masks(
@@ -184,5 +209,5 @@ class Sam3Model:
                 if points:
                     polygons.append((label, points, float(score)))
 
-        log.info("%d objets détectés sur %d tuiles", len(polygons), len(tiles))
-        return polygons, img_w, img_h
+        log.info("%d objects detected over %d tiles", len(polygons), len(tiles))
+        return polygons, original_w, original_h

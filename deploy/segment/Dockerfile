@@ -16,13 +16,14 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 WORKDIR /app
 
-# Torch CUDA 12.6 d'abord, sinon ultralytics installe le torch CPU
 RUN pip install --no-cache-dir torch torchvision \
     --index-url https://download.pytorch.org/whl/cu126
 
-COPY requirements.txt .
+COPY segment/python/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY ./main.py ./
+COPY jobs/jobCore /app/jobCore
+COPY segment/python/main.py /app/main.py
+ENV PYTHONPATH=/app
 
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

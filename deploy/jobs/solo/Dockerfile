@@ -25,7 +25,7 @@ RUN git clone https://github.com/facebookresearch/sam3.git && \
     cd sam3 && \
     pip install ".[notebooks,train,dev]"
 
-COPY jobs/solo/requirements.txt .
+COPY jobs/solo/python/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 
@@ -42,8 +42,14 @@ ENV PATH="/opt/venv/bin:$PATH"
 WORKDIR /app
 
 COPY --from=builder /opt/venv /opt/venv
-COPY jobCore /app/jobCore
-COPY jobs/solo/main.py /app/main.py
+COPY jobs/jobCore /app/jobCore
+COPY jobs/solo/python/main.py /app/main.py
 ENV PYTHONPATH=/app
+
+# Utilisateur non-root pour l'exécution.
+# Ubuntu 24.04 fournit déjà un utilisateur "ubuntu" en UID 1000 : on le retire
+# avant de créer appuser pour éviter le conflit "UID 1000 is not unique".
+RUN userdel -r ubuntu 2>/dev/null || true && useradd --create-home --uid 1000 appuser
+USER appuser
 
 CMD ["python3", "/app/main.py"]
