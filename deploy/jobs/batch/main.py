@@ -225,8 +225,10 @@ class SAM3Worker:
             tile_size=tile_size, tile_stride=tile_stride, batch_size=batch_size, downsample=downsample
         )
         self.s3 = make_s3_client()
-        logging.basicConfig(level=logging.INFO)
-        self.log = logging.getLogger(__name__)
+        self.log = logging.getLogger("jobCore")
+        self.log.info(
+            "Worker ready on node %s", ray.get_runtime_context().get_node_id()[:12]
+        )
 
     def process(self, bucket, key, out_bucket, out_prefix, labels):
         t0 = time.time()

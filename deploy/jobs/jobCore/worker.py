@@ -1,5 +1,6 @@
 import logging
 import os
+import time
 
 import numpy as np
 import torch
@@ -17,6 +18,26 @@ DEFAULT_DOWNSAMPLE = 1.0
 
 # Logging --------------------------------------------------
 log = logging.getLogger(__name__)
+
+
+def configure_logging():
+    """Attach an INFO StreamHandler to the jobCore logger.
+
+    Ray configures the root logger inside its worker processes, which makes
+    logging.basicConfig() a no-op there: our log.info() calls would be dropped.
+    We set up the jobCore logger explicitly so the actor logs reach stderr,
+    captured by Ray (worker logs + driver) and forwarded to Loki by Alloy.
+    Idempotent: safe to call from every actor __init__.
+    """
+    logger = logging.getLogger("jobCore")
+    logger.setLevel(logging.INFO)
+    if not logger.handlers:
+        handler = logging.StreamHandler()
+        handler.setFormatter(
+            logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
+        )
+        logger.addHandler(handler)
+        logger.propagate = False
 
 
 # Classes --------------------------------------------------
@@ -44,7 +65,7 @@ class Sam3Model:
             ToTensorAPI,
         )
 
-        logging.basicConfig(level=logging.INFO)
+        configure_logging()
 
         hf_token = os.getenv("HF_TOKEN")
         if hf_token:
@@ -57,6 +78,11 @@ class Sam3Model:
         self.downsample = downsample
         self._counter = 1
 
+        log.info(
+            "Loading SAM3 on %s (tile=%d stride=%d downsample=%.2f)",
+            self.device, self.tile_size, self.tile_stride, self.downsample,
+        )
+        t_load = time.time()
         self.model = build_sam3_image_model(
             device=self.device,
             eval_mode=True,
@@ -81,7 +107,7 @@ class Sam3Model:
             detection_threshold=CONF_THRESHOLD,
             to_cpu=True,
         )
-        log.info("Sam3Model ready on %s", self.device)
+        log.info("Sam3Model ready on %s in %.1fs", self.device, time.time() - t_load)
 
     def _make_datapoint(self, tile_image, labels):
         from sam3.train.data.sam3_image_dataset import (
@@ -127,6 +153,7 @@ class Sam3Model:
 
         from PIL import Image
 
+        t_start = time.time()
         image = image.convert("RGB")
         original_w, original_h = image.size
 
@@ -148,6 +175,7 @@ class Sam3Model:
 
         # 1. split the image into tiles
         tiles = extract_tiles(image, self.tile_size, self.tile_stride)
+        log.info("Image %dx%d -> %d tiles", img_w, img_h, len(tiles))
 
         # 2. wrap each tile into a Datapoint (image + labels)
         tile_data = []
@@ -209,5 +237,11 @@ class Sam3Model:
                 if points:
                     polygons.append((label, points, float(score)))
 
-        log.info("%d objects detected over %d tiles", len(polygons), len(tiles))
+        per_label = {}
+        for lbl, _, _ in polygons:
+            per_label[lbl] = per_label.get(lbl, 0) + 1
+        log.info(
+            "%d polygons over %d tiles in %.1fs %s",
+            len(polygons), len(tiles), time.time() - t_start, per_label or "{}",
+        )
         return polygons, original_w, original_h
