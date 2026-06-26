@@ -46,9 +46,36 @@ La pipeline suit un flux linéaire en cinq étapes :
     edge(<workers>, <s3out>, "->"),
     edge(<s3out>, <ls>, "->"),
   ),
-  caption: [Vue d'ensemble de la pipeline],
+  caption: [Vue d'ensemble de la pipeline dans le cas d'un scénario en Batch],
 ) <fig-pipeline-overview>
 
+== Infrastructure Générale
+
+À haut niveau, la stack se découpe en trois parties qui communiquent uniquement via S3 et l'API Kubernetes, sans qu'aucune ne dépende de l'état interne d'une autre.
+
+- *Le traitement* s'exécute sur le cluster Kubernetes : le RayCluster permanent et ses workers GPU portent l'inférence SAM3, et une API REST orchestre les jobs et expose le service aux utilisateurs.
+- *L'observabilité* (Prometheus, Loki, Grafana) supervise l'ensemble : métriques GPU, logs des pods et dashboards.
+- *Le stockage objet* (MinIO) est la source et le puits unique : il héberge les images d'entrée, les fichiers Parquet de sortie, le cache du modèle SAM3 et les logs de Loki.
+
+Ce découplage permet de déployer et de faire évoluer chaque partie indépendamment, et de remplacer un composant (le backend S3, par exemple) sans toucher aux autres.
+
+#figure(
+  image("../images/Schema-Overall.png", width: 85%),
+  caption: [
+    Dans les grandes lignes, la stack se découpe en trois parties, traitement, observabilité et stockage.
+  ],
+) <Schema-Overall>
+
+
+== CI/CD
+
+Le déploiement et les mises à jour reposent sur une pipeline d'intégration continue hébergée par GitHub Actions. À chaque push sur le dépôt, le workflow enchaîne trois étapes :
+
++ *Validation* : exécution des tests pour confirmer que le code reste fonctionnel avant toute publication.
++ *Build* : construction des images Docker des composants concernés (API, jobs SAM3, service de segmentation).
++ *Publication* : push des images sur le registre privé GitHub Container Registry, sous le tag attendu par les manifestes Kustomize.
+
+Le cluster tire ensuite ces images via `imagePullPolicy: Always`, ce qui propage les changements au prochain redémarrage des pods. Cette automatisation garantit qu'une modification mergée est testée puis empaquetée de façon reproductible, et supprime les builds manuels locaux, source d'images incohérentes entre développeurs.
 
 == Infrastructure Kubernetes
 
