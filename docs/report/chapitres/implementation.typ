@@ -87,7 +87,7 @@ Trois manifestes couvrent les scénarios de déploiement.
 
 Le fichier `deploy/ray/rayCluster.yaml` : déclare le cluster Ray permanent avec 1 head (2 CPU, 4 Gi) et jusqu'à 3 workers GPU (1 GPU, 8 CPU, 32 Gi). Le `nodeAffinity` préfère les L40S (poids 100) aux A40 (poids 50). Les credentials MinIO (`minio-secret`) et le token HuggingFace (`hf-secret`) sont injectés via `secretKeyRef` dans le spec worker, pas dans le head, qui n'exécute aucune tâche GPU.
 
-Le lancement d'un run batch ne passe pas par un manifeste statique : l'API construit le Job Kubernetes à la volée (`build_job` assemble un `V1Job` soumis via `create_namespaced_job`). Le pod ainsi créé est un HEAD sans GPU qui se connecte au RayCluster et orchestre le traitement d'un préfixe S3, puis se termine dès que l'ensemble des images est traité. Le champ `ttlSecondsAfterFinished: 3600`#footnote[Sans ce champ, les Jobs terminés restent indéfiniment dans etcd et leurs pods en état `Completed` occupent des slots sur les nœuds. Après plusieurs runs, le cluster se retrouve saturé de pods zombies.] supprime le Job automatiquement après une heure.
+Le lancement d'un run batch ne passe pas par un manifeste statique : l'API construit le Job Kubernetes à la volée (`build_job` assemble un `V1Job` soumis via `create_namespaced_job`). Le pod ainsi créé est un HEAD sans GPU qui se connecte au RayCluster et orchestre le traitement d'un préfixe S3, puis se termine dès que l'ensemble des images est traité. Le champ `ttlSecondsAfterFinished: 3600`#footnote[Sans ce champ, les Jobs terminés restent indéfiniment dans etcd et leurs pods en état `Completed` occupent des slots sur les noeuds. Après plusieurs runs, le cluster se retrouve saturé de pods zombies.] supprime le Job automatiquement après une heure.
 
 L'API passe au driver des arguments de cette forme :
 
@@ -105,7 +105,7 @@ args:
   - "3"
 ```
 
-Pour faire les tests le fichier `tests/RAY/job-sam3-ray-test.yaml` est utilisé pour valider la pipeline sans cluster Ray (`--local --num_workers 1`). Il monte le PVC HuggingFace à `/root/.cache/huggingface` et un volume `emptyDir` de 16 Gi en mémoire sur `/dev/shm` pour accélérer le partage de tenseurs entre les processus PyTorch.#footnote[Sans `medium: Memory`, `/dev/shm` est limité à 64 MB par défaut dans un conteneur Docker — PyTorch échoue immédiatement au premier transfert de tenseur entre processus avec `Bus error`.] `hostIPC: true`#footnote[Sans `hostIPC: true`, les segments de mémoire partagée POSIX créés par PyTorch ne sont pas visibles entre processus dans le pod — l'inférence multi-GPU s'arrête avec `RuntimeError: unable to open shared memory object`.] est activé pour permettre la communication inter-processus via la mémoire partagée du nœud.
+Pour faire les tests le fichier `tests/RAY/job-sam3-ray-test.yaml` est utilisé pour valider la pipeline sans cluster Ray (`--local --num_workers 1`). Il monte le PVC HuggingFace à `/root/.cache/huggingface` et un volume `emptyDir` de 16 Gi en mémoire sur `/dev/shm` pour accélérer le partage de tenseurs entre les processus PyTorch.#footnote[Sans `medium: Memory`, `/dev/shm` est limité à 64 MB par défaut dans un conteneur Docker — PyTorch échoue immédiatement au premier transfert de tenseur entre processus avec `Bus error`.] `hostIPC: true`#footnote[Sans `hostIPC: true`, les segments de mémoire partagée POSIX créés par PyTorch ne sont pas visibles entre processus dans le pod — l'inférence multi-GPU s'arrête avec `RuntimeError: unable to open shared memory object`.] est activé pour permettre la communication inter-processus via la mémoire partagée du noeud.
 
 Pour le cache des poids HuggingFace, `tests/RAY/pvc-hf-cache.yaml` crée un PVC Longhorn de 10 Gi en mode `ReadWriteOnce`. Monté sur le pod worker à `/root/.cache/huggingface`. Le volume reste lié entre les redéploiements, évitant le re-téléchargement des 3,3 GB du modèle SAM3 à chaque run.
 
@@ -232,8 +232,50 @@ Si SAM3 ne trouve aucun objet sous le point, `masks` est vide et le service renv
 
 == Observabilité
 
+Chaque composant écrit ses logs sur la sortie standard (stdout), où Alloy les récupère pour les transmettre à Loki. Deux dispositifs garantissent que ces logs sont à la fois exploitables et complets.
+
+L'API utilise un logger `nearapi` au format logfmt (`clé=valeur`), directement requêtable dans Loki. Un middleware enveloppe chaque requête et journalise une ligne par appel :
+
+```
+level=INFO logger=nearapi request method=POST path=/jobs/batch status=200 duration_ms=45.6
+```
+
+Le niveau s'adapte au résultat : INFO pour un succès, WARNING pour une réponse ≥ 400, et une trace complète via `log.exception` (status 500) pour toute exception non gérée. S'y ajoutent des logs métier par endpoint (`batch_submit`, `job_created`, `segment_scaled`) et le report des erreurs de l'API Kubernetes. Chaque appel laisse donc une trace horodatée, avec son issue et sa durée.
+
+Les acteurs posaient un piège, `logging.basicConfig()` n'a aucun effet si le logger racine possède déjà des handlers ; or Ray en installe dans ses processus worker. Les `log.info` des acteurs étaient donc silencieusement filtrés, seuls les `warnings.warn` remontaient. La correction attache explicitement un handler au logger `jobCore` :
+
+```python
+logger = logging.getLogger("jobCore")
+logger.setLevel(logging.INFO)
+if not logger.handlers:
+    h = logging.StreamHandler()
+    h.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
+    logger.addHandler(h)
+    logger.propagate = False
+```
+
+Comme la classe `Sam3Model` s'exécute aussi bien dans l'acteur batch que dans l'acteur solo, cette configuration unique couvre les deux modes. Les enregistrements écrits sur stderr sont capturés par Ray, renvoyés au driver et collectés par Alloy.
+
+Une fois les acteurs visibles, chaque worker journalise de quoi reconstruire un run depuis Loki sans relire les fichiers Parquet, càd qu'au chargement les paramètres (`tile`, `stride`, `downsample`) et le temps de chargement du modèle par image, le downsampling appliqué, le nombre de tuiles, le nombre de polygones par label et le temps d'inférence ainsi que le noeud GPU de l'acteur sont enregistrés. Ce qui nous est utile pour distinguer L40S et A40 dans un run mixte.
+
+Enfin, chaque pod porte un label `app` (`sam3-api`, `sam3-batch`, `sam3-solo`, `ray-worker`) qu'Alloy propage en label Loki les logs se filtrent ainsi par composant, facilitant ainsi la lecture et le filtrage des logs.
+
 === Déploiement de la stack (Prometheus, Loki, Alloy)
 
-=== Métriques GPU (DCGM)
+La stack est assemblée par Kustomize, un dossier par composant (`deploy/observability/manifests/`). Chacun se résume à un `Deployment` à un réplica dans le namespace `dani`, accompagné d'un Service, d'une ConfigMap et, selon le cas, d'un PVC et d'un Ingress.
 
-=== Dashboard Grafana
+*Prometheus* lit sa configuration depuis une ConfigMap, un `scrape_interval` de 15 s et une rétention TSDB de 7 jours (`--storage.tsdb.retention.time=7d`). Son PVC ne se montait pas sur tous les noeuds, ce qui l'épingle sur `iict-suchet` via `nodeSelector` avec un `fsGroup: 65534` pour que le volume soit accessible en écriture.
+
+*Loki* est le composant le plus travaillé. Il est _stateless_ : tout l'état part sur MinIO, dans un bucket dédié `nearai-logs`, avec une rétention de 720 h (30 jours) purgée par le compactor (`retention_enabled`, `retention_delete_delay: 2h`). Les credentials MinIO ne figurent pas en clair dans la ConfigMap car ils sont injectés à l'exécution grâce au drapeau `-config.expand-env=true`. Un piège  rencontré était que les flush échouaient en `400` parce que Loki contactait l'endpoint MinIO en HTTP alors qu'il écoute en HTTPS (certificat TLS). La solution était le passage en HTTPS a rétabli l'écriture.
+
+*Alloy* remplace Promtail, passé en fin de vie. Là où Promtail tournait en DaemonSet et ouvrait un watcher `inotify` par fichier de log, Alloy est un `Deployment` unique qui lit les logs directement via l'API Kubernetes (`loki.source.kubernetes`), sans monter le système de fichiers du noeud. Il dispose pour cela d'un ServiceAccount avec un *Role* et un *RoleBinding* limités à la lecture des pods. Son bloc `discovery.relabel` attache les labels `namespace`, `pod`, `container` et `app` à chaque ligne avant de la pousser vers `loki-svc:3100`.
+
+
+*DCGM Exporter* n'est pas déployé par ce travail, le GPU Operator NVIDIA l'installe automatiquement en DaemonSet, un pod par noeud GPU, exposant les métriques sur le port 9400. Quatre métriques sont retenues : utilisation, VRAM occupée, puissance et température.
+
+Le point d'implémentation tient au scraping. Prometheus interroge DCGM via `dns_sd_configs` sur le Service _headless_, qui résout l'adresse IP de chaque pod du DaemonSet individuellement. Le label `hostname` de chaque noeud est ainsi préservé. Un ClusterIP classique aurait renvoyé une seule IP en round-robin et fait perdre cette distinction, rendant impossible la séparation L40S / A40 dans Grafana.
+
+
+Le Dashboard *Grafana* tourne en `Deployment` à 1 réplica, ses deux sources de données : Prometheus (`:9090`) et Loki (`:3100`) provisionnées par ConfigMap, et il est exposé via un Ingress. Comme Prometheus, son PVC butait sur un volume Longhorn fantôme sur `iict-k8s-node4-rad` car il était épinglé sur `iict-suchet` avec `nodeSelector`, `fsGroup: 472` et `runAsUser: 472`.
+
+Le dashboard suit les GPU, les quatre métriques DCGM (utilisation, VRAM, puissance, température) avec une variable `hostname_filter` qui filtre les panels par noeud (`{Hostname=~".*${hostname_filter}.*"}`) ainsi que la liste des logs en live (latence de 3-4 secondes).
