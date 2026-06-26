@@ -537,4 +537,26 @@
 | Code walkthrough + clarifications (K8s client frictions, .pt format, model lifecycle, Ultralytics role) | Done | 1h15 |
 | Git + deploy help (untrack Docker/, segment kubectl apply -k) | Done | 15min |
 | **Subtotal** |    | 12h |
-| **Total** |    | **43h50** |
+
+---
+
+*Friday June 26, 2026*
+
+| Task              | Status | Time |
+| :---------------- | :------: | ----: |
+| Meeting with Bertil | Done | 20min |
+| Ray actor logging fix : diagnose basicConfig no-op under Ray, configure jobCore logger (StreamHandler, propagate=False) | Done | 1h30 |
+| Add missing worker logs : load config (tile/stride/downsample) + load time, tile count, inference time, polygons per label, GPU node | Done | (inclus) |
+| Build + push ray-sam3 + sam3-solo images (log fix) | Done | 30min |
+| Restart Ray workers one by one to pick up new image (+ scale segment to 0) | Done | 30min |
+| App labels : add `app` to build_job pod template + rayCluster head/worker templates (Loki filtering) | Done | 30min |
+| Build + push sam3-api + rollout deployment + apply rayCluster manifest | Done | 45min |
+| Validate on real batch run : confirm all new jobCore logs + `app=sam3-batch` label on driver pod | Done | 1h |
+| Report : section Logs via Python (structured API logs + Ray actor capture) | Done | 1h |
+| Report : Observabilité (3 sub-sections : stack deploy, DCGM, Grafana dashboard) | Done | 1h30 |
+| Report : Infrastructure Générale + CI/CD sections (architecture) | Done | 1h |
+| Notes week 18/20 cleanup | Done | 30min |
+| Review report edits + explanations (K8s frictions, Ultralytics, CLI scope) | Done | 1h30 |
+| Journal | Done | 15min |
+| **Subtotal** |    | 10h50 |
+| **Total** |    | **54h40** |
