@@ -10,6 +10,9 @@ spec:
     rayStartParams:
       dashboard-host: "0.0.0.0"
     template:
+      metadata:
+        labels:
+          app: ray-head
       spec:
         imagePullSecrets:
           - name: ghcr-secret
@@ -34,6 +37,9 @@ spec:
       replicas: 3
       rayStartParams: {}
       template:
+        metadata:
+          labels:
+            app: ray-worker
         spec:
           runtimeClassName: nvidia
           affinity:

@@ -270,7 +270,15 @@ def build_job(name, image, command, args, gpu=True, access_key_env="AWS_ACCESS_K
         metadata=client.V1ObjectMeta(name=name, namespace=NAMESPACE),
         spec=client.V1JobSpec(
             ttl_seconds_after_finished=3600,
-            template=client.V1PodTemplateSpec(spec=pod_spec),
+            # Label the pod with its app name (sam3-batch / sam3-solo, derived
+            # from the job name without its uuid suffix) so Alloy tags the logs
+            # with `app` in Loki, like the other components.
+            template=client.V1PodTemplateSpec(
+                metadata=client.V1ObjectMeta(
+                    labels={"app": name.rsplit("-", 1)[0]}
+                ),
+                spec=pod_spec,
+            ),
         ),
     )
 
