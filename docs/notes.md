@@ -1053,12 +1053,23 @@ No authentication yet on the API or the segment service. Exposed via Ingress = a
 
 # Week 18
 
-ajout de section d'avancement dans lle raport ou on compare le l'avancement avec ce qui était prévu de base
+- [X] Ajouter une section d'avancement dans le rapport : comparer l'avancement réel avec ce qui était prévu à l'origine.
+- [X] Créer une image expliquant le fonctionnement du découpage en tuiles.
+- [X] API : fonctionnelle → y repasser pour un refactor.
+- [X] Logs : vérifier qu'ils sont bien enregistrés, puis contrôler la ConfigMap.
+- [X] Documenter la section API.
 
-Faire une image qui explique comment le docupage en tuilel foncitonne
+# Week 20
 
-Les API c'est bon --> repaser dessus pour refactor
+- [ ] Détailler davantage l'implémentation (exemple avec PIL + un schéma).
+- [ ] Supprimer les informations en double dans le chapitre Architecture.
+- [ ] Revoir si la terminologie Ray ↔ Docker/K8s doit être harmonisée pour faciliter la compréhension des explications.
 
-Les logs --> Verifier que ils sont bien enregistre puis check la config map 
+## Attentes de Bertil (fin de projet)
 
-Documenté la sections api
+- [ ] Inférence distribuée : la démontrer.
+- [ ] Identifier les bottlenecks de l'architecture.
+- [ ] Expliquer Ray (cœur métier du projet — priorité).
+- [ ] FOCUS observabilité.
+- [ ] Comparer les coûts GPU : cloud vs on-premise.
+- [ ] Faire une CLI pour la pipeline : montrer le gain de temps au déploiement (un utilisateur push ses images et lance un batch simplement).
