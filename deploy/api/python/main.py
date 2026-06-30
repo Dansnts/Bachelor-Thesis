@@ -263,6 +263,25 @@ def build_job(name, image, command, args, gpu=True, access_key_env="AWS_ACCESS_K
     )
     if gpu:
         pod_spec.runtime_class_name = "nvidia"
+        # Place the GPU pod on suchet (L40S) or node4 (A40) only. chasseron (L4)
+        # causes too many issues (weaker card, disk-pressure evictions).
+        pod_spec.affinity = client.V1Affinity(
+            node_affinity=client.V1NodeAffinity(
+                required_during_scheduling_ignored_during_execution=client.V1NodeSelector(
+                    node_selector_terms=[
+                        client.V1NodeSelectorTerm(
+                            match_expressions=[
+                                client.V1NodeSelectorRequirement(
+                                    key="kubernetes.io/hostname",
+                                    operator="In",
+                                    values=["iict-suchet", "iict-k8s-node4-rad"],
+                                )
+                            ]
+                        )
+                    ]
+                )
+            )
+        )
 
     job = client.V1Job(
         api_version="batch/v1",

@@ -10,6 +10,10 @@ from jobCore.tiling import extract_tiles
 
 # Variables --------------------------------------------------
 CONF_THRESHOLD = 0.5
+# SAM3's backbone is locked to a 1008x1008 input (its RoPE positional encoding
+# is precomputed for that grid and never rebuilt). Every tile is resized to this
+# size before inference, which lets us tile at any size (cf. _make_datapoint).
+MODEL_INPUT_SIZE = 1008
 DEFAULT_TILE_SIZE = 1008
 DEFAULT_TILE_STRIDE = 768
 DEFAULT_BATCH_SIZE = 4
@@ -110,6 +114,7 @@ class Sam3Model:
         log.info("Sam3Model ready on %s in %.1fs", self.device, time.time() - t_load)
 
     def _make_datapoint(self, tile_image, labels):
+        from PIL import Image
         from sam3.train.data.sam3_image_dataset import (
             Datapoint,
             FindQueryLoaded,
@@ -117,10 +122,29 @@ class Sam3Model:
         )
         from sam3.train.data.sam3_image_dataset import Image as SAMImage
 
+        # SAM3's backbone only accepts a 1008x1008 input: its RoPE positional
+        # encoding is built once for that grid and is never rebuilt, so any other
+        # tile size raises an assertion (cf. upstream "SAM3 does not support
+        # custom inference resolutions"). We resize every tile to 1008 before
+        # inference, like the official predictor, while keeping the real tile
+        # size as original_size below. The postprocessor (use_original_sizes_mask)
+        # then maps the predicted mask back to the tile, so the stitching stays
+        # unchanged. This is what makes tile_size a free parameter again: a 1008
+        # tile is a no-op resize, a smaller tile is upscaled (more detail per
+        # object, more tiles), a larger one is downscaled (fewer, coarser tiles).
         pw, ph = tile_image.size
+        model_image = tile_image.resize(
+            (MODEL_INPUT_SIZE, MODEL_INPUT_SIZE), Image.BILINEAR
+        )
         dp = Datapoint(
             find_queries=[],
-            images=[SAMImage(data=tile_image, objects=[], size=[ph, pw])],
+            images=[
+                SAMImage(
+                    data=model_image,
+                    objects=[],
+                    size=[MODEL_INPUT_SIZE, MODEL_INPUT_SIZE],
+                )
+            ],
         )
         query_id_to_label = {}
         for label in labels:
