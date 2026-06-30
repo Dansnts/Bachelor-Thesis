@@ -560,3 +560,38 @@
 | Journal | Done | 15min |
 | **Subtotal** |    | 10h50 |
 | **Total** |    | **54h40** |
+
+# Week 20
+
+*Monday June 29, 2026*
+
+| Task              | Status | Time |
+| :---------------- | :------: | ----: |
+| Try to validate segment end-to-end (blocked : no GPU schedulable, segment Pending) | Done | 30min |
+| CLI v1 : write `cli/nearai.py` (push, batch, solo, status, result, jobs, import, segment up/down) | Done | 2h30 |
+| CLI : end-to-end test against live API (push to S3, batch, status, jobs, import, segment) + clean error handling | Done | 1h30 |
+| Grafana : add panels exploiting the new logs (inference time, tiles/image, model load, API requests/errors) | Done | 1h |
+| Grafana : refactor into 3 dashboards by concern (general, batch, gpuMetrics) | Done | 1h30 |
+| Grafana : fix broken queries (sam3-driver -> app=sam3-batch selector, range -> instant queryType) | Done | 1h |
+| Grafana : GitOps provisioning (configMapGenerator, dashboards provider, deployment mounts) + debug RWO PVC / configmap hash / kustomize security | Done | 2h |
+| Grafana : polish (textMode value, dashlist search, remove logo, kustomization filename sync) | Done | 30min |
+| Notes : park the Parquet score/label analysis idea (bonus) | Done | 15min |
+| Journal | Done | 15min |
+| **Subtotal** |    | 11h |
+| **Total** |    | **11h** |
+
+*Tuesday June 30, 2026*
+
+| Task              | Status | Time |
+| :---------------- | :------: | ----: |
+| SAM3 tile-size investigation : 512/644/672/1024 crash (RoPE `freqs_cis` fixed for the 1008 grid), only 1008 works — confirmed empirically + web research | Done | 1h |
+| Fix `worker.py` : resize every tile to 1008 before inference (keep `original_size` for mask remap) → tile size is a free parameter again | Done | 1h |
+| Pin GPU jobs (solo + segment) to suchet/node4 via `nodeAffinity` (avoid chasseron) | Done | 30min |
+| GitHub Actions workflow to build/push images to ghcr (dynamic matrix, registry cache) + debug | Done | 1h30 |
+| Expose SAM3 confidence score in solo output + worker log | Done | 30min |
+| Bruno : generate the 10 benchmark request files + clean up the off-plan ones | Done | 30min |
+| Run the 10 solo benchmarks (tile × downsample grid + labels), collect tiles/time/polygons/score, track in `notes.md` | Done | 2h |
+| Report : restructure `resultats.typ` (grid + labels tables filled), document the SAM3 1008 constraint in implementation, fix compile | Done | 1h30 |
+| Notes / journal / todo | Done | 30min |
+| **Subtotal** |    | 9h |
+| **Total** |    | **9h** |
