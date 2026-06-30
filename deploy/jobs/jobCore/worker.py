@@ -264,8 +264,15 @@ class Sam3Model:
         per_label = {}
         for lbl, _, _ in polygons:
             per_label[lbl] = per_label.get(lbl, 0) + 1
+        scores = [s for _, _, s in polygons]
+        if scores:
+            score_stats = "score mean=%.3f min=%.3f max=%.3f" % (
+                sum(scores) / len(scores), min(scores), max(scores),
+            )
+        else:
+            score_stats = "score n/a"
         log.info(
-            "%d polygons over %d tiles in %.1fs %s",
-            len(polygons), len(tiles), time.time() - t_start, per_label or "{}",
+            "%d polygons over %d tiles in %.1fs %s %s",
+            len(polygons), len(tiles), time.time() - t_start, per_label or "{}", score_stats,
         )
         return polygons, original_w, original_h

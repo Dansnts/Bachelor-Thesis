@@ -26,7 +26,9 @@ def get_image(bucket, key):
 
 def to_label_studio(image_uri, polygons, img_w, img_h):
     results = []
+    scores = []
     for label, points, score in polygons:
+        scores.append(score)
         results.append(
             {
                 "type": "polygonlabels",
@@ -34,6 +36,9 @@ def to_label_studio(image_uri, polygons, img_w, img_h):
                 "to_name": "image",
                 "original_width": img_w,
                 "original_height": img_h,
+                # SAM3's confidence for this detection (0..1). Label Studio uses
+                # it to sort/colour the pre-annotations.
+                "score": round(score, 4),
                 "value": {
                     "closed": True,
                     "polygonlabels": [label],
@@ -41,10 +46,15 @@ def to_label_studio(image_uri, polygons, img_w, img_h):
                 },
             }
         )
+    # Prediction-level score = mean detection confidence, used by Label Studio
+    # to rank predictions.
+    prediction = {"model_version": "SAM3", "result": results}
+    if scores:
+        prediction["score"] = round(sum(scores) / len(scores), 4)
     return [
         {
             "data": {"image": image_uri},
-            "predictions": [{"model_version": "SAM3", "result": results}],
+            "predictions": [prediction],
         }
     ]
 
