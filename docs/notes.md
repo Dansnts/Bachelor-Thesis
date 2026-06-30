@@ -1064,6 +1064,30 @@ No authentication yet on the API or the segment service. Exposed via Ingress = a
 - [ ] Détailler davantage l'implémentation (exemple avec PIL + un schéma).
 - [ ] Supprimer les informations en double dans le chapitre Architecture.
 - [ ] Revoir si la terminologie Ray ↔ Docker/K8s doit être harmonisée pour faciliter la compréhension des explications.
+- [ ] Résultats : écrire la justification du surcoût labels (3→6 = +9 % à 1008 / +17 % à 504 ; cause = encodeur ViT partagé, une passe par tuile, chaque label = une `FindQuery` légère sur les features) **sous la table des labels**, + la nuance solo↔production (vs `@tab-run-vevey` +85 % : sur 21 819 images le coût/label s'accumule alors qu'en solo le coût fixe le masque).
+- [ ] Corriger l'État de l'art (`etat-de-lart.typ` l.31) : 1024→1008, 512→504/1008, comptes de tuiles (55 ou 231, pas 128).
+
+## Benchmarks — runs solo (30.06.2026)
+
+Image de référence : `pano_0002_004731.jpg` (8000×4000, 32 MP, Vevey). Labels grossier (3) = `sign, manhole, road_mark` ; précis (6) = `circular_sign, rectangular_sign, circular_manhole_cover, rectangular_drain_grate, road_marking, arrow_marking`. **Temps** = de `Image -> tiles` à `Result written` (wall-clock par image, post-traitement inclus, **hors** chargement modèle ~54 s). Score = confiance SAM3 (0–1).
+
+JSON complet de chaque run : `s3://nearai/results/<job>.json` (colonne *Fichier json*), aussi lisible via `GET /jobs/<job>/result`.
+
+| #  | tuile | ds   | lbl | Début UTC | Tuiles | Temps  | Poly | Détail (par label)           | Score moy [min–max] | Nœud   | Fichier json                |
+|----|-------|------|-----|-----------|--------|--------|------|------------------------------|---------------------|--------|-----------------------------|
+| 1  | 1008  | 1,0  | 3   | 11:19:18  | 55     | 11,1 s | 29   | sign 15 · manhole 8 · road 6 | 0,691 [0,504–0,911] | suchet | sam3-solo-18119958.json     |
+| 2  | 1008  | 0,75 | 3   | 11:21:24  | 32     | 7,8 s  | 29   | sign 14 · manhole 8 · road 7 | 0,689 [0,537–0,887] | suchet | sam3-solo-db5af880.json     |
+| 3  | 1008  | 0,5  | 3   | 11:27:02  | 15     | 5,1 s  | 27   | sign 14 · manhole 8 · road 5 | 0,661 [0,508–0,863] | suchet | sam3-solo-933db040.json     |
+| 4  | 1008  | 0,25 | 3   | 11:29:07  | 3      | 3,2 s  | 15   | sign 8 · manhole 4 · road 3  | 0,720 [0,513–0,867] | suchet | sam3-solo-67584125.json     |
+| 5  | 504   | 1,0  | 3   | 11:30:48  | 231    | 32,7 s | 36   | sign 19 · manhole 10 · road 7 | 0,716 [0,508–0,939] | suchet | sam3-solo-37de905d.json     |
+| 6  | 504   | 0,75 | 3   | 11:32:51  | 128    | 18,1 s | 32   | sign 15 · manhole 9 · road 8 | 0,709 [0,516–0,928] | suchet | sam3-solo-820aa651.json     |
+| 7  | 504   | 0,5  | 3   | 11:34:42  | 55     | 9,0 s  | 23   | sign 13 · manhole 6 · road 4 | 0,709 [0,520–0,903] | suchet | sam3-solo-67b305cb.json     |
+| 8  | 504   | 0,25 | 3   | 11:36:23  | 15     | 4,3 s  | 15   | sign 7 · manhole 4 · road 4  | 0,704 [0,527–0,832] | suchet | sam3-solo-1ba1f931.json     |
+| 9  | 1008  | 1,0  | 6   | 11:40:14  | 55     | 12,2 s | 26   | r.sign 6·c.sign 1·road 13·c.mh 4·r.drain 2 (arrow 0) | 0,699 [0,531–0,915] | suchet | sam3-solo-48b9dc7d.json     |
+| 10 | 504   | 1,0  | 6   | 11:42:03  | 231    | 39,7 s | 31   | r.sign 10·c.sign 1·road 13·arrow 1·c.mh 5·r.drain 1 | 0,724 [0,504–0,933] | suchet | sam3-solo-83c4f681.json     |
+
+**Solo : ✅ 10 runs faits** (grille tuile×downsampling + labels), reportés dans `resultats.typ`.
+**Batch : à faire demain (01.07.2026)** — recréer les workers Ray (repull `ray-sam3` : resize + score), puis 4 runs de scalabilité (workers 1 vs 3, en 1008/0,5 et 504/0,5).
 
 ## Attentes de Bertil (fin de projet)
 
@@ -1072,4 +1096,11 @@ No authentication yet on the API or the segment service. Exposed via Ingress = a
 - [ ] Expliquer Ray (cœur métier du projet — priorité).
 - [ ] FOCUS observabilité.
 - [ ] Comparer les coûts GPU : cloud vs on-premise.
-- [ ] Faire une CLI pour la pipeline : montrer le gain de temps au déploiement (un utilisateur push ses images et lance un batch simplement).
+- [x] Faire une CLI pour la pipeline : montrer le gain de temps au déploiement (un utilisateur push ses images et lance un batch simplement). → v1 faite (`cli/nearai.py` : push, batch, solo, status, result, jobs, import, segment).
+
+## Si on a plus de temps (bonus)
+
+- [ ] Analyse des scores / labels depuis les Parquet (score moyen + médiane par label, distribution des labels, histogramme des scores).
+  - Pour le rapport : script DuckDB one-shot sur le préfixe `09_parquet/` → figures Résultats (remplit le TODO « histogramme des scores SAM3 »). ~30 min, bon outil.
+  - Grafana ne lit pas le Parquet nativement → pas de dashboard direct (faudrait un exporter DuckDB = nouveau composant, disproportionné).
+  - Voie cheap pour du live : la distribution des labels est déjà dans les logs (`{'sign': 10}`) ; pour le score moyen, ajouter 1 ligne de log dans le worker puis un panel LogQL.

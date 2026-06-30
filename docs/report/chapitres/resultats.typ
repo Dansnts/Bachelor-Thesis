@@ -8,29 +8,6 @@
 
 NB : Pour les tests, étant donné que l'institut utilise les GPUs nous n'avons pas forcément à chaque fois ceux que nous volons pour faire les tests. Le meilleurs des cas serait d'avoir constament les 3 L40s pour avoir les meilleurs résultats et les plus constants.
 
-== Benchmark de tuilage
-Le protocole de benchmark fixe tous les paramètres sauf la taille de tuile, la taille de l'image fournie et trois workers Ray (2× L40S sur `iict-suchet`, 1× A40 sur `iict-k8s-node4-rad`). Deux tailles de tuile sont comparées, 512×512 et 1024×1024, à résolution pleine.
-
-Pour le cas du 512x512 :
-
-Run de Juillet ici
-
-Pour le cas du 1024x1024 :
-
-Run de Juillet ici
-
-
-=== Impact du downsampling
-
-Le downsampling réduit la résolution de l'image avant le tuilage. Un facteur 0,5 divise par deux la largeur et la hauteur, donc par quatre le nombre de tuiles et le temps d'inférence. Le compromis porte sur le détail : SAM3 voit moins d'information de contour par tuile.
-
-==== Facteur 1
-Run de Juillet ici
-
-==== Facteur 0,5
-Run de Juillet ici
-
-
 == Scalabilité de la pipeline
 
 === Throughput par nombre de workers
@@ -96,7 +73,7 @@ Deux jeux de labels sont comparés. Le jeu *grossier* (3 labels) regroupe les fa
   table(
     columns: (auto, auto),
     fill: (_, row) => if row == 0 { col-blue } else if calc.odd(row) { rgb("#F1F5F9") } else { white },
-    table.header(text(fill: white)[*Grossier (3)*], text(fill: white)[*Précis (6)*]),
+    table.header(text(fill: white)[*Grossier *], text(fill: white)[*Précis *]),
     [`sign`], [`circular_sign`, `rectangular_sign`],
     [`manhole`], [`circular_manhole_cover`, `rectangular_drain_grate`],
     [`road_mark`], [`road_marking`, `arrow_marking`],
@@ -106,74 +83,63 @@ Deux jeux de labels sont comparés. Le jeu *grossier* (3 labels) regroupe les fa
 
 Chaque label est une requête `FindQuery` distincte par tuile, le coût d'inférence croît donc à peu près linéairement avec le nombre de labels. Sauf mention contraire, les sweeps tile_size et downsampling utilisent le jeu grossier (3 labels).
 
-=== Job Solo : sweep sur l'image de référence
 
-==== Effet de la taille de tuile
+== Taille de tuile et downsampling
 
-À downsampling fixé (1,0), comparaison 512×512 vs 1024×1024 :
+Comme dit dans la section état de l'art (cf @etat-de-lart), SAM3 fige son entrée à 1008×1008, chaque tuile lui est donc redimensionnée avant inférence (cf. @implementation), ce qui rend la taille de tuile libre. Nous croisons la taille native 1008×1008 (sans redimensionnement) et 504×504 (la moitié exacte, agrandie ×2 avant le modèle) avec les quatre facteurs de downsampling. Une tuile plus grande serait simplement réduite à 1008, soit l'équivalent d'un downsampling, sans intérêt ici.
+
+Le temps mesuré couvre le traitement d'une image (tuilage, inférence, polygonisation, écriture du résultat), hors chargement du modèle (~54 s, amorti sur un batch). Le score est la confiance moyenne de SAM3 (0 à 1) sur les polygones retenus. Tous les runs solo on été tournés sur un L40S (`iict-suchet`).
 
 #figure(
   table(
-    columns: (auto, auto, auto),
+    columns: (auto, auto, auto, auto, auto, auto),
     fill: (_, row) => if row == 0 { col-blue } else if calc.odd(row) { rgb("#F1F5F9") } else { white },
     table.header(
-      text(fill: white)[*Taille de tuile*], text(fill: white)[*Temps total*], text(fill: white)[*Polygones extraits*]
+      text(fill: white)[*Taille de tuile*],
+      text(fill: white)[*Downsampling*],
+      text(fill: white)[*Tuiles*],
+      text(fill: white)[*Temps*],
+      text(fill: white)[*Polygones*],
+      text(fill: white)[*Score moyen*],
     ),
-    [512×512], [≈ ... s], [...],
-    [1024×1024], [≈ ... s], [...],
+    [1008×1008], [1,0], [55], [≈ 11,1 s], [29], [0,69],
+    [1008×1008], [0,75], [32], [≈ 7,8 s], [29], [0,69],
+    [1008×1008], [0,5], [15], [≈ 5,1 s], [27], [0,66],
+    [1008×1008], [0,25], [3], [≈ 3,2 s], [15], [0,72],
+    [504×504], [1,0], [231], [≈ 32,7 s], [36], [0,72],
+    [504×504], [0,75], [128], [≈ 18,1 s], [32], [0,71],
+    [504×504], [0,5], [55], [≈ 9,0 s], [23], [0,71],
+    [504×504], [0,25], [15], [≈ 4,3 s], [15], [0,70],
   ),
-  caption: [Solo : effet de la taille de tuile (downsample 1,0, image de référence)],
+  caption: [Résultat sur la même image de référence (8000x4000), avec 2 tailles de tuillage combinées à 4 downsamplings.],
 ) <tab-solo-tile>
 
-// TODO : commenter le compromis qualité/vitesse observé.
-...
+À pleine résolution, le tuilage 504 détecte un quart d'objets de plus que le 1008 avec une confiance supérieure, au prix d'environ trois fois le temps (3x plus de temps pour 4x plus de tuilles). Le bénéfice s'estompe dès qu'on downsample. Avec un facteur 0.5, le 504 repasse sous le 1008 (23 contre 27 polygones), la réduction de résolution ayant déjà effacé le détail que les petites tuiles auraient exploité. L'avantage du petit tuilage est donc indissociable de la pleine résolution.
 
-==== Effet du downsampling
+Le downsampling, à tuile fixe, est le plus prométeur. À 1008, les facteurs 1.0 et 0.75 donnent le même nombre de détections (29) pour un tiers de temps en moins. Un downsampling de 0.5 reste acceptable (27) mais 0.25 effondre la détection avec 15 polygones ce qui vaut la moitié perdue. La remontée apparente du score à 0.25 (0.72) est simplement un artefact de survie càd que seuls les gros objets, à haute confiance subsistent, les petits disparaissant entièrement. Le score moyen seul est donc trompeur, il se lit conjointement au nombre de détections.
 
-À taille de tuile fixée (512×512), sweep du facteur de downsampling. Mesure la courbe qualité <--> vitesse.
-
-#figure(
-  table(
-    columns: (auto, auto, auto, auto),
-    fill: (_, row) => if row == 0 { col-blue } else if calc.odd(row) { rgb("#F1F5F9") } else { white },
-    table.header(
-      text(fill: white)[*Facteur*],
-      text(fill: white)[*Tuiles*],
-      text(fill: white)[*Temps total*],
-      text(fill: white)[*Polygones extraits*],
-    ),
-    [1,0 (référence)], [...], [≈ ... s], [...],
-    [0,75], [...], [≈ ... s], [...],
-    [0,5], [...], [≈ ... s], [...],
-    [0,25], [...], [≈ ... s], [...],
-  ),
-  caption: [Solo : effet du downsampling (tuiles 512×512, image de référence)],
-) <tab-solo-downsample>
-
-// TODO : ajouter un graph en courbe
-
-// TODO : commenter à partir de quel facteur la qualité décroche (perte des contours fins).
-...
-
-==== Effet de la granularité des labels
-
-À tuile et downsampling fixés (512×512, downsample 1,0), comparaison du jeu grossier (3 labels) et du jeu précis (6 labels, cf. @tab-labels). Mesure le surcoût en temps et le gain en finesse de classification.
+Pour la *granularité des labels* : à downsampling fixe (1,0), comparaison du jeu grossier (3 labels) et du jeu précis (6 labels, cf. @tab-labels), aux deux tailles de tuile.
 
 #figure(
   table(
-    columns: (auto, auto, auto),
+    columns: (auto, auto, auto, auto, auto),
     fill: (_, row) => if row == 0 { col-blue } else if calc.odd(row) { rgb("#F1F5F9") } else { white },
     table.header(
-      text(fill: white)[*Jeu de labels*], text(fill: white)[*Temps total*], text(fill: white)[*Polygones extraits*]
+      text(fill: white)[*Taille de tuile*],
+      text(fill: white)[*Jeu de labels*],
+      text(fill: white)[*Polygones*],
+      text(fill: white)[*Score moyen*],
+      text(fill: white)[*Temps*],
     ),
-    [Grossier (3)], [≈ ... s], [...],
-    [Précis (6)], [≈ ... s], [...],
+    [1008×1008], [Grossier (3)], [29], [0,69], [≈ 11,1 s],
+    [1008×1008], [Précis (6)], [26], [0,70], [≈ 12,2 s],
+    [504×504], [Grossier (3)], [36], [0,72], [≈ 32,7 s],
+    [504×504], [Précis (6)], [31], [0,72], [≈ 39,7 s],
   ),
-  caption: [Solo : effet de la granularité des labels (512×512, downsample 0,5, image de référence)],
+  caption: [Solo : effet de la granularité des labels (downsample 1,0, image de référence)],
 ) <tab-solo-labels>
 
-// TODO : confronter au run de production Vevey (6 labels 34 h 17 vs 2 labels ≈ 18 h) pour valider la linéarité à grande échelle.
-...
+Passer de 3 à 6 labels ne coûte presque rien en temps : le tuilage domine devant la requête `FindQuery` ajoutée par label. La granularité redistribue en revanche les détections. Le vocabulaire fin trouve moins de panneaux que le générique `sign`, qui ratisse large (7 contre 15 à 1008), mais davantage de marquages au sol (`road_marking` est plus efficace que `road_mark`). Le label `arrow_marking` ne ressort quasiment jamais (0 puis 1 détection). Le total reste comparable (26 à 36 polygones) : la granularité change surtout _quels_ objets sont retenus, pas leur nombre.
 
 === Job Batch : scalabilité
 
@@ -192,8 +158,8 @@ Le batch ne refait pas le sweep de paramètres : par image, le coût est identiq
     [1], [≈ ... s], [...], [1,0×],
     [3], [≈ ... s], [...], [...×],
   ),
-  caption: [Batch 40 images : scalabilité selon le nombre de workers (1024×1024, downsample 1,0)],
-) <tab-batch-scaling>
+  caption: [Batch 40 images : scalabilité selon le nombre de workers (1024×1024, downsample 0,5)],
+) <tab-batch-scaling-1024>
 
 // TODO : commenter la linéarité du speed-up (étape d'inférence embarrassingly parallel, cf. @resultats).
 //
@@ -213,7 +179,7 @@ Le batch ne refait pas le sweep de paramètres : par image, le coût est identiq
     [3], [≈ ... s], [...], [...×],
   ),
   caption: [Batch 40 images : scalabilité selon le nombre de workers (512×512, downsample 0,5)],
-) <tab-batch-scaling>
+) <tab-batch-scaling-512>
 
 // TODO : commenter la linéarité du speed-up (étape d'inférence embarrassingly parallel, cf. @resultats).
 //
