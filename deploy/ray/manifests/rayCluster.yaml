@@ -66,13 +66,6 @@ spec:
                         operator: In
                         values:
                           - NVIDIA-A40
-                - weight: 10
-                  preference:
-                    matchExpressions:
-                      - key: nvidia.com/gpu.product
-                        operator: In
-                        values:
-                          - NVIDIA-L4
           imagePullSecrets:
             - name: ghcr-secret
           containers:
