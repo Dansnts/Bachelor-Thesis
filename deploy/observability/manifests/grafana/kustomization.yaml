@@ -7,3 +7,21 @@ resources:
   - deployment.yaml
   - service.yaml
   - ingress.yaml
+
+# Dashboards provisioned from the repo (GitOps source of truth). Any change to
+# a JSON rolls the configmap hash and redeploys Grafana automatically.
+configMapGenerator:
+  - name: grafana-dashboards
+    files:
+      - dashboards/general.json
+      - dashboards/batch.json
+      - dashboards/gpuMetrics.json
+  - name: grafana-dashboards-provider
+    files:
+      - dashboards.yaml=dashboards-provider.yaml
+
+# Stable names (no hash suffix) so the Deployment volumes resolve directly.
+# Grafana's file provider polls every 30s, so a dashboard change reloads
+# without restarting the pod.
+generatorOptions:
+  disableNameSuffixHash: true

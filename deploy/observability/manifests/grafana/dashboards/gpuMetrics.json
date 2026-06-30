@@ -269,8 +269,9 @@
             "uid": "P8E80F9AEF21F6940"
           },
           "editorMode": "code",
-          "expr": "avg_over_time(\n    {pod=~\"sam3-driver-.+\"}\n    |= \"Wall time\"\n    | regexp `Wall time\\s*:\\s*\\d+s \\((?P<secs_per_image>[\\d.]+)s/image\\)`\n    | unwrap secs_per_image [24h]\n  )",
-          "queryType": "range",
+          "expr": "avg_over_time(\n    {app=\"sam3-batch\"}\n    |= \"Wall time\"\n    | regexp `Wall time\\s*:\\s*\\d+s \\((?P<secs_per_image>[\\d.]+)s/image\\)`\n    | unwrap secs_per_image [24h]\n  )",
+          "instant": true,
+          "queryType": "instant",
           "refId": "A"
         }
       ],
@@ -333,9 +334,10 @@
             "uid": "P8E80F9AEF21F6940"
           },
           "editorMode": "code",
-          "expr": "  sum(sum_over_time(\n    {pod=~\"sam3-driver-.+\"}\n    |= \"Done\"\n    | regexp `Done: (?P<images>\\d+) images`\n    | unwrap images [29d]\n  ))",
+          "expr": "  sum(sum_over_time(\n    {app=\"sam3-batch\"}\n    |= \"Done\"\n    | regexp `Done: (?P<images>\\d+) images`\n    | unwrap images [29d]\n  ))",
           "hide": false,
-          "queryType": "range",
+          "instant": true,
+          "queryType": "instant",
           "refId": "A"
         }
       ],
@@ -500,8 +502,9 @@
             "uid": "P8E80F9AEF21F6940"
           },
           "editorMode": "code",
-          "expr": "  sum(sum_over_time(  \n    {pod=~\"sam3-driver-.+\"}\n    |= \"Done\"\n    | regexp `Done: \\d+ images, (?P<detections>\\d+) detections`\n    | unwrap detections [29d]\n  )) ",
-          "queryType": "range",
+          "expr": "  sum(sum_over_time(  \n    {app=\"sam3-batch\"}\n    |= \"Done\"\n    | regexp `Done: \\d+ images, (?P<detections>\\d+) detections`\n    | unwrap detections [29d]\n  )) ",
+          "instant": true,
+          "queryType": "instant",
           "refId": "A"
         }
       ],
@@ -816,8 +819,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -908,7 +910,7 @@
             "uid": "P8E80F9AEF21F6940"
           },
           "editorMode": "code",
-          "expr": "{pod=~\"sam3-driver-.+\"}",
+          "expr": "{app=\"sam3-batch\"}",
           "queryType": "range",
           "refId": "A"
         }
@@ -997,8 +999,8 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "NearAI",
+  "title": "GPU Metrics",
   "uid": "nearAI",
-  "version": 13,
+  "version": 5,
   "weekStart": ""
 }
