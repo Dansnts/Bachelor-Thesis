@@ -1,0 +1,108 @@
+name: Build & push images
+
+# Builds the pipeline images and pushes them to ghcr.io/nearai-interreg.
+# Runs on demand (workflow_dispatch, pick one image or "all") and on a push to
+# master that touches a Dockerfile or the code it bundles. This replaces the
+# manual `docker --context homelab build` flow, which needs the home network.
+#
+# Prerequisite: a repo secret GHCR_PAT (a classic PAT with write:packages that
+# can write to the nearai-interreg org), because the automatic GITHUB_TOKEN can
+# only push packages under the repo owner (Dansnts), not under nearai-interreg.
+
+on:
+  workflow_dispatch:
+    inputs:
+      image:
+        description: "Image to build"
+        type: choice
+        default: all
+        options:
+          - all
+          - ray-sam3
+          - sam3-solo
+          - sam3-api
+          - sam3-segment
+  # Note: a push builds ALL images (the matrix isn't narrowed per changed path).
+  # The filters below avoid triggering on a manifest-only edit; for a single
+  # image, prefer a manual run via workflow_dispatch.
+  push:
+    branches: [master]
+    paths:
+      - "deploy/jobs/**/*.py"
+      - "deploy/jobs/**/requirements.txt"
+      - "deploy/jobs/**/Dockerfile"
+      - "deploy/api/python/**"
+      - "deploy/api/Dockerfile"
+      - "deploy/segment/python/**"
+      - "deploy/segment/Dockerfile"
+      - ".github/workflows/build-images.yml"
+
+env:
+  REGISTRY: ghcr.io
+  OWNER: nearai-interreg
+  TAG: staging
+
+jobs:
+  # The matrix can't be filtered by a workflow input directly (the `matrix`
+  # context isn't available in a job-level `if`), so we compute it here: a
+  # manual run with a specific image builds just that one, anything else builds
+  # all four.
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+    steps:
+      - id: set
+        run: |
+          all='[
+            {"name":"ray-sam3","context":"deploy","dockerfile":"deploy/jobs/batch/Dockerfile"},
+            {"name":"sam3-solo","context":"deploy","dockerfile":"deploy/jobs/solo/Dockerfile"},
+            {"name":"sam3-api","context":"deploy/api","dockerfile":"deploy/api/Dockerfile"},
+            {"name":"sam3-segment","context":"deploy","dockerfile":"deploy/segment/Dockerfile"}
+          ]'
+          sel='${{ github.event.inputs.image }}'
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "$sel" ] && [ "$sel" != "all" ]; then
+            matrix=$(echo "$all" | jq -c --arg n "$sel" '[.[] | select(.name == $n)]')
+          else
+            matrix=$(echo "$all" | jq -c '.')
+          fi
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: prepare
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # The CUDA + torch images are large; reclaim runner disk before building.
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android "$AGENT_TOOLSDIRECTORY"
+          df -h /
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_PAT }}
+
+      - name: Build & push ${{ matrix.name }}
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ matrix.name }}:${{ env.TAG }}
+          # Cache lives in the registry (no 10 GB GitHub-cache cap)
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.OWNER }}/${{ matrix.name }}:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.OWNER }}/${{ matrix.name }}:buildcache,mode=max
