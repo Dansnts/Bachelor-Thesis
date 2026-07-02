@@ -595,3 +595,37 @@
 | Notes / journal / todo | Done | 30min |
 | **Subtotal** |    | 9h |
 | **Total** |    | **9h** |
+
+*Wednesday July 1, 2026*
+
+| Task              | Status | Time |
+| :---------------- | :------: | ----: |
+| Bruno : generate the 4 batch scalability request files (1008/504 × 1/3 workers, downsample 0,5) | Done | 30min |
+| Run the 4 batch scalability benchmarks, verify per-worker distribution + 3-GPU usage, fill the table in `notes.md` | Done | 2h |
+| Debug GPU placement (a worker landed on chasseron) → hard-pin the Ray workers to suchet/node4 in `rayCluster.yaml`, recreate workers | Done | 1h30 |
+| Report : fill `@tab-batch-scaling` (1008 & 504), fix captions, place the DCGM GPU-usage figure | Done | 1h |
+| Bruno : production Vevey request files (3 labels + 6-label precise on 1 GPU), choose the downsample 0,75 sweet-spot | Done | 1h |
+| Launch the production run + monitoring | Done | 30min |
+| Bump job TTL to 48h (live patch + API `build_job`) so finished pods keep their logs | Done | 30min |
+| Bottleneck investigation : MinIO/Synology metrics (`mc admin`), live trace → pipeline is GPU-bound, storage idle at this scale | Done | 1h30 |
+| Report : write the `== Goulots d'étranglement` section (GPU-bound measured, MinIO latent, per-stage synthesis table) | Done | 2h |
+| Notes / journal / memory | Done | 30min |
+| **Subtotal** |    | 11h |
+| **Total** |    | **11h** |
+
+*Thursday July 2, 2026*
+
+| Task              | Status | Time |
+| :---------------- | :------: | ----: |
+| Report Résultats : calculated justification of the 768 stride (overlap trade-off + `@tab-stride` cost table, 32/55/105 tiles) | Done | 1h30 |
+| Report Résultats : label-granularity analysis (3 vs 6, detection redistribution, `road_marking` vs `road_mark`, `arrow_marking` absent) | Done | 1h30 |
+| Report Résultats : segmentation quality — manhole misses on dark concrete (discussion with Valentin), `sam3BadView` figure | Done | 1h |
+| Report Résultats : tile × downsampling comparison figure (lilaq, 504 vs 1008 polygon count) | Done | 45min |
+| Label Studio : import Parquet pre-annotations, manually correct polygons, capture screenshots (`outputManualyFixed`) | Done | 3h |
+| Report Résultats : "Exemples visuels dans Label Studio" section (import + manual-fix figures) | Done | 30min |
+| Report Architecture : rework PVS/PCS, scale-to-zero and Ultralytics sections | Done | 1h30 |
+| Throughput/latency analysis for the report (aggregate vs per-worker, per-tile solo vs batch) | Done | 1h |
+| Planning : define API edge-case test campaign + `09_Pipeline_result` output reorg | Done | 45min |
+| Notes / journal | Done | 30min |
+| **Subtotal** |    | 12h |
+| **Total** |    | **12h** |
