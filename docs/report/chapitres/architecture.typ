@@ -450,19 +450,23 @@ Deux alternatives ont été écartées. Les logs du pod sont éphémères (effac
 
 === Prompt visuel (PVS) vs prompt concept (PCS)
 
-SAM3 accepte deux familles de prompts. Le *prompt visuel* (PVS — point ou boîte) répond à la question « OÙ » : il produit un masque class-agnostic à l'endroit désigné, sans nommer l'objet. Le *prompt concept* (PCS — texte ou exemplar) répond à « QUOI » : il trouve toutes les instances du concept fourni dans l'image.
+SAM3 accepte deux familles de prompts.
 
-La pipeline batch et le job solo utilisent le PCS : on leur passe des labels texte (`sign`, `road_marking`) et SAM3 détecte chaque occurrence. L'endpoint interactif utilise le PVS : l'annotateur clique un point, SAM3 retourne le contour de l'objet sous le curseur. Le label n'oriente pas la détection ici — il est fourni en entrée et sert uniquement à étiqueter le masque retourné.
+Le *prompt visuel* (PVS) répond à la question OÙ : il produit un masque class-agnostic à l'endroit désigné, sans nommer l'objet.
 
-=== Service à modèle chaud et scale-to-zero
+Le *prompt concept* (PCS) répond à QUOI: il trouve toutes les instances du concept fourni dans l'image.
 
-Le geste interactif (clic → contour) impose une latence faible. Lancer un Job par requête est exclu : chaque clic paierait le démarrage à froid (pull de l'image puis chargement du modèle, de l'ordre de la minute). Le service de segmentation est donc un Deployment qui charge SAM3 une seule fois, au démarrage du pod (FastAPI lifespan), et garde le modèle chaud en VRAM pour toute la session.
+La pipeline batch et le job solo utilisent le PCS, on leur passe des labels texte (`sign`, `road_marking`) et SAM3 détecte chaque occurrence. L'endpoint interactif (segmentation à la volée), lui, utilise le PVS, l'annotateur clique un point, SAM3 retourne le contour de l'objet sous le curseur.
 
-Garder ce pod actif en permanence monopoliserait un GPU sur les deux disponibles, même hors session d'annotation. Le Deployment reste donc à zéro réplica par défaut, et l'API le pilote : `POST /segment/up` le réveille en début de session (un unique cold start), `POST /segment/down` le rendort et libère le GPU. Le détail de ce mécanisme et le choix d'écarter KEDA sont traités au chapitre implémentation.
+Le label n'oriente pas la détection ici car il est fourni en entrée et sert uniquement à étiqueter le masque retourné.
 
-=== Ultralytics
+La *segmentation à la volée* impose une latence faible. Lancer un Job par requête est exclu car chaque clic paierait le démarrage à froid. Le service de segmentation est donc un Deployment qui charge SAM3 une seule fois, au démarrage du pod avec FastAPI lifespan et garde le modèle chaud en VRAM pour toute la session.
 
-L'endpoint interactif s'appuie sur l'API Ultralytics, qui expose la prédiction par prompt visuel en un seul appel (`model.predict(points=, labels=)`). Le service n'utilise que le prompt par point : l'annotateur clique, SAM3 renvoie le masque de l'objet sous le curseur. Cette API évite le pipeline complet du mode batch (tuilage, collate, postprocessor), inutile pour une inférence ponctuelle ; l'image en est plus légère. Le service n'a pas d'authentification propre : il est exposé via l'Ingress et protégé au niveau du cluster.
+Mais, garder ce pod actif en permanence monopoliserait un GPU sur les ceux disponibles, même hors session d'annotation. Le Deployment reste donc à zéro réplica par défaut, et l'API le pilote : `POST /segment/up` le scale à 1 et `POST /segment/down` le scale à 0 et libère le GPU.
+
+Le détail de ce mécanisme et le choix d'écarter KEDA sont traités au chapitre implémentation.
+
+L'endpoint interactif s'appuie sur l'API *Ultralytics*, qui expose la prédiction par prompt visuel en un seul appel (`model.predict(points=, labels=)`). Le service n'utilise que le prompt par point, l'annotateur clique, SAM3 renvoie le masque de l'objet sous le curseur. Cette API évite le pipeline complet du mode batch (tuilage, collate, postprocessor), inutile pour une inférence ponctuelle ; l'image en est plus légère. Le service n'a pas d'authentification propre : il est exposé via l'Ingress et protégé au niveau du cluster.
 
 
 == Variables d'environnement
