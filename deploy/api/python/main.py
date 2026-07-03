@@ -176,8 +176,11 @@ def stream_to_s3(s3, bucket, key, byte_iter):
             buf.extend(chunk)
             if len(buf) >= PART:
                 r = s3.upload_part(
-                    Bucket=bucket, Key=key, PartNumber=part_no,
-                    UploadId=upload_id, Body=bytes(buf),
+                    Bucket=bucket,
+                    Key=key,
+                    PartNumber=part_no,
+                    UploadId=upload_id,
+                    Body=bytes(buf),
                 )
                 parts.append({"ETag": r["ETag"], "PartNumber": part_no})
                 part_no += 1
@@ -185,12 +188,17 @@ def stream_to_s3(s3, bucket, key, byte_iter):
         # last part (any size), or an empty body if there was nothing buffered
         if buf or not parts:
             r = s3.upload_part(
-                Bucket=bucket, Key=key, PartNumber=part_no,
-                UploadId=upload_id, Body=bytes(buf),
+                Bucket=bucket,
+                Key=key,
+                PartNumber=part_no,
+                UploadId=upload_id,
+                Body=bytes(buf),
             )
             parts.append({"ETag": r["ETag"], "PartNumber": part_no})
         s3.complete_multipart_upload(
-            Bucket=bucket, Key=key, UploadId=upload_id,
+            Bucket=bucket,
+            Key=key,
+            UploadId=upload_id,
             MultipartUpload={"Parts": parts},
         )
     except Exception:
@@ -288,14 +296,9 @@ def build_job(name, image, command, args, gpu=True, access_key_env="AWS_ACCESS_K
         kind="Job",
         metadata=client.V1ObjectMeta(name=name, namespace=NAMESPACE),
         spec=client.V1JobSpec(
-            ttl_seconds_after_finished=3600,
-            # Label the pod with its app name (sam3-batch / sam3-solo, derived
-            # from the job name without its uuid suffix) so Alloy tags the logs
-            # with `app` in Loki, like the other components.
+            ttl_seconds_after_finished=172800,  # garde les pods (logs, Done:) 48h après la fin de vie
             template=client.V1PodTemplateSpec(
-                metadata=client.V1ObjectMeta(
-                    labels={"app": name.rsplit("-", 1)[0]}
-                ),
+                metadata=client.V1ObjectMeta(labels={"app": name.rsplit("-", 1)[0]}),
                 spec=pod_spec,
             ),
         ),
@@ -627,7 +630,9 @@ def segment_down():
 
 
 @app.post("/import/{acquisition_id}")
-def parquet_to_label_studio(acquisition_id: str, prefix: str = None, write: bool = False):
+def parquet_to_label_studio(
+    acquisition_id: str, prefix: str = None, write: bool = False
+):
     # Converts the Parquet predictions of an acquisition into a Label Studio
     # import payload (one task per image). Reads file by file with bounded
     # memory, so it scales to tens of thousands of images.
@@ -640,14 +645,21 @@ def parquet_to_label_studio(acquisition_id: str, prefix: str = None, write: bool
     keys = list_parquet_keys(s3, BUCKET, prefix)
     if not keys:
         log.warning("import_empty acquisition=%s prefix=%s", acquisition_id, prefix)
-        raise HTTPException(status_code=404, detail="no parquet found for this acquisition")
+        raise HTTPException(
+            status_code=404, detail="no parquet found for this acquisition"
+        )
 
     json_bytes = iter_label_studio_json(iter_label_studio_tasks(s3, BUCKET, keys))
 
     if write:
         out_key = f"data/results/{acquisition_id}/label_studio_import.json"
         uri = stream_to_s3(s3, BUCKET, out_key, json_bytes)
-        log.info("import_written acquisition=%s files=%d uri=%s", acquisition_id, len(keys), uri)
+        log.info(
+            "import_written acquisition=%s files=%d uri=%s",
+            acquisition_id,
+            len(keys),
+            uri,
+        )
         return {"uri": uri, "files": len(keys)}
 
     log.info("import_stream acquisition=%s files=%d", acquisition_id, len(keys))
