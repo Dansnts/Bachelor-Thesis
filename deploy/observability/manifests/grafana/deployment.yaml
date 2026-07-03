@@ -18,14 +18,31 @@ spec:
       securityContext:
         fsGroup: 472
         runAsUser: 472
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: grafana
           image: grafana/grafana:10.4.0
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           ports:
             - containerPort: 3000
           env:
             - name: GF_SECURITY_ADMIN_PASSWORD
-              value: "admin" # TODO : remplacer par un mot de passe SOLIDE
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-secret
+                  key: admin_password
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
           volumeMounts:
             - name: datasources
               mountPath: /etc/grafana/provisioning/datasources

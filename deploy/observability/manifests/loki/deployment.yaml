@@ -17,9 +17,16 @@ spec:
         runAsUser: 10001
         runAsGroup: 10001
         fsGroup: 10001
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: loki
           image: grafana/loki:3.0.0
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           args:
             - "-config.file=/etc/loki/loki.yaml"
             - "-config.expand-env=true"
@@ -36,6 +43,13 @@ spec:
                 secretKeyRef:
                   name: minio-secret
                   key: secret_key
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
           volumeMounts:
             - name: config
               mountPath: /etc/loki

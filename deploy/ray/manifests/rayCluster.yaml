@@ -14,12 +14,19 @@ spec:
         labels:
           app: ray-head
       spec:
+        securityContext:
+          seccompProfile:
+            type: RuntimeDefault
         imagePullSecrets:
           - name: ghcr-secret
         containers:
           - name: ray-head
             image: ghcr.io/nearai-interreg/ray-sam3:staging
             imagePullPolicy: Always
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: ["ALL"]
             ports:
               - containerPort: 6379 # Ray GCS
               - containerPort: 8265 # Dashboard
@@ -41,16 +48,24 @@ spec:
           labels:
             app: ray-worker
         spec:
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
           runtimeClassName: nvidia
           affinity:
             nodeAffinity:
+              # Hard-pin the GPU workers to suchet (L40S) and node4 (A40) only.
+              # chasseron (L4) causes too many issues (weaker card, disk-pressure
+              # evictions), so we exclude it entirely rather than merely
+              # deprioritising it via the soft preference below.
               requiredDuringSchedulingIgnoredDuringExecution:
                 nodeSelectorTerms:
                   - matchExpressions:
-                      - key: nvidia.com/gpu.present
+                      - key: kubernetes.io/hostname
                         operator: In
                         values:
-                          - "true"
+                          - iict-suchet
+                          - iict-k8s-node4-rad
               preferredDuringSchedulingIgnoredDuringExecution:
                 - weight: 100
                   preference:
@@ -72,6 +87,12 @@ spec:
             - name: ray-worker
               image: ghcr.io/nearai-interreg/ray-sam3:staging
               imagePullPolicy: Always
+              # root conservé (cache modèle), mais durci : pas d'escalade,
+              # aucune capability. GPU via nvidia runtime (n'a pas besoin de caps).
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
               env:
                 - name: HF_TOKEN
                   valueFrom:

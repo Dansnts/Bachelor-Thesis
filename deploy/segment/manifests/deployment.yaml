@@ -16,6 +16,9 @@ spec:
       labels:
         app: sam3-segment
     spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       runtimeClassName: nvidia
       # On force le placement sur suchet (L40S) ou node4 (A40) : chasseron (L4)
       # pose trop de soucis (moins puissant, disk-pressure).
@@ -35,6 +38,12 @@ spec:
         - name: segment
           image: ghcr.io/nearai-interreg/sam3-segment:staging
           imagePullPolicy: Always
+          # root conservé (écrit le cache HF dans /root/.cache), mais on durcit
+          # quand même : pas d'escalade de privilèges, aucune capability.
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           ports:
             - containerPort: 8000
           env:

@@ -14,9 +14,18 @@ spec:
         app: alloy
     spec:
       serviceAccountName: alloy
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: alloy
-          image: grafana/alloy:latest
+          # Tag épinglé (plus de :latest) : build reproductible. Aligner sur la
+          # version réellement déployée / testée.
+          image: grafana/alloy:v1.5.1
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           args:
             - run
             - /etc/alloy/config.alloy
@@ -24,6 +33,13 @@ spec:
           ports:
             - containerPort: 12345
               name: http
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
           volumeMounts:
             - name: config
               mountPath: /etc/alloy
