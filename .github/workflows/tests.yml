@@ -1,0 +1,44 @@
+name: Tests
+
+# Runs the offline unit suite (tests/unit) on every push and pull request that
+# touches the Python code or the tests. No GPU, no model, no cluster, no MinIO:
+# ray/torch are stubbed and Kubernetes/S3 are mocked (see tests/unit/conftest.py),
+# so it finishes in a few seconds on a plain ubuntu runner.
+#
+# This is the "Validation" stage described in the architecture chapter: it runs
+# before "Build & push images" (build-images.yml). To make a green run mandatory
+# before merging, enable branch protection on master and require this check.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "deploy/**/*.py"
+      - "cli/**/*.py"
+      - "tests/unit/**"
+      - ".github/workflows/tests.yml"
+  pull_request:
+    paths:
+      - "deploy/**/*.py"
+      - "cli/**/*.py"
+      - "tests/unit/**"
+      - ".github/workflows/tests.yml"
+  workflow_dispatch:
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: tests/unit/requirements-test.txt
+
+      - name: Install test dependencies
+        run: pip install -r tests/unit/requirements-test.txt
+
+      - name: Run unit tests
+        run: python -m pytest tests/unit -q
