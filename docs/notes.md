@@ -1086,15 +1086,48 @@ JSON complet de chaque run : `s3://nearai/results/<job>.json` (colonne *Fichier 
 | 9  | 1008  | 1,0  | 6   | 11:40:14  | 55     | 12,2 s | 26   | r.sign 6·c.sign 1·road 13·c.mh 4·r.drain 2 (arrow 0) | 0,699 [0,531–0,915] | suchet | sam3-solo-48b9dc7d.json     |
 | 10 | 504   | 1,0  | 6   | 11:42:03  | 231    | 39,7 s | 31   | r.sign 10·c.sign 1·road 13·arrow 1·c.mh 5·r.drain 1 | 0,724 [0,504–0,933] | suchet | sam3-solo-83c4f681.json     |
 
-**Solo : ✅ 10 runs faits** (grille tuile×downsampling + labels), reportés dans `resultats.typ`.
-**Batch : à faire demain (01.07.2026)** — recréer les workers Ray (repull `ray-sam3` : resize + score), puis 4 runs de scalabilité (workers 1 vs 3, en 1008/0,5 et 504/0,5).
+**Solo : 10 runs faits** (grille tuile×downsampling + labels), reportés dans `resultats.typ`.
+
+## Benchmarks : runs batch scalabilité (01.07.2026)
+
+
+| #  | tuile | ds  | workers | Début UTC | Détections | Wall time | s/image | Worker avg | Job                  |
+|----|-------|-----|---------|-----------|------------|-----------|---------|------------|----------------------|
+| 1  | 1008  | 0,5 | 1       | 08:41:07  | 843        | 185 s     | 4,6 s   | 3,3 s      | sam3-batch-69dc01c1  |
+| 2  | 1008  | 0,5 | 3       | 08:54:37  | 843        | 75 s      | 1,9 s   | 3,6 s      | sam3-batch-1df5b8f0  |
+| 3  | 504   | 0,5 | 1       | 09:04:22  | 921        | 323 s     | 8,1 s   | 7,6 s      | sam3-batch-f3e11aea  |
+| 4  | 504   | 0,5 | 3       | 08:58:20  | 921        | 128 s     | 3,2 s   | 7,9 s      | sam3-batch-b109049b  |
+
+Remplit `@tab-batch-scaling-1024` (runs 1–2) et `@tab-batch-scaling-512` (runs 3–4) dans `resultats.typ`.
+
+**Variance / warmup (important pour l'interprétation)** : les 3 runs 1008/3-workers ont donné 133 s (mixte suchet+chasseron), 110 s (3×suchet à froid), **75 s** (3×suchet à chaud). Sur seulement 40 images, le wall time est dominé par le warmup (téléchargement S3, cache disque, JIT) → un run à chaud vs un baseline à froid **surestime** le speedup. Pour un chiffre honnête, relancer le baseline 1-worker **à chaud** dans les mêmes conditions avant de figer le tableau. Résultat en soi : le batch de bench (40 img) est trop petit pour un throughput stable ; le run de production (21'819 img) amortit tout. La règle « throughput linéaire » ne tient que quand chaque tuile va sur un GPU distinct et que le dataset est assez gros pour saturer les workers.
+Placement : les 3 workers Ray sont maintenant hard-pinnés suchet/node4 (chasseron exclu, `rayCluster.yaml`).
+
+### Run de production Vevey (01.07.2026)
+
+Config retenue = **tuile 1008 / downsample 0,75 / 3 workers** (sweet-spot : même qualité que full-res 1,0 pour ~30 % de temps en moins). Dataset complet `data/acquisitions/Vevey/01_images/` (14'207 images, pas 21'819 — à corriger dans le rapport). Sortie parquet par config de labels.
+
+| Labels | Début UTC | Images | Détections | Wall time | s/image | Job |
+|--------|-----------|--------|------------|-----------|---------|-----|
+| 3 (générique : sign, road_mark, manhole) | 09:40:12 | 14'207 | 397'741 | 29'057 s (≈ 8 h 04) | 2,0 (agrégé 3w) | sam3-batch-22b3c196 |
+| 6 (précis) | 07:23 (02.07) | 14'207 | 423'819 | 37'388 s (≈ 10 h 23) | 2,6 (agrégé 3w) | sam3-batch-452ca76a |
+
+Note : ~28 détections/image (3 labels), ~29,8 (6 labels). Les deux runs sont directement comparables (même dataset 14'207 img, même config 1008 / 0,75 / 3× L40S). Passer de 3 à 6 labels (×2) = temps ×1,29 (8h04 → 10h23) : coût fixe ~5h45 (I/O, tuilage, indépendant des labels) + ~46 min/label (une `FindQuery` par label par tuile). `@tab-run-vevey` mis à jour dans le rapport (2 lignes réelles, l'ancienne ligne 2-labels sur 21'819 img / L4 retirée car non comparable). Run 6-labels config confirmée via Loki : labels précis (circular_sign, rectangular_sign, circular_manhole_cover, rectangular_drain_grate, road_marking, arrow_marking), ds 0,75 (8000×4000 → 6000×3000), 32 tuiles/img.
+
+**TTL / pod mort après 1 h** : le job 6-labels a bien été jusqu'au bout (`Done: 14207 images, 423819 detections`), mais son pod a été supprimé **1 h après la fin** par le TTL controller (`ttl=3600s`). Le bump à 48 h (`main.py`) était dans le code mais **l'image API n'a pas été rebuildée/redéployée** → l'API tournante crée encore des jobs avec l'ancien TTL. Résultats récupérés **uniquement depuis Loki** (`{app="sam3-batch"}` / `{pod=~"sam3-batch-452ca76a.*"}`), le pod n'existant plus dans kubectl. → À FAIRE : rebuild + rollout de l'image API pour que le TTL 48 h prenne effet. Illustre à nouveau l'argument observabilité (Loki survit à la suppression du pod).
+
+**Répartition par worker (via Loki, run complet)** : 10.42.17.137 → 4735 img, 10.42.17.153 → 4736 img, 10.42.17.154 → 4736 img (= 14'207, les 3 GPUs de suchet, round-robin quasi parfait à 1/3 chacun). Somme des détections recalculée par Loki = 397'741 (identique au `Done:` → couverture complète).
+
+NB : `kubectl logs` ne gardait que la queue (~2000 img, rotation conteneur), les logs complets sont dans Loki (`loki-svc:3100`, `{pod="sam3-batch-22b3c196-ld8fs"}`) / bucket S3 `nearai-logs` en chunks Snappy pas lisibles au `cat`, seulement via l'API Loki. Bon exemple pour l'argument observabilité de Bertil. 
+
+Note : les images `cc013c` et `d688f2` contiennent **toutes deux** le resize -> 1008 (vérifié empiriquement : un worker `cc013c` traite du 504 sans AssertionError) ; leur seule différence est l'exposition du score côté log/solo, sans impact sur le parquet batch (le score y est écrit depuis le tuple polygon dans les deux). Le run 504/3-workers a fait une 1re tentative en erreur (`ConnectionAbortedError: Starting Ray client server failed`, transitoire côté client Ray) puis a réussi au retry sans rapport avec l'image.
 
 ## Attentes de Bertil (fin de projet)
 
 - [ ] Inférence distribuée : la démontrer.
 - [ ] Identifier les bottlenecks de l'architecture.
-- [ ] Expliquer Ray (cœur métier du projet — priorité).
-- [ ] FOCUS observabilité.
+- [ ] Expliquer Ray (cœur métier du projet -> priorité).
+- [ ] Meilleur focus sur observabilité.
 - [ ] Comparer les coûts GPU : cloud vs on-premise.
 - [x] Faire une CLI pour la pipeline : montrer le gain de temps au déploiement (un utilisateur push ses images et lance un batch simplement). → v1 faite (`cli/nearai.py` : push, batch, solo, status, result, jobs, import, segment).
 
@@ -1102,5 +1135,5 @@ JSON complet de chaque run : `s3://nearai/results/<job>.json` (colonne *Fichier 
 
 - [ ] Analyse des scores / labels depuis les Parquet (score moyen + médiane par label, distribution des labels, histogramme des scores).
   - Pour le rapport : script DuckDB one-shot sur le préfixe `09_parquet/` → figures Résultats (remplit le TODO « histogramme des scores SAM3 »). ~30 min, bon outil.
-  - Grafana ne lit pas le Parquet nativement → pas de dashboard direct (faudrait un exporter DuckDB = nouveau composant, disproportionné).
+  - Grafana ne lit pas le Parquet nativement -> pas de dashboard direct (faudrait un exporter DuckDB = nouveau composant, disproportionné).
   - Voie cheap pour du live : la distribution des labels est déjà dans les logs (`{'sign': 10}`) ; pour le score moyen, ajouter 1 ligne de log dans le worker puis un panel LogQL.

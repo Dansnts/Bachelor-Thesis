@@ -17,3 +17,8 @@ keys.txt
 # Others
 *.zip
 *.DS_Store
+
+# Working files (too heavy / not deliverables)
+*.psd
+*.drawio.bkp
+.$*.drawio.bkp

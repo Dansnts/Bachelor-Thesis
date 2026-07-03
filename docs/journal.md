@@ -629,3 +629,20 @@
 | Notes / journal | Done | 30min |
 | **Subtotal** |    | 12h |
 | **Total** |    | **12h** |
+
+*Friday July 3, 2026*
+
+| Task              | Status | Time |
+| :---------------- | :------: | ----: |
+| Report : full re-read, critical-points triage (512/1008 coherence, empty conclusion, unmeasured L40S/A40, stub sections) + final-sprint plan | Done | 2h |
+| Unit tests : API input validation (edge-cases: bad tile size, wrong types, missing fields) + endpoints, Kubernetes/S3 mocked, ray/torch stubbed | Done | 2h30 |
+| Unit tests : jobCore (tiling geometry, mask→polygon, tile stitching) + batch/solo/cli/segment helpers | Done | 2h |
+| CI : GitHub Actions `tests.yml` (path-filtered, Python 3.12, verified green — 115 pass / 7 xfail) | Done | 1h |
+| Security hardening : `securityContext` on all 8 workloads (drop caps, no-priv-escalation, seccomp, non-root, read-only rootfs on API) | Done | 2h |
+| Security hardening : Grafana admin password → SOPS secret, pin Alloy image, resource limits, validate `kustomize build` | Done | 1h |
+| Git : define branching strategy for the repo (trunk-based + short feature branches, tags for milestones) | Done | 40min |
+| Live-patch the running 1-GPU job TTL to 1 week | Done | 15min |
+| Journal | Done | 15min |
+| **Subtotal** |    | 11h40 |
+| **Total** |    | **11h40** |
+| **Total** |    | **53h40** |
