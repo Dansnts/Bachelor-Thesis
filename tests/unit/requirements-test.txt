@@ -1,0 +1,15 @@
+# Test-only dependencies. The heavy ML/distributed stack (torch, ray, sam3,
+# ultralytics, exif) is NOT needed: conftest stubs ray/torch and the tests
+# never load the model or hit a GPU.
+pytest
+fastapi
+httpx                     # required by FastAPI's TestClient
+kubernetes
+python-dotenv
+boto3
+requests
+pyarrow
+numpy
+pillow
+opencv-python-headless    # jobCore.postprocess.mask_to_polygon
+scipy                     # jobCore.postprocess.merge_masks
