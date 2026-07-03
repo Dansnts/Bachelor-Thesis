@@ -21,7 +21,7 @@ Chaque image à 8'192 x 4'096 pixels dépasse la fenêtre d'entrée de tout mod�
 Ce travail conçoit et déploie une pipeline distribuée couvrant les étapes suivantes :
 
 + Lecture des images depuis le bucket S3.
-+ Découpage en tuiles 512 x 512 pixels et inférence sur chaque tuile.
++ Découpage en tuiles 504x504 pixels et inférence sur chaque tuile.
 + Extraction des polygones, normalisation des coordonnées et association des métadonnées GPS issues de l'EXIF.
 + Écriture des résultats au format Parquet sur le bucket.
 + Import des pré-annotations dans Label Studio pour validation humaine.

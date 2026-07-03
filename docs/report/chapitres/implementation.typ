@@ -23,13 +23,15 @@ Un piège est apparu lors de la première construction : le venv contient des li
 
 Le stage runtime conserve l'image `cuda-...-devel` plutôt qu'une variante `runtime` plus légère. PyTorch compile certains noyaux à la volée via Triton, qui invoque `ptxas` du toolkit CUDA. Une image `runtime` sans `ptxas` casse cette compilation au premier appel GPU. Le compromis échange quelques centaines de mégaoctets contre la garantie que la compilation JIT fonctionne en production.
 
-== Conteneurs non-root
+== Hardening
 
 L'API tourne sous un utilisateur non privilégié. Le Dockerfile crée `appuser` (uid 1000) et bascule dessus via `USER appuser`, et le Deployment durcit la contrainte côté Kubernetes avec `runAsNonRoot: true` et `runAsUser: 1000`.
 
 Le serveur écoute sur le port 8000, supérieur à 1024, donc liable sans privilège root. Les `pip install` restent exécutés en root car ils appartiennent à l'étape de build, avant le `USER appuser`.
 
 Les images solo et segment restent en root. Elles écrivent le cache des poids HuggingFace dans `/root/.cache` et accèdent au GPU, deux opérations qui se compliquent sous un utilisateur restreint sans réel gain de sécurité pour des Jobs éphémères.
+
+== Gestion des secrets
 
 == Pipeline Python
 

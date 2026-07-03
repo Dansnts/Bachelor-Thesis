@@ -262,30 +262,29 @@ Pour la segmentation à la volée, n'importe quelle image peut être utilisée c
 
 === Batch Dataset Vevey
 
-Le run de production sur le dataset Vevey traite l'ensemble des 21'819 images en un seul batch. Trois configurations de labels ont été exécutées sur le même jeu, de la plus grossière (2 labels génériques) à la plus fine (6 labels précis) :
+Le run de production sur le dataset Vevey traite l'ensemble des 14'207 images en un seul batch, sur trois workers L40S (`iict-suchet`), en tuile 1008 et downsample 0,75. Deux configurations de labels ont été exécutées sur le même jeu, de la plus grossière (3 labels génériques) à la plus fine (6 labels précis) :
 
-- *2 labels* : `sign`, `road_mark`
 - *3 labels* : `sign`, `road_mark`, `manhole`
 - *6 labels* : `circular_sign`, `rectangular_sign`, `circular_manhole_cover`, `rectangular_drain_grate`, `road_marking`, `arrow_marking`
 
 #figure(
   table(
-    columns: (auto, auto, auto, auto),
+    columns: (auto, auto, auto, auto, auto),
     fill: (_, row) => if row == 0 { col-blue } else if calc.odd(row) { rgb("#F1F5F9") } else { white },
     table.header(
       text(fill: white)[*Jeu de labels*],
       text(fill: white)[*Temps total*],
+      text(fill: white)[*Détections*],
       text(fill: white)[*Débit*],
       text(fill: white)[*Temps/image*],
     ),
-    [2 (générique)], [18 h 30 min], [≈ 1179 img/h], [≈ 3,1 s],
-    [3 (générique)], [22 h 47 min], [≈ 958 img/h], [≈ 3,8 s],
-    [6 (précis)], [34 h 17 min], [≈ 637 img/h], [≈ 5,7 s],
+    [3 (générique)], [8 h 04 min], [397'741], [≈ 1760 img/h], [≈ 2,0 s],
+    [6 (précis)], [10 h 23 min], [423'819], [≈ 1368 img/h], [≈ 2,6 s],
   ),
-  caption: [Run de production Vevey (21'819 images) : effet du nombre de labels],
+  caption: [Run de production Vevey (14'207 images, 3 workers L40S, tuile 1008, downsample 0,75) : effet du nombre de labels],
 ) <tab-run-vevey>
 
-Le temps total n'est pas proportionnel au nombre de labels car, comme montré dans le tableau, passer de 2 à 6 labels (×3) n'allonge le run que de 18 h 30 à 34 h 17 (×1,85). Un modèle linéaire $"temps" = "base" + k times "labels"$ ajuste ≈ 10 h de coût fixe (téléchargement, tuilage, I/O, indépendant des labels) et ≈ 3,9 h par label. C'est la partie inférence qui croît linéairement avec le nombre de labels, conformément à la structure une requête `FindQuery` par label et par tuile.
+Le temps total ne double pas avec le nombre de labels. Passer de 3 à 6 labels (×2) n'allonge le run que de 8 h 04 à 10 h 23 (×1,29), et le nombre de détections ne croît que de 397'741 à 423'819. L'essentiel du temps est un coût fixe (téléchargement, downsampling, tuilage, I/O), indépendant du nombre de labels ; seule la partie inférence croît avec eux, conformément à la structure une requête `FindQuery` par label et par tuile. Entre ces deux runs, chaque label supplémentaire ajoute ≈ 46 min (2'777 s) au-dessus d'un coût fixe estimé à ≈ 5 h 45.
 
 == Exploitation des résultats
 
@@ -332,6 +331,17 @@ Grafana corrèle sur une même vue les métriques Prometheus (GPU, CPU, mémoire
 //
 ...
 
+
+#figure(
+  ```log
+  INFO:__main__:Done: 14207 images, 397741 detections
+     Wall time   : 29057s (2.0s/images)
+     Worker avg  : 6.1s/image (summed over workers)
+  ```,
+  caption: [Derniers logs d'un job solo ou batch. Ici dans le cas d'un batch, ces dernières lignes servent à alimenter le dashboard grafana pour avoir un résultat plus lisible et accesible lors du design de celui-ci.],
+) <fig-ray-logs>
+
+
 #figure(
   image("../images/batchRunning.png", width: 100%),
   caption: [Viusalisation d'un run sur le dataset de Vevey],
@@ -340,7 +350,43 @@ Grafana corrèle sur une même vue les métriques Prometheus (GPU, CPU, mémoire
 
 === Logs Ray dans Grafana
 
+```bash
+
+```
+
+#figure(
+  ```log
+  2026-07-03 11:04:25.706 INFO:__main__:Progress: 40 % (5683/14207)
+  2026-07-03 10:46:38.484 INFO:__main__:Progress: 39 % (5541/14207)
+  2026-07-03 10:31:13.111 INFO:__main__:Progress: 38 % (5399/14207)
+  2026-07-03 10:17:09.447 INFO:__main__:Progress: 37 % (5257/14207)
+  2026-07-03 10:02:56.138 INFO:__main__:Progress: 36 % (5115/14207)
+  2026-07-03 09:49:19.657 INFO:__main__:Progress: 35 % (4973/14207)
+  ```,
+  caption: [Extrait des logs depuis Graphana. Les logs on été choisis et affichés selon leur catégories.],
+) <fig-ray-logs>
+
+
+#figure(
+  ```log
+  (autoscaler +8h4m3s) Removing 1 nodes of type workers (max number of worker nodes reached).
+  (autoscaler +8h4m3s) Resized to 18 CPUs, 2 GPUs.
+  (SAM3Worker ip=10.42.17.137) 69 polygons over 32 tiles in 9.0s {'sign': 23, 'road_mark': 36, 'manhole': 10}
+  (SAM3Worker ip=10.42.17.137) pano_0002_021707.jpg -> 69 detections in 9.4s
+  (SAM3Worker ip=10.42.17.137) Downsampling 8000x4000 -> 6000x3000 (factor 0.75)
+  ```,
+  caption: [Extrait des logs Ray d'un run Vevey. L'autoscaler plafonne à 2 GPUs,
+    puis un worker traite une image 8000×4000 downsamplée à 0,75 (→ 6000×3000),
+    soit 32 tuiles de 1008 px, en 9 s.],
+) <fig-ray-logs>
+
+=== Ray
+
 Promtail tourne en DaemonSet et expédie les `stdout`/`stderr` de chaque pod vers Loki, stocké sur MinIO (bucket dédié `nearai-logs`, rétention 30 jours). Les logs des workers Ray se requêtent en LogQL par label.
+
+=== Pods
+
+
 
 ...
 

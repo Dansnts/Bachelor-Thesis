@@ -451,7 +451,7 @@ Toute utilisation, même partielle, de ce TB doit être faite dans le respect du
     [Stratégie de parallélisation GPU où le modèle est fragmenté sur plusieurs GPU pour réduire la latence d'une seule inférence. Justifié uniquement quand le modèle ne tient pas sur un seul GPU],
 
     [*Tuile*],
-    [Découpage d'une image panoramique en sous-images 512 × 512 px pour l'inférence SAM3, qui est limité à 1024 × 1024 px en entrée],
+    [Découpage d'une image panoramique en sous-images 504×504 px pour l'inférence SAM3, qui est limité à 1008x1008 px en entrée],
 
     [*Équirectangulaire*],
     [Projection cartographique des images panoramiques 360°. Produit une distorsion géométrique croissante vers le zénith et le nadir],

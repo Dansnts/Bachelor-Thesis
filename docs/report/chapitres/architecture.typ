@@ -216,12 +216,12 @@ Déclarer une StorageClass RWX ne suffit donc pas car elle peut supposer implici
 
 == Stratégie de tuilage
 
-L'hardware est une contrainte pour les performances de notre pipeline, les deux autres vecteurs qui sont envisageables pour gagner en performances est le software (Choix du modèle, optimisation du code) ou bien simplement les données brutes a traitées. Dans notre cas, nous avons des images de très haute résolution (8192 × 4096 px) qui devront être traité par SAM3 qui, pour rappel, à comme taille maximale de traitement par tuilles de 1024px par 1024px.
+L'hardware est une contrainte pour les performances de notre pipeline, les deux autres vecteurs qui sont envisageables pour gagner en performances est le software (Choix du modèle, optimisation du code) ou bien simplement les données brutes a traitées. Dans notre cas, nous avons des images de très haute résolution (8192 × 4096 px) qui devront être traité par SAM3 qui, pour rappel, à comme taille maximale de traitement par tuilles de 1008x1008px.
 
 Les conséquances sont les suivantes :
-- > 1024px : l'image est downsamplée par SAM3 et nous avons une perte d'information.
-- < 1024px : l'image est upscalée par SAM3 et il n'y à aucun gain d'information.
-- \= 1024 px : Natif, donc pas de changement
+- > 1008px : l'image est downsamplée par SAM3 et nous avons une perte d'information.
+- < 1008px : l'image est upscalée par SAM3 et il n'y à aucun gain d'information.
+- \= 1008 px : Natif, donc pas de changement
 Il faut donc jouer avec la taille des tuilles et ses nombres.
 
 Nous devons donc définir par défaut des valeurs des nombre de Tuiles et leurs dimmensions à travers de variables pour l'API.
