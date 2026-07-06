@@ -646,3 +646,21 @@
 | **Subtotal** |    | 11h40 |
 | **Total** |    | **11h40** |
 | **Total** |    | **53h40** |
+
+# Week 21
+
+*Monday July 6, 2026*
+
+| Task              | Status | Time |
+| :---------------- | :------: | ----: |
+| Label Studio : generate 10 pre-annotation files for Valentin (parquet -> polygonlabels JSON) + labeling interface config | Done | 35min |
+| Pipeline output reorg : results to `09_Pipeline_result/<job>/` mirroring `01_images` (fix double-nesting) + per-run `params.json` (batch/api/cli) | Done | 2h30 |
+| API : `s3OutputUri` made optional, derived from `s3Uri` when omitted (default_output_prefix) | Done | 45min |
+| Unit tests for the new code : relative_to_prefix, write_run_params, default_output_prefix, import `--run`, endpoint run scoping | Done | 1h45 |
+| Build + push images on homelab (ray-sam3, sam3-api) to ghcr | Done | 1h |
+| Cluster : recycle RayCluster + rollout API on the new image + smoke tests (batch, output layout, params.json, import) | Done | 2h |
+| Concurrent-batch test -> diagnose Ray Client head bottleneck (per-connection server on a 2 CPU / 4 Gi head) | Done | 1h15 |
+| Document the bottleneck : notes.md + resultats.typ (§ Goulots d'étranglement, tab-bottlenecks) | Done | 1h25 |
+| Journal | Done | 15min |
+| **Subtotal** |    | 11h30 |
+| **Total** |    | **11h30** |
