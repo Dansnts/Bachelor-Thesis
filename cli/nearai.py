@@ -26,15 +26,37 @@ import time
 import boto3
 import requests
 import urllib3
+from botocore.exceptions import BotoCoreError, ClientError
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
+# Variables --------------------------------------------------
 API_URL = os.getenv("API_URL", "https://sam3-api.iict-rad.iict-heig-vd.in")
 BUCKET = os.getenv("BUCKET", "nearai")
 IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png")
 
 
-# Helpers --------------------------------------------------
+# S3 --------------------------------------------------
+def make_s3_client():
+    return boto3.client(
+        "s3",
+        endpoint_url=os.getenv("S3_ENDPOINT_URL"),
+        aws_access_key_id=os.getenv("AWS_ACCESS_KEY"),
+        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+        verify=False,  # We deactivate SSL verification here, we should enable it for security measures only when we are running with a non auto signed certificate
+    )
+
+
+# Functions --------------------------------------------------
+def images_prefix(acquisition):
+    return "data/acquisitions/%s/01_images/" % acquisition
+
+
+def results_prefix(acquisition):
+    return "data/acquisitions/%s/09_Pipeline_result/" % acquisition
+
+
+# API access --------------------------------------------------
 def api_get(path, params=None):
     r = requests.get(API_URL + path, params=params, verify=False, timeout=60)
     r.raise_for_status()
@@ -47,48 +69,72 @@ def api_post(path, body=None):
     return r.json()
 
 
-def make_s3_client():
-    return boto3.client(
-        "s3",
-        endpoint_url=os.getenv("S3_ENDPOINT_URL"),
-        aws_access_key_id=os.getenv("AWS_ACCESS_KEY"),
-        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-        verify=False,
-    )
-
-
-def images_prefix(acquisition):
-    return "data/acquisitions/%s/01_images/" % acquisition
-
-
-def parquet_prefix(acquisition):
-    return "data/acquisitions/%s/09_parquet/" % acquisition
-
-
 # Commands --------------------------------------------------
+
+
 def cmd_push(args):
+    """Push local pictures to S3.
+
+    Takes a local folder of pictures and uploads the images it contains to the
+    acquisition's 01_images/ prefix in the bucket.
+
+    Arguments :
+    acquisition          name of the s3 acquisition folder
+    directory            local folder holding the pictures
+    bucket               s3 bucket where the pictures are uploaded
+    """
     s3 = make_s3_client()
     prefix = images_prefix(args.acquisition)
-    files = [
-        f
-        for f in sorted(os.listdir(args.directory))
-        if f.lower().endswith(IMAGE_EXTENSIONS)
-    ]
+
+    # Fail early if the directory is missing or unreadable rather than
+    # dumping a raw OSError traceback on the user.
+    try:
+        entries = sorted(os.listdir(args.directory))
+    except OSError as e:
+        sys.exit("Cannot read directory %s: %s" % (args.directory, e))
+
+    files = [f for f in entries if f.lower().endswith(IMAGE_EXTENSIONS)]
     if not files:
         sys.exit("No image found in %s" % args.directory)
 
     print("Uploading %d images to s3://%s/%s" % (len(files), args.bucket, prefix))
+
+    # Upload one by one so a single bad file (unreadable, or an S3 error)
+    # names the culprit instead of aborting the whole run silently.
+    failed = 0
     for i, name in enumerate(files, 1):
         local = os.path.join(args.directory, name)
-        s3.upload_file(local, args.bucket, prefix + name)
-        print("  [%d/%d] %s" % (i, len(files), name))
+        try:
+            s3.upload_file(local, args.bucket, prefix + name)
+            print("  [%d/%d] %s" % (i, len(files), name))
+        except (BotoCoreError, ClientError, OSError) as e:
+            failed += 1
+            print("  [%d/%d] %s FAILED: %s" % (i, len(files), name, e))
+
+    if failed:
+        sys.exit("%d/%d image(s) failed to upload" % (failed, len(files)))
+
     print("Done. Launch a batch with: nearai batch --acquisition %s" % args.acquisition)
 
 
 def cmd_batch(args):
+    """Launch a batch job on a whole acquisition via the API.
+
+    Input and output prefixes are derived from the acquisition name, so the
+    user only picks the labels and the parallelism.
+
+    Arguments :
+    acquisition          name of the s3 acquisition folder
+    labels               comma-separated labels to segment
+    workers              number of parallel Ray workers
+    batch_size           images processed per worker step
+    downsample           image scale factor before inference (1.0 = full size)
+    bucket               s3 bucket holding the acquisition
+    """
+
     body = {
         "s3Uri": images_prefix(args.acquisition),
-        "s3OutputUri": parquet_prefix(args.acquisition),
+        "s3OutputUri": results_prefix(args.acquisition),
         "s3Bucket": args.bucket,
         "labels": args.labels.split(","),
         "numWorkers": args.workers,
@@ -96,11 +142,23 @@ def cmd_batch(args):
         "downsample": args.downsample,
     }
     res = api_post("/jobs/batch", body)
+
     print("Submitted %s (%s)" % (res["job_name"], res["status"]))
     print("Follow it with: nearai status %s --watch" % res["job_name"])
 
 
 def cmd_solo(args):
+    """Run inference on a single image via the API.
+
+    The result is printed as-is (Label Studio JSON) for a quick check.
+
+    Arguments :
+    image                s3 key of the image to segment
+    labels               comma-separated labels to segment
+    downsample           image scale factor before inference (1.0 = full size)
+    bucket               s3 bucket holding the image
+    """
+
     body = {
         "imageUri": args.image,
         "s3Bucket": args.bucket,
@@ -111,6 +169,14 @@ def cmd_solo(args):
 
 
 def cmd_status(args):
+    """Show a batch job's progress, once or by polling.
+
+    With --watch, poll every 5s until the run reports done.
+
+    Arguments :
+    job                  job name returned by `batch`
+    watch                keep polling until the job finishes
+    """
     while True:
         try:
             s = api_get("/jobs/%s/status" % args.job)
@@ -140,24 +206,51 @@ def cmd_status(args):
 
 
 def cmd_result(args):
+    """Fetch a solo job's stored result.
+
+    Arguments :
+    job                  job name returned by `solo`
+    """
     print(api_get("/jobs/%s/result" % args.job))
 
 
 def cmd_jobs(args):
+    """List jobs, optionally filtered by kind (batch or solo).
+
+    Arguments :
+    kind                 restrict the listing to "batch" or "solo"
+    """
     res = api_get("/jobs/", params={"kind": args.kind} if args.kind else None)
     for job in res.get("jobs", []):
         print(
-            "%-28s %-7s %s"
-            % (job.get("job_name"), job.get("kind"), job.get("status"))
+            "%-28s %-7s %s" % (job.get("job_name"), job.get("kind"), job.get("status"))
         )
 
 
 def cmd_import(args):
-    res = api_post("/import/%s?write=%s" % (args.acquisition, str(args.write).lower()))
+    """Convert an acquisition's Parquet output to Label Studio JSON.
+
+    Targets every run by default, or a single run with --run. With --write the
+    API stores the JSON back to S3 instead of only returning it.
+
+    Arguments :
+    acquisition          name of the s3 acquisition folder
+    run                  job name of a specific run (default: all runs)
+    write                store the JSON to S3 instead of returning it
+    """
+    query = "write=%s" % str(args.write).lower()
+    if args.run:
+        query += "&run=%s" % args.run
+    res = api_post("/import/%s?%s" % (args.acquisition, query))
     print(res)
 
 
 def cmd_segment(args):
+    """Wake ("up") or sleep ("down") the segmentation service.
+
+    Arguments :
+    action               "up" to scale the service up, "down" to scale it down
+    """
     print(api_post("/segment/%s" % args.action))
 
 
@@ -201,8 +294,11 @@ def main():
     p.add_argument("--kind", choices=["batch", "solo"])
     p.set_defaults(func=cmd_jobs)
 
-    p = sub.add_parser("import", help="convert an acquisition's Parquet to Label Studio")
+    p = sub.add_parser(
+        "import", help="convert an acquisition's Parquet to Label Studio"
+    )
     p.add_argument("acquisition")
+    p.add_argument("--run", help="job name of a specific run (default: all runs)")
     p.add_argument("--write", action="store_true", help="write the JSON to S3")
     p.set_defaults(func=cmd_import)
 
@@ -215,7 +311,10 @@ def main():
         args.func(args)
     except requests.HTTPError as e:
         code = e.response.status_code if e.response is not None else "?"
-        sys.exit("API error %s: %s" % (code, e.response.text if e.response is not None else e))
+        sys.exit(
+            "API error %s: %s"
+            % (code, e.response.text if e.response is not None else e)
+        )
     except requests.RequestException as e:
         sys.exit("Cannot reach the API at %s: %s" % (API_URL, e))
 
