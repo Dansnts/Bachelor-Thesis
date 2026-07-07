@@ -12,9 +12,13 @@ Usage:
     # on the cluster (connects to the RayCluster head)
     python3.12 main.py \
         --s3_uri s3://nearai/data/acquisitions/Samples/01_images/ \
-        --s3_output_uri s3://nearai/data/acquisitions/Samples/09_parquet/ \
+        --s3_output_uri s3://nearai/data/acquisitions/Samples/09_Pipeline_result/<run>/ \
         --labels sign,road_marking \
         --num_workers 2
+
+The output mirrors the sub-structure of the input prefix: an image at
+<input>/S001/foo.jpg lands at <output>/S001/foo.parquet. A params.json and a
+dataset_info.txt describing the run are written at the root of <output>.
 
     # local test (single GPU, no cluster)
     python3.12 main.py --local --s3_uri ... --s3_output_uri ... --labels sign
@@ -29,24 +33,33 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import ray
-from PIL import Image
-
 from jobCore.s3 import make_s3_client
-from jobCore.worker import DEFAULT_BATCH_SIZE, DEFAULT_DOWNSAMPLE, DEFAULT_TILE_SIZE, DEFAULT_TILE_STRIDE, Sam3Model
+from jobCore.worker import (
+    DEFAULT_BATCH_SIZE,
+    DEFAULT_DOWNSAMPLE,
+    DEFAULT_TILE_SIZE,
+    DEFAULT_TILE_STRIDE,
+    Sam3Model,
+)
+from PIL import Image
 
 # Variables --------------------------------------------------
 RAY_HEAD = "ray://ray-cluster-head-svc:10001"
 SUPPORTED_EXT = {".jpg", ".jpeg", ".png", ".tiff", ".tif"}
-
 
 # Logging --------------------------------------------------
 log = logging.getLogger(__name__)
 
 
 # S3 / EXIF --------------------------------------------------
-
-
 def list_images(client, bucket, prefix):
+    """List every supported image under an S3 prefix, sorted.
+
+    Arguments :
+    client               boto3 S3 client
+    bucket               bucket to scan
+    prefix               prefix under which to list the images
+    """
     keys = []
     paginator = client.get_paginator("list_objects_v2")
     for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
@@ -58,6 +71,16 @@ def list_images(client, bucket, prefix):
 
 
 def already_processed(client, bucket, prefix):
+    """Return the stems of the images already written as Parquet.
+
+    Used by --resume to skip images whose result exists. Matches by file stem,
+    so <img>.jpg is considered done once <img>.parquet is present.
+
+    Arguments :
+    client               boto3 S3 client
+    bucket               output bucket to scan
+    prefix               output prefix holding the existing Parquet
+    """
     done = set()
     paginator = client.get_paginator("list_objects_v2")
     for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
@@ -69,19 +92,35 @@ def already_processed(client, bucket, prefix):
 
 
 def dms_to_decimal(dms, ref):
+    """Convert EXIF GPS degrees/minutes/seconds to a signed decimal degree.
+
+    Arguments :
+    dms                  (degrees, minutes, seconds) tuple from EXIF
+    ref                  hemisphere ref; "S" or "W" makes the result negative
+    """
     d, m, s = dms
     decimal = d + m / 60 + s / 3600
     return -decimal if ref in ("S", "W") else decimal
 
 
 def download_image(client, bucket, key):
+    """Download an image and pull its metadata (resolution, camera, GPS).
+
+    Resolution comes from the decoded image; the camera fields and GPS come
+    from EXIF when present. Missing or unreadable EXIF is not fatal: the
+    coordinates stay None and the metadata fields stay empty.
+
+    Arguments :
+    client               boto3 S3 client
+    bucket               bucket holding the image
+    key                  S3 key of the image
+
+    Returns (image, latitude, longitude, meta).
+    """
     resp = client.get_object(Bucket=bucket, Key=key)
     raw = resp["Body"].read()
     img = Image.open(io.BytesIO(raw)).convert("RGB")
-
     lat, lon = None, None
-    # dataset metadata propagated to the run summary. Resolution comes from the
-    # decoded image (not always in EXIF); the rest comes from EXIF when present.
     meta = {
         "make": None,
         "model": None,
@@ -95,8 +134,6 @@ def download_image(client, bucket, key):
 
         exif = ExifImage(raw)
         if exif.has_exif:
-            # get() returns None when the field is absent, so a camera that does
-            # not record a value simply leaves it empty in the summary
             meta["make"] = exif.get("make")
             meta["model"] = exif.get("model")
             meta["software"] = exif.get("software")
@@ -111,6 +148,17 @@ def download_image(client, bucket, key):
 
 
 def upload_parquet(client, bucket, key, rows):
+    """Write one image's detections as a Snappy-compressed Parquet on S3.
+
+    One row = one detected polygon, following the pipeline schema (image_key,
+    acquisition_id, label, score, points, resolution, latitude, longitude).
+
+    Arguments :
+    client               boto3 S3 client
+    bucket               destination bucket
+    key                  destination Parquet key
+    rows                 list of row dicts matching the schema
+    """
     import pyarrow as pa
     import pyarrow.parquet as pq
 
@@ -143,9 +191,18 @@ def upload_parquet(client, bucket, key, rows):
 
 
 def write_dataset_info(client, bucket, prefix, labels, info):
-    # Human-readable summary of the dataset, written once at the root of the
-    # results. "info" is filled by the driver as images come back from the
-    # workers (camera models, resolutions, GPS coverage, camera direction).
+    """Write a human-readable dataset summary at the root of the results.
+
+    "info" is filled by the driver as images come back from the workers
+    (camera models, resolutions, GPS coverage, camera direction).
+
+    Arguments :
+    client               boto3 S3 client
+    bucket               output bucket
+    prefix               output prefix; the file lands at <prefix>/dataset_info.txt
+    labels               labels segmented in this run
+    info                 aggregated dataset metadata (see the driver's dataset_info)
+    """
     cameras = sorted(c for c in info["cameras"] if c)
     softwares = sorted(s for s in info["softwares"] if s)
     resolutions = sorted("%dx%d" % (w, h) for (w, h) in info["resolutions"])
@@ -154,7 +211,9 @@ def write_dataset_info(client, bucket, prefix, labels, info):
         lo = min(info["directions"])
         hi = max(info["directions"])
         direction_line = "available on %d images (%.1f to %.1f)" % (
-            len(info["directions"]), lo, hi
+            len(info["directions"]),
+            lo,
+            hi,
         )
     else:
         direction_line = "not provided by the device"
@@ -162,14 +221,25 @@ def write_dataset_info(client, bucket, prefix, labels, info):
     lines = []
     lines.append("Dataset analysis summary")
     lines.append("========================")
-    lines.append("Generated (UTC) : %s" % datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
+    lines.append(
+        "Generated (UTC) : %s"
+        % datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    )
     lines.append("Images processed : %d" % info["images"])
     lines.append("Labels           : %s" % ", ".join(labels))
     lines.append("")
-    lines.append("Camera(s)        : %s" % (", ".join(cameras) if cameras else "unknown"))
-    lines.append("Software         : %s" % (", ".join(softwares) if softwares else "unknown"))
-    lines.append("Resolution(s)    : %s" % (", ".join(resolutions) if resolutions else "unknown"))
-    lines.append("GPS available    : %d/%d images" % (info["gps_count"], info["images"]))
+    lines.append(
+        "Camera(s)        : %s" % (", ".join(cameras) if cameras else "unknown")
+    )
+    lines.append(
+        "Software         : %s" % (", ".join(softwares) if softwares else "unknown")
+    )
+    lines.append(
+        "Resolution(s)    : %s" % (", ".join(resolutions) if resolutions else "unknown")
+    )
+    lines.append(
+        "GPS available    : %d/%d images" % (info["gps_count"], info["images"])
+    )
     lines.append("Camera direction : %s" % direction_line)
     body = "\n".join(lines) + "\n"
 
@@ -182,12 +252,56 @@ def write_dataset_info(client, bucket, prefix, labels, info):
     )
 
 
+def write_run_params(client, bucket, prefix, args, labels, images, detections):
+    """Write the machine-readable run config as params.json.
+
+    Sits at the root of the results so each run is self-documented: which
+    parameters produced these Parquet.
+
+    Arguments :
+    client               boto3 S3 client
+    bucket               output bucket
+    prefix               output prefix; the file lands at <prefix>/params.json
+    args                 parsed CLI args (uris, tiling, workers, downsample)
+    labels               labels segmented in this run
+    images               number of images processed
+    detections           total polygons detected across the run
+    """
+    params = {
+        "run": prefix.strip("/").rsplit("/", 1)[-1],
+        "generated_utc": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+        "input_uri": args.s3_uri,
+        "output_uri": args.s3_output_uri,
+        "labels": labels,
+        "num_workers": args.num_workers,
+        "batch_size": args.batch_size,
+        "tile_size": args.tile_size,
+        "tile_stride": args.tile_stride,
+        "downsample": args.downsample,
+        "images_processed": images,
+        "total_detections": detections,
+    }
+    key = "%s/params.json" % prefix.rstrip("/")
+    client.put_object(
+        Bucket=bucket,
+        Key=key,
+        Body=json.dumps(params, indent=2).encode(),
+        ContentType="application/json",
+    )
+
+
 def write_status(client, bucket, key, processed, total, started_at, done=False):
-    # Small progress file read back by the API on /jobs/{name}/status.
-    # Rewritten at every percent step during the run.
-    # We store started_at (epoch) rather than the elapsed time: the API
-    # recomputes elapsed_seconds on each read, so the time keeps moving even
-    # between steps. On the final write (done=True) we freeze elapsed_seconds.
+    """Write the run's progress file, read back by the API's /status endpoint.
+
+    Arguments :
+    client               boto3 S3 client
+    bucket               bucket holding the status file
+    key                  status object key
+    processed            images done so far
+    total                total images in the run
+    started_at           run start (epoch seconds), for the elapsed time
+    done                 True to freeze the file as final (adds elapsed_seconds)
+    """
     percent = int(processed * 100 / total) if total else 0
     body = {
         "total": total,
@@ -206,7 +320,34 @@ def write_status(client, bucket, key, processed, total, started_at, done=False):
     )
 
 
+def relative_to_prefix(key, prefix):
+    """Return an image's path relative to the input prefix.
+
+    Lets the output mirror only the sub-structure of the input: an image at
+    <prefix>/S001/foo.jpg yields "S001". Guards against false positives like
+    "01_images_backup" matching "01_images". Returns "" when the image sits
+    directly at the prefix root.
+
+    Arguments :
+    key                  S3 key of the image
+    prefix               input prefix the key lives under
+    """
+    parent = str(Path(key).parent).strip("/")
+    base = prefix.strip("/")
+    if base and (parent == base or parent.startswith(base + "/")):
+        return parent[len(base) :].strip("/")
+    return parent
+
+
 def get_acquisition_id(key):
+    """Extract the acquisition name from an image key.
+
+    Takes the segment right after "acquisitions/" in the path; falls back to
+    the image's grand-parent folder name when the path has no such marker.
+
+    Arguments :
+    key                  S3 key of the image
+    """
     parts = Path(key).parts
     try:
         idx = list(parts).index("acquisitions")
@@ -220,9 +361,37 @@ def get_acquisition_id(key):
 
 @ray.remote(num_gpus=1)
 class SAM3Worker:
-    def __init__(self, batch_size=DEFAULT_BATCH_SIZE, tile_size=DEFAULT_TILE_SIZE, tile_stride=DEFAULT_TILE_STRIDE, downsample=DEFAULT_DOWNSAMPLE):
+    """A GPU actor that segments images on the RayCluster.
+
+    Each instance owns one GPU, loads SAM3 once at creation and then processes
+    the images the driver dispatches to it. The driver spawns num_workers of
+    these and hands out images round-robin.
+
+    Attributes:
+        model: the SAM3 model, loaded once and reused for every image.
+        s3: this worker's own boto3 S3 client (for download and upload).
+    """
+
+    def __init__(
+        self,
+        batch_size=DEFAULT_BATCH_SIZE,
+        tile_size=DEFAULT_TILE_SIZE,
+        tile_stride=DEFAULT_TILE_STRIDE,
+        downsample=DEFAULT_DOWNSAMPLE,
+    ):
+        """Load SAM3 on the actor's GPU and open its S3 client.
+
+        Arguments :
+        batch_size           tiles inferred at once on the GPU
+        tile_size            side of the square tiles the image is cut into
+        tile_stride          tile step; < tile_size overlaps the tiles
+        downsample           shrink factor applied before tiling
+        """
         self.model = Sam3Model(
-            tile_size=tile_size, tile_stride=tile_stride, batch_size=batch_size, downsample=downsample
+            tile_size=tile_size,
+            tile_stride=tile_stride,
+            batch_size=batch_size,
+            downsample=downsample,
         )
         self.s3 = make_s3_client()
         self.log = logging.getLogger("jobCore")
@@ -230,7 +399,23 @@ class SAM3Worker:
             "Worker ready on node %s", ray.get_runtime_context().get_node_id()[:12]
         )
 
-    def process(self, bucket, key, out_bucket, out_prefix, labels):
+    def process(self, bucket, key, in_prefix, out_bucket, out_prefix, labels):
+        """Segment one image and write its detections as Parquet.
+
+        Downloads the image, runs inference, and writes <stem>.parquet under
+        out_prefix at the same sub-path the image had under in_prefix (so the
+        output mirrors the input layout).
+
+        Arguments :
+        bucket               bucket holding the image
+        key                  S3 key of the image
+        in_prefix            input prefix, used to mirror the layout in the output
+        out_bucket           destination bucket for the Parquet
+        out_prefix           destination prefix (this run's folder)
+        labels               labels to segment
+
+        Returns a dict the driver aggregates (detections, time, GPS, metadata).
+        """
         t0 = time.time()
         image, lat, lon, meta = download_image(self.s3, bucket, key)
         polygons, w, h = self.model.infer(image, labels)
@@ -253,7 +438,7 @@ class SAM3Worker:
             )
 
         stem = Path(key).stem
-        rel = str(Path(key).parent).lstrip("/")
+        rel = relative_to_prefix(key, in_prefix)
         out_key = (
             f"{out_prefix.rstrip('/')}/{rel}/{stem}.parquet"
             if rel
@@ -262,7 +447,9 @@ class SAM3Worker:
         upload_parquet(self.s3, out_bucket, out_key, rows)
 
         elapsed = time.time() - t0
-        self.log.info("%s -> %d detections in %.1fs", Path(key).name, len(rows), elapsed)
+        self.log.info(
+            "%s -> %d detections in %.1fs", Path(key).name, len(rows), elapsed
+        )
         return {
             "key": key,
             "detections": len(rows),
@@ -276,6 +463,13 @@ class SAM3Worker:
 
 
 def main():
+    """Driver: connect to Ray, dispatch the images, aggregate the results.
+
+    Lists the images of the input prefix, spawns num_workers GPU actors and
+    hands out the images round-robin. Consumes results as they complete to keep
+    the progress file live, then writes dataset_info.txt and params.json at the
+    root of the output. Parameters come from the command line (see --help).
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("--s3_uri", required=True, help="s3://bucket/prefix/")
     parser.add_argument("--s3_output_uri", required=True, help="s3://bucket/prefix/")
@@ -286,7 +480,9 @@ def main():
     parser.add_argument("--tile_stride", type=int, default=DEFAULT_TILE_STRIDE)
     parser.add_argument("--downsample", type=float, default=DEFAULT_DOWNSAMPLE)
     parser.add_argument("--resume", action="store_true")
-    parser.add_argument("--local", action="store_true", help="ray.init() without cluster")
+    parser.add_argument(
+        "--local", action="store_true", help="ray.init() without cluster"
+    )
     parser.add_argument(
         "--status_uri",
         default=None,
@@ -335,7 +531,9 @@ def main():
 
     # round-robin dispatch: image i -> worker (i mod n)
     futures = [
-        workers[i % n].process.remote(in_bucket, key, out_bucket, out_prefix, labels)
+        workers[i % n].process.remote(
+            in_bucket, key, in_prefix, out_bucket, out_prefix, labels
+        )
         for i, key in enumerate(keys)
     ]
 
@@ -356,8 +554,7 @@ def main():
         "directions": [],
     }
 
-    # ray.wait returns the futures as they complete (not in one block like
-    # ray.get), which lets us increment the counter image by image.
+    # ray.wait returns the futures as they complete (not in one block like ray.get), which lets us increment the counter image by image.
     pending = futures
     while pending:
         done, pending = ray.wait(pending, num_returns=1)
@@ -383,22 +580,34 @@ def main():
         percent = int(processed_images * 100 / total_images)
         if percent != last_percent:
             last_percent = percent
-            log.info(
-                "Progress: %d %% (%d/%d)", percent, processed_images, total_images
-            )
+            log.info("Progress: %d %% (%d/%d)", percent, processed_images, total_images)
             if status_key:
                 write_status(
-                    client, status_bucket, status_key, processed_images, total_images, started_at
+                    client,
+                    status_bucket,
+                    status_key,
+                    processed_images,
+                    total_images,
+                    started_at,
                 )
 
     # final frozen status (done=True): elapsed_seconds will no longer change
     if status_key:
         write_status(
-            client, status_bucket, status_key, processed_images, total_images, started_at, done=True
+            client,
+            status_bucket,
+            status_key,
+            processed_images,
+            total_images,
+            started_at,
+            done=True,
         )
 
-    # dataset summary at the root of the results
+    # dataset summary + run parameters at the root of the results
     write_dataset_info(client, out_bucket, out_prefix, labels, dataset_info)
+    write_run_params(
+        client, out_bucket, out_prefix, args, labels, total_images, total_detections
+    )
 
     wall_time = time.time() - started_at
     num_images = total_images
