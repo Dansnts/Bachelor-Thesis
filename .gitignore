@@ -17,6 +17,7 @@ keys.txt
 # Others
 *.zip
 *.DS_Store
+archive/
 
 # Working files (too heavy / not deliverables)
 *.psd
