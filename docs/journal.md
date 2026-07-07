@@ -664,3 +664,19 @@
 | Journal | Done | 15min |
 | **Subtotal** |    | 11h30 |
 | **Total** |    | **11h30** |
+
+*Tuesday July 7, 2026*
+
+| Task              | Status | Time |
+| :---------------- | :------: | ----: |
+| `cli/nearai.py` : docstring on every command + try/except (unreadable directory, per-file S3 upload → fail the run on any upload error) | Done | 1h |
+| `api/main.py` : docstrings on the 4 request models and every function/endpoint, S3-read error handling (503 on MinIO outage in `/status`, `/result`, `/import`) | Done | 2h30 |
+| `deploy/jobs/batch/main.py` : docstrings on every function, the `SAM3Worker` actor and its methods | Done | 1h |
+| Readability/refactor pass over the three files (spacing, structure) | Done | 1h30 |
+| Verify the API actually boots and serves (real import, routes registered, TestClient responses) | Done | 30min |
+| CI green : restore `iter_label_studio_tasks` dropped by the refactor (its `yield` had turned `rows_to_label_studio` into a generator, breaking `/import`) + align the 5 unit-test files with the `09_Pipeline_result` layout | Done | 1h30 |
+| Commit the batch reorg that was deployed to the cluster but never committed (`relative_to_prefix`, `write_run_params`, `in_prefix`) | Done | 30min |
+| Idea of YOLOv8 stretch goal + Talk with Valentin + journal | Done | 30min |
+| **Subtotal** |    | 9h |
+| **Total** |    | **9h** |
+| **Total** |    | **20h30** |
