@@ -46,8 +46,8 @@ class TestCliPrefixes:
     def test_images_prefix(self, cli_module):
         assert cli_module.images_prefix("Vevey") == "data/acquisitions/Vevey/01_images/"
 
-    def test_parquet_prefix(self, cli_module):
-        assert cli_module.parquet_prefix("Vevey") == "data/acquisitions/Vevey/09_parquet/"
+    def test_results_prefix(self, cli_module):
+        assert cli_module.results_prefix("Vevey") == "data/acquisitions/Vevey/09_Pipeline_result/"
 
 
 # --- cli: command bodies ---------------------------------------------------
@@ -69,7 +69,7 @@ class TestCliBatch:
         assert captured["path"] == "/jobs/batch"
         body = captured["body"]
         assert body["s3Uri"] == "data/acquisitions/Vevey/01_images/"
-        assert body["s3OutputUri"] == "data/acquisitions/Vevey/09_parquet/"
+        assert body["s3OutputUri"] == "data/acquisitions/Vevey/09_Pipeline_result/"
         assert body["labels"] == ["sign", "road_mark"]     # split on comma
         assert body["numWorkers"] == 3 and body["downsample"] == 0.75
         # user gets the submitted job name back
@@ -118,3 +118,32 @@ class TestCliJobs:
         cli_module.cmd_jobs(types.SimpleNamespace(kind="batch"))
         assert seen["path"] == "/jobs/"
         assert seen["params"] == {"kind": "batch"}
+
+
+class TestCliImport:
+    def _capture(self, cli_module, monkeypatch):
+        seen = {}
+
+        def fake_post(path, body=None):
+            seen["path"] = path
+            return {"ok": True}
+
+        monkeypatch.setattr(cli_module, "api_post", fake_post)
+        return seen
+
+    def test_import_without_run_targets_all_runs(self, cli_module, monkeypatch):
+        seen = self._capture(cli_module, monkeypatch)
+        cli_module.cmd_import(types.SimpleNamespace(acquisition="Vevey", write=False, run=None))
+        assert seen["path"] == "/import/Vevey?write=false"
+
+    def test_import_with_run_appends_query(self, cli_module, monkeypatch):
+        seen = self._capture(cli_module, monkeypatch)
+        cli_module.cmd_import(
+            types.SimpleNamespace(acquisition="Vevey", write=False, run="sam3-batch-abcd")
+        )
+        assert seen["path"] == "/import/Vevey?write=false&run=sam3-batch-abcd"
+
+    def test_import_write_true_is_lowercased(self, cli_module, monkeypatch):
+        seen = self._capture(cli_module, monkeypatch)
+        cli_module.cmd_import(types.SimpleNamespace(acquisition="Vevey", write=True, run=None))
+        assert seen["path"] == "/import/Vevey?write=true"

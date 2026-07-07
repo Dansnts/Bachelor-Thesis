@@ -508,6 +508,14 @@ def rows_to_label_studio(bucket, rows):
 
     return list(tasks.values())
 
+
+def iter_label_studio_tasks(s3, bucket, keys, workers=16):
+    # Yields the Label Studio tasks one image at a time. The batch pipeline
+    # writes one Parquet per image, so we read + convert file by file and never
+    # hold the whole dataset in memory. Reads are done in parallel batches since
+    # the cost is dominated by the S3 round-trips.
+    from concurrent.futures import ThreadPoolExecutor
+
     # 4 keys queued per thread: over-subscribe so no thread idles at a chunk boundary while a slow S3 read finishes (pool.map buffers <= batch results).
     batch = workers * 4
 

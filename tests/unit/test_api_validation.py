@@ -45,7 +45,7 @@ class TestRequiredFields:
 
     @pytest.mark.parametrize(
         "field",
-        ["s3Uri", "s3OutputUri", "s3Bucket", "labels", "numWorkers", "batchSize"],
+        ["s3Uri", "s3Bucket", "labels", "numWorkers", "batchSize"],
     )
     def test_batch_missing_field_is_422(self, client, field):
         body = _batch()

@@ -6,6 +6,42 @@ import types
 import pytest
 
 
+# --- default_output_prefix -------------------------------------------------
+class TestDefaultOutputPrefix:
+    """Results location derived from the images prefix when s3OutputUri is omitted."""
+
+    def test_from_01_images_prefix(self, api_module):
+        assert (
+            api_module.default_output_prefix("data/acquisitions/Vevey/01_images/")
+            == "data/acquisitions/Vevey/09_Pipeline_result/"
+        )
+
+    def test_from_acquisition_root_without_01_images(self, api_module):
+        # testValentin layout: images sit directly under the acquisition folder
+        assert (
+            api_module.default_output_prefix("data/acquisitions/testValentin")
+            == "data/acquisitions/testValentin/09_Pipeline_result/"
+        )
+
+    def test_from_full_s3_uri(self, api_module):
+        assert (
+            api_module.default_output_prefix("s3://nearai/data/acquisitions/Vevey/01_images/")
+            == "data/acquisitions/Vevey/09_Pipeline_result/"
+        )
+
+    def test_deep_prefix_cuts_at_01_images(self, api_module):
+        assert (
+            api_module.default_output_prefix("data/acquisitions/HSN/01_images/S001/")
+            == "data/acquisitions/HSN/09_Pipeline_result/"
+        )
+
+    def test_leading_and_trailing_slashes_are_normalised(self, api_module):
+        assert (
+            api_module.default_output_prefix("/data/acquisitions/Vevey/01_images")
+            == "data/acquisitions/Vevey/09_Pipeline_result/"
+        )
+
+
 # --- to_s3_uri -------------------------------------------------------------
 class TestToS3Uri:
     def test_plain_path_gets_bucket_prefix(self, api_module):

@@ -56,12 +56,27 @@ class TestSubmitBatch:
         args = job.spec.template.spec.containers[0].args
         # s3 URIs are normalised to s3://bucket/prefix
         assert "s3://nearai/data/in/" in args
-        assert "s3://nearai/data/out/" in args
+        # the output URI gets a per-run subfolder (the job name) so runs never
+        # overwrite each other
+        out_uri = args[args.index("--s3_output_uri") + 1]
+        assert out_uri.startswith("s3://nearai/data/out/sam3-batch-")
+        assert out_uri.endswith("/")
         assert "sign,road_mark" in args          # labels joined by comma
         assert args[args.index("--num_workers") + 1] == "3"
         assert args[args.index("--tile_size") + 1] == "1008"
         assert args[args.index("--tile_stride") + 1] == "768"
         assert args[args.index("--downsample") + 1] == "0.75"
+
+    def test_output_uri_defaults_from_input_when_omitted(self, client, fake_k8s):
+        # No s3OutputUri -> derived from s3Uri: acquisition root + 09_Pipeline_result/<job>/
+        body = {k: v for k, v in BATCH.items() if k != "s3OutputUri"}
+        body["s3Uri"] = "data/acquisitions/Vevey/01_images/"
+        client.post("/jobs/batch", json=body)
+        job = next(iter(fake_k8s.batch.jobs.values()))
+        args = job.spec.template.spec.containers[0].args
+        out_uri = args[args.index("--s3_output_uri") + 1]
+        assert out_uri.startswith("s3://nearai/data/acquisitions/Vevey/09_Pipeline_result/sam3-batch-")
+        assert out_uri.endswith("/")
 
     def test_batch_driver_has_no_gpu(self, client, fake_k8s):
         client.post("/jobs/batch", json=BATCH)
@@ -255,7 +270,7 @@ class TestImport:
         pq.write_table(table, buf)
         fake_s3.put_object(
             Bucket="nearai",
-            Key="data/acquisitions/%s/09_parquet/a.parquet" % acq,
+            Key="data/acquisitions/%s/09_Pipeline_result/sam3-batch-test/a.parquet" % acq,
             Body=buf.getvalue(),
         )
 
@@ -268,6 +283,18 @@ class TestImport:
         result = tasks[0]["predictions"][0]["result"][0]
         assert result["from_name"] == "label"
         assert result["value"]["polygonlabels"] == ["sign"]
+
+    def test_import_scoped_to_a_run(self, client, fake_s3):
+        # ?run=<job> reads only that run's subfolder
+        self._seed_parquet(fake_s3)
+        r = client.post("/import/Vevey", params={"run": "sam3-batch-test"})
+        assert r.status_code == 200
+        assert len(json.loads(r.content)) == 1
+
+    def test_import_unknown_run_is_404(self, client, fake_s3):
+        self._seed_parquet(fake_s3)
+        r = client.post("/import/Vevey", params={"run": "sam3-batch-nope"})
+        assert r.status_code == 404
 
     def test_import_write_true_persists_to_s3(self, client, fake_s3):
         self._seed_parquet(fake_s3)

@@ -6,6 +6,100 @@ file and the S3 listing helpers (with the in-memory fake S3).
 """
 
 import json
+import types
+
+
+class TestRelativeToPrefix:
+    """Mirroring of the input sub-structure under the output prefix.
+
+    The result must reproduce the folders below the input prefix (S001, ...)
+    without repeating the whole source path (the old double-nesting bug).
+    """
+
+    def test_subfolder_is_kept(self, batch_module):
+        rel = batch_module.relative_to_prefix(
+            "data/acquisitions/Vevey/01_images/S001/foo.jpg",
+            "data/acquisitions/Vevey/01_images/",
+        )
+        assert rel == "S001"
+
+    def test_nested_subfolders_are_kept(self, batch_module):
+        rel = batch_module.relative_to_prefix(
+            "data/acquisitions/Vevey/01_images/S002/x/bar.jpg",
+            "data/acquisitions/Vevey/01_images/",
+        )
+        assert rel == "S002/x"
+
+    def test_image_directly_under_prefix_is_empty(self, batch_module):
+        rel = batch_module.relative_to_prefix(
+            "data/acquisitions/testValentin/foo.jpg",
+            "data/acquisitions/testValentin/",
+        )
+        assert rel == ""
+
+    def test_image_at_prefix_root_is_empty(self, batch_module):
+        rel = batch_module.relative_to_prefix(
+            "data/acquisitions/Vevey/01_images/top.jpg",
+            "data/acquisitions/Vevey/01_images/",
+        )
+        assert rel == ""
+
+    def test_prefix_without_trailing_slash(self, batch_module):
+        rel = batch_module.relative_to_prefix(
+            "data/acquisitions/Vevey/01_images/S001/foo.jpg",
+            "data/acquisitions/Vevey/01_images",
+        )
+        assert rel == "S001"
+
+    def test_key_not_under_prefix_falls_back_to_parent(self, batch_module):
+        # defensive: key that does not sit under the prefix keeps its own parent
+        rel = batch_module.relative_to_prefix("other/place/foo.jpg", "data/acquisitions/Vevey/")
+        assert rel == "other/place"
+
+    def test_empty_prefix_returns_full_parent(self, batch_module):
+        rel = batch_module.relative_to_prefix("a/b/c.jpg", "")
+        assert rel == "a/b"
+
+    def test_no_prefix_substring_false_positive(self, batch_module):
+        # "01_images_backup" must NOT be treated as under "01_images"
+        rel = batch_module.relative_to_prefix(
+            "data/acq/01_images_backup/foo.jpg", "data/acq/01_images"
+        )
+        assert rel == "data/acq/01_images_backup"
+
+
+class TestWriteRunParams:
+    def _args(self):
+        return types.SimpleNamespace(
+            s3_uri="s3://nearai/data/acquisitions/Vevey/01_images/",
+            s3_output_uri="s3://nearai/data/acquisitions/Vevey/09_Pipeline_result/sam3-batch-abcd/",
+            num_workers=3,
+            batch_size=4,
+            tile_size=1008,
+            tile_stride=768,
+            downsample=0.75,
+        )
+
+    def test_writes_params_json_with_run_and_counts(self, batch_module, fake_s3):
+        prefix = "data/acquisitions/Vevey/09_Pipeline_result/sam3-batch-abcd/"
+        batch_module.write_run_params(
+            fake_s3, "nearai", prefix, self._args(), ["sign", "road_marking"], 10, 177
+        )
+        stored = json.loads(fake_s3.store[("nearai", prefix + "params.json")])
+        assert stored["run"] == "sam3-batch-abcd"          # last path component
+        assert stored["labels"] == ["sign", "road_marking"]
+        assert stored["num_workers"] == 3 and stored["batch_size"] == 4
+        assert stored["tile_size"] == 1008 and stored["tile_stride"] == 768
+        assert stored["downsample"] == 0.75
+        assert stored["images_processed"] == 10
+        assert stored["total_detections"] == 177
+        assert stored["input_uri"].endswith("/01_images/")
+
+    def test_run_name_survives_prefix_without_trailing_slash(self, batch_module, fake_s3):
+        prefix = "data/acquisitions/Vevey/09_Pipeline_result/sam3-batch-abcd"
+        batch_module.write_run_params(fake_s3, "nearai", prefix, self._args(), ["sign"], 1, 2)
+        stored = json.loads(fake_s3.store[("nearai", prefix + "/params.json")])
+        assert stored["run"] == "sam3-batch-abcd"
 
 
 class TestDmsToDecimal:
