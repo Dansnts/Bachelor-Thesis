@@ -138,6 +138,50 @@ class TestGetAcquisitionId:
         assert isinstance(batch_module.get_acquisition_id(key), str)
 
 
+class TestPoseCsvKey:
+    """Deriving a session's trajectory CSV key from an image key."""
+
+    def test_derives_trajectory_csv_from_image(self, batch_module):
+        key = "data/acquisitions/20241003-Nyon/01_images/S003/20241003-Nyon_S003_ladybug5plus_000001.jpg"
+        assert (
+            batch_module.pose_csv_key(key)
+            == "data/acquisitions/20241003-Nyon/02_poses/S003_trajectory.csv"
+        )
+
+    def test_none_without_session_folder(self, batch_module):
+        # image directly under 01_images has no session to key the CSV on
+        key = "data/acquisitions/Vevey/01_images/img.jpg"
+        assert batch_module.pose_csv_key(key) is None
+
+    def test_none_when_no_01_images(self, batch_module):
+        assert batch_module.pose_csv_key("other/place/img.jpg") is None
+
+
+class TestLoadPoses:
+    """Reading a trajectory CSV into {image_name: (lat, lon, heading)}."""
+
+    CSV = (
+        "frame_index,image_name,timestamp,gps_latitude,gps_longitude,"
+        "gps_altitude_m,heading_deg,pitch_deg,roll_deg\n"
+        "1,a.jpg,2024-10-03T11:09:31,46.3819,6.2308,409.5,33.07,-1.6,1.6\n"
+        "2,b.jpg,2025-06-18T06:13:53Z,47.6220,6.1511,270.3,,,\n"  # empty heading
+    )
+
+    def test_maps_image_name_to_coordinates(self, batch_module, fake_s3):
+        fake_s3.store[("nearai", "poses.csv")] = self.CSV.encode()
+        poses = batch_module.load_poses(fake_s3, "nearai", "poses.csv")
+        assert poses["a.jpg"] == (46.3819, 6.2308, 33.07)
+
+    def test_empty_cells_become_none(self, batch_module, fake_s3):
+        fake_s3.store[("nearai", "poses.csv")] = self.CSV.encode()
+        poses = batch_module.load_poses(fake_s3, "nearai", "poses.csv")
+        assert poses["b.jpg"] == (47.6220, 6.1511, None)  # heading absent -> None
+
+    def test_missing_file_gives_empty_map(self, batch_module, fake_s3):
+        # NoSuchKey (or any read error) must not raise: callers fall back to EXIF
+        assert batch_module.load_poses(fake_s3, "nearai", "nope.csv") == {}
+
+
 class TestWriteStatus:
     def test_writes_progress_json(self, batch_module, fake_s3):
         batch_module.write_status(fake_s3, "nearai", "results/j.status.json", 42, 100, 1_000_000_000)

@@ -77,13 +77,16 @@ class TestJobStatus:
 
 # --- rows_to_label_studio --------------------------------------------------
 class TestRowsToLabelStudio:
-    def _row(self, image_key, label="sign", points="[[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]"):
+    def _row(self, image_key, label="sign", points="[[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]",
+             latitude=46.38, longitude=6.23):
         return {
             "image_key": image_key,
             "label": label,
             "points": points,
             "original_width": 8000,
             "original_height": 4000,
+            "latitude": latitude,
+            "longitude": longitude,
         }
 
     def test_groups_polygons_by_image(self, api_module):
@@ -112,6 +115,18 @@ class TestRowsToLabelStudio:
 
     def test_empty_rows_gives_no_tasks(self, api_module):
         assert api_module.rows_to_label_studio("nearai", []) == []
+
+    def test_gps_travels_in_task_data(self, api_module):
+        # lat/lon must reach Label Studio in the task data, not be dropped
+        task = api_module.rows_to_label_studio("nearai", [self._row("a.jpg")])[0]
+        assert task["data"]["latitude"] == 46.38
+        assert task["data"]["longitude"] == 6.23
+
+    def test_missing_gps_is_null_not_crash(self, api_module):
+        row = self._row("a.jpg", latitude=None, longitude=None)
+        task = api_module.rows_to_label_studio("nearai", [row])[0]
+        assert task["data"]["latitude"] is None
+        assert task["data"]["longitude"] is None
 
 
 # --- iter_label_studio_json ------------------------------------------------
