@@ -28,6 +28,7 @@ import argparse
 import io
 import json
 import logging
+import re
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -372,9 +373,11 @@ def _to_float(value):
 def pose_csv_key(key):
     """Derive the trajectory CSV key for an image, or None.
 
-    Images live under <acq>/01_images/<session>/<name>; their GPS poses live in
-    <acq>/02_poses/<session>_trajectory.csv. Returns None when the image is not
-    under a "01_images/<session>/" layout (no session folder to key on).
+    An image's GPS poses live in <acq>/02_poses/<session>_trajectory.csv. The
+    session comes from the folder between 01_images and the file when the
+    acquisition is nested (<acq>/01_images/<session>/<name>), otherwise from the
+    S<NNN> token in the filename for flat acquisitions (<acq>/01_images/<name>,
+    with names like ..._S001_...). Returns None when neither yields a session.
 
     Arguments :
     key                  S3 key of the image
@@ -384,10 +387,13 @@ def pose_csv_key(key):
         idx = parts.index("01_images")
     except ValueError:
         return None
-    # a session folder must sit between 01_images and the filename
-    if idx + 2 >= len(parts):
+    if idx + 2 < len(parts):
+        session = parts[idx + 1]  # nested: <acq>/01_images/<session>/<file>
+    else:
+        m = re.search(r"_(S\d+)_", Path(key).name)  # flat: session in the name
+        session = m.group(1) if m else None
+    if not session:
         return None
-    session = parts[idx + 1]
     acq_prefix = "/".join(parts[:idx])
     return "%s/02_poses/%s_trajectory.csv" % (acq_prefix, session)
 
