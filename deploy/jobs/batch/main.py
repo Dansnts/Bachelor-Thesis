@@ -2,8 +2,8 @@
 
 The driver connects to the RayCluster, lists the images of an S3 prefix and
 distributes them across num_workers GPU actors. Each worker loads SAM3 once (via
-Sam3Model), processes its images, extracts GPS from EXIF and writes the polygons
-as Parquet on MinIO.
+Sam3Model), processes its images, reads their GPS from the acquisition's pose
+trajectory (EXIF fallback) and writes the polygons as Parquet on MinIO.
 
 Parquet schema: image_key, acquisition_id, label, score, points,
                 original_width, original_height, latitude, longitude
@@ -356,6 +356,75 @@ def get_acquisition_id(key):
         return Path(key).parent.parent.name
 
 
+# GPS / poses --------------------------------------------------
+def _to_float(value):
+    """Parse a CSV cell to float, returning None on empty or bad values.
+
+    Arguments :
+    value                raw string from the trajectory CSV
+    """
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def pose_csv_key(key):
+    """Derive the trajectory CSV key for an image, or None.
+
+    Images live under <acq>/01_images/<session>/<name>; their GPS poses live in
+    <acq>/02_poses/<session>_trajectory.csv. Returns None when the image is not
+    under a "01_images/<session>/" layout (no session folder to key on).
+
+    Arguments :
+    key                  S3 key of the image
+    """
+    parts = list(Path(key).parts)
+    try:
+        idx = parts.index("01_images")
+    except ValueError:
+        return None
+    # a session folder must sit between 01_images and the filename
+    if idx + 2 >= len(parts):
+        return None
+    session = parts[idx + 1]
+    acq_prefix = "/".join(parts[:idx])
+    return "%s/02_poses/%s_trajectory.csv" % (acq_prefix, session)
+
+
+def load_poses(client, bucket, csv_key):
+    """Load a session's trajectory into {image_name: (lat, lon, heading)}.
+
+    The trajectory file is the authoritative GPS source of an acquisition: each
+    row ties an image_name to its gps_latitude / gps_longitude (and heading),
+    unlike EXIF which is absent on Ladybug panoramas. A missing or unreadable
+    file yields an empty map, so callers fall back to EXIF.
+
+    Arguments :
+    client               boto3 S3 client
+    bucket               bucket holding the poses
+    csv_key              S3 key of the <session>_trajectory.csv
+    """
+    import csv
+
+    poses = {}
+    try:
+        raw = client.get_object(Bucket=bucket, Key=csv_key)["Body"].read()
+    except Exception:
+        return poses
+    lines = raw.decode("utf-8", "replace").splitlines()
+    for row in csv.DictReader(lines):
+        name = row.get("image_name")
+        if not name:
+            continue
+        poses[name] = (
+            _to_float(row.get("gps_latitude")),
+            _to_float(row.get("gps_longitude")),
+            _to_float(row.get("heading_deg")),
+        )
+    return poses
+
+
 # Ray actor --------------------------------------------------
 
 
@@ -394,10 +463,27 @@ class SAM3Worker:
             downsample=downsample,
         )
         self.s3 = make_s3_client()
+        self.poses = {}
         self.log = logging.getLogger("jobCore")
         self.log.info(
             "Worker ready on node %s", ray.get_runtime_context().get_node_id()[:12]
         )
+
+    def gps_for(self, bucket, key):
+        """Look up an image's GPS in its session trajectory (cached per session).
+
+        Returns (lat, lon, heading), each None when the pose is unavailable.
+
+        Arguments :
+        bucket               bucket holding the poses
+        key                  S3 key of the image
+        """
+        csv_key = pose_csv_key(key)
+        if csv_key is None:
+            return None, None, None
+        if csv_key not in self.poses:
+            self.poses[csv_key] = load_poses(self.s3, bucket, csv_key)
+        return self.poses[csv_key].get(Path(key).name, (None, None, None))
 
     def process(self, bucket, key, in_prefix, out_bucket, out_prefix, labels):
         """Segment one image and write its detections as Parquet.
@@ -418,6 +504,11 @@ class SAM3Worker:
         """
         t0 = time.time()
         image, lat, lon, meta = download_image(self.s3, bucket, key)
+        pose_lat, pose_lon, heading = self.gps_for(bucket, key)
+        if pose_lat is not None and pose_lon is not None:
+            lat, lon = pose_lat, pose_lon
+        if heading is not None:
+            meta["img_direction"] = heading
         polygons, w, h = self.model.infer(image, labels)
         acq_id = get_acquisition_id(key)
 

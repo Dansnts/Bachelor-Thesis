@@ -486,8 +486,15 @@ def rows_to_label_studio(bucket, rows):
         task = tasks.get(key)
 
         if task is None:
+            # lat/lon are per-image (same on every row of that image), so we set
+            # them once when the task is created; they travel to Label Studio in
+            # the task data alongside the image URI.
             task = {
-                "data": {"image": to_s3_uri(bucket, key)},
+                "data": {
+                    "image": to_s3_uri(bucket, key),
+                    "latitude": r.get("latitude"),
+                    "longitude": r.get("longitude"),
+                },
                 "predictions": [{"model_version": "SAM3", "result": []}],
             }
             tasks[key] = task
