@@ -286,11 +286,80 @@ Le run de production sur le dataset Vevey traite l'ensemble des 14'207 images en
 
 Le temps total ne double pas avec le nombre de labels. Passer de 3 à 6 labels (×2) n'allonge le run que de 8 h 04 à 10 h 23 (×1,29), et le nombre de détections ne croît que de 397'741 à 423'819. L'essentiel du temps est un coût fixe (téléchargement, downsampling, tuilage, I/O), indépendant du nombre de labels ; seule la partie inférence croît avec eux, conformément à la structure une requête `FindQuery` par label et par tuile. Entre ces deux runs, chaque label supplémentaire ajoute ≈ 46 min (2'777 s) au-dessus d'un coût fixe estimé à ≈ 5 h 45.
 
+Le run de production permet aussi de mesurer la scalabilité à grande échelle, là où le micro-benchmark de 40 images était trop bruité par le warmup. Le run 6 labels a été rejoué sur le même jeu complet avec un *seul* worker, pour le comparer à la version à trois workers.
+
+#figure(
+  table(
+    columns: (auto, auto, auto, auto),
+    fill: (_, row) => if row == 0 { col-blue } else if calc.odd(row) { rgb("#F1F5F9") } else { white },
+    table.header(
+      text(fill: white)[*Workers*],
+      text(fill: white)[*Temps total*],
+      text(fill: white)[*Débit (img/h)*],
+      text(fill: white)[*Speed-up*],
+    ),
+    [1], [31 h 05 min], [≈ 457], [1,0×],
+    [3], [10 h 23 min], [≈ 1368], [2,99×],
+  ),
+  caption: [Run de production Vevey (14'207 images, 6 labels précis, tuile 1008, downsample 0,75) : scalabilité 1 → 3 workers L40S.],
+) <tab-run-vevey-scaling>
+
+Les deux runs produisent exactement les mêmes 423'819 détections : le dispatch round-robin ne change que le temps, jamais le résultat. Le passage d'un à trois workers donne un speed-up de *2,99×*, quasi parfait, très au-dessus du 2,52× mesuré sur les 40 images (cf. @tab-batch-scaling-512). Sur un dataset assez grand pour saturer durablement les GPUs, le coût fixe (warmup, JIT, cache disque) est amorti et chaque worker travaille en continu, confirmant empiriquement le caractère *embarrassingly parallel* de l'inférence par tuiles : le débit croît linéairement avec le nombre de GPUs libres.
+
 == Exploitation des résultats
 
 === Scores de confiance
 
-// TODO : histogramme des scores SAM3 sur un run réel (depuis les Parquet).
+Les scores présentés ici sont agrégés directement depuis les Parquet du run de production Vevey (6 labels, 14'207 images, 423'819 détections). Sur ce jeu, 14'083 images portent au moins une détection (124 sont vides), soit ≈ 30 détections par image. La confiance moyenne toutes classes confondues est de 0,676 (médiane 0,664), pour un seuil de détection fixé à 0,5 dans SAM3.
+
+#figure(
+  table(
+    columns: (auto, auto, auto, auto),
+    fill: (_, row) => if row == 0 { col-blue } else if calc.odd(row) { rgb("#F1F5F9") } else { white },
+    table.header(
+      text(fill: white)[*Label*],
+      text(fill: white)[*Détections*],
+      text(fill: white)[*Part*],
+      text(fill: white)[*Score moyen*],
+    ),
+    [`road_marking`],            [249'064], [58,8 %], [0,671],
+    [`rectangular_sign`],        [57'669],  [13,6 %], [0,642],
+    [`circular_manhole_cover`],  [46'981],  [11,1 %], [0,721],
+    [`circular_sign`],           [38'329],  [9,0 %],  [0,705],
+    [`rectangular_drain_grate`], [17'157],  [4,0 %],  [0,715],
+    [`arrow_marking`],           [14'619],  [3,4 %],  [0,622],
+    [*Total*],                   [*423'819*], [100 %], [*0,676*],
+  ),
+  caption: [Distribution des détections par label et score moyen (run Vevey 6 labels, 14'207 images)],
+) <tab-score-labels>
+
+Le `road_marking` domine largement (58,8 % des détections) : dans un contexte routier, le marquage au sol est omniprésent et chaque bande ou ligne compte comme un polygone distinct. Les formes circulaires, géométriquement nettes, obtiennent les meilleures confiances (`circular_manhole_cover` 0,721, `circular_sign` 0,705), tandis que les flèches (`arrow_marking` 0,622) et les panneaux rectangulaires (`rectangular_sign` 0,642), plus facilement confondus avec des façades ou des panneaux publicitaires, sont les moins bien notés.
+
+#figure(
+  table(
+    columns: (auto, auto, auto, auto),
+    fill: (_, row) => if row == 0 { col-blue } else if calc.odd(row) { rgb("#F1F5F9") } else { white },
+    table.header(
+      text(fill: white)[*Tranche de score*],
+      text(fill: white)[*Détections*],
+      text(fill: white)[*Part*],
+      text(fill: white)[*Cumulé*],
+    ),
+    [0,50 – 0,55], [63'102], [14,9 %], [14,9 %],
+    [0,55 – 0,60], [69'676], [16,4 %], [31,3 %],
+    [0,60 – 0,65], [62'462], [14,7 %], [46,1 %],
+    [0,65 – 0,70], [56'998], [13,4 %], [59,5 %],
+    [0,70 – 0,75], [52'873], [12,5 %], [72,0 %],
+    [0,75 – 0,80], [46'458], [11,0 %], [83,0 %],
+    [0,80 – 0,85], [39'164], [9,2 %],  [92,2 %],
+    [0,85 – 0,90], [25'045], [5,9 %],  [98,1 %],
+    [0,90 – 0,95], [7'984],  [1,9 %],  [100,0 %],
+    [0,95 – 1,00], [57],     [0,0 %],  [100,0 %],
+  ),
+  caption: [Distribution des scores de confiance par tranche (run Vevey 6 labels, 423'819 détections).],
+) <tab-score-hist>
+
+La distribution (@tab-score-hist) est concentrée dans le bas de l'échelle : 83 % des détections tombent entre 0,50 et 0,80, et à peine 1,9 % dépassent 0,90. Le pic contre le seuil (min mesuré 0,504) indique qu'une part importante des détections passe tout juste la barre des 0,5. Relever le `detection_threshold` élaguerait donc surtout les détections basses de `road_marking` et `rectangular_sign`, au prix d'un rappel moindre sur les petits objets.
 
 === Exemples visuels dans Label Studio
 
@@ -410,6 +479,14 @@ Le stockage redeviendrait le goulot dans deux cas : (1) un parallélisme GPU bie
 
 // TODO : chiffrer le plafond réel de MinIO avec `mc support perf object/drive/net` (run à vide) → comparer aux ~2 Mo/s réels pour quantifier la marge exacte.
 
+=== Le head Ray, plafond de soumissions concurrentes
+
+Les deux goulots précédents portent sur le *débit* d'un run. Un troisième, découvert en lançant délibérément plusieurs batchs simultanés, porte sur le *nombre de runs lancés de front*. Chaque driver batch se connecte au cluster en mode Ray Client (`ray://ray-cluster-head-svc:10001`), et le head démarre alors un sous-processus serveur *par connexion* (`ray_client_server_2300x`). Ce processus charge le runtime complet — PyTorch inclus — dans les *2 CPU / 4 Gi* alloués au head.
+
+En pratique, au-delà d'une à deux connexions concurrentes le démarrage du serveur suivant échoue (`Starting Ray client server failed`) et le driver s'arrête sur `ConnectionAbortedError`. Le `backoffLimit` du Job Kubernetes masque l'incident : le pod repart, et le run finit par passer une fois les connexions précédentes libérées. Le symptôme observable est une succession de pods `Error` puis `Completed` pour un même job, chaque run produisant tout de même une sortie correcte.
+
+Ce plafond n'est pas contraignant, car *paralléliser les soumissions n'apporte rien* : les runs concurrents se disputent les mêmes trois GPUs. Le modèle prévu reste un driver unique qui distribue son travail sur tous les workers ; les batchs s'enchaînent en série. Si un jour la soumission concurrente devient utile (plusieurs acquisitions traitées en parallèle sur un cluster plus large), deux leviers existent : augmenter les ressources du head, ou basculer de Ray Client vers une soumission de job intra-cluster (`RayJob`), qui supprime le serveur par-connexion sur le head.
+
 #figure(
   table(
     columns: (auto, auto, auto),
@@ -420,6 +497,7 @@ Le stockage redeviendrait le goulot dans deux cas : (1) un parallélisme GPU bie
     [GPU], [Saturé (90–100 %)], [— (maillon actif)],
     [Nombre de GPUs libres], [Plafond à 3 (contention multi-namespace)], [Priorité / quota cluster],
     [Stockage MinIO], [Au repos (~2 Mo/s, util ≈ 0 %)], [Dizaines de workers, ou pics métadonnées],
+    [Head Ray (mode Client)], [1–2 connexions (2 CPU / 4 Gi)], [Soumissions parallèles → sérialiser, grossir le head, ou `RayJob`],
     [Réseau], [Non saturé], [Débit agrégé ≫ actuel],
   ),
   caption: [Localisation du goulot d'étranglement par étage de la pipeline],

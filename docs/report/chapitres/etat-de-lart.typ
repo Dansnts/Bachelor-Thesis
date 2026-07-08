@@ -9,9 +9,9 @@
 
 == Segmentation d'images
 
-SAM3 (Segment Anything Model 3) est le modèle de segmentation publié par Meta en 2024 @sam3. Il hérite de SAM2 et étend ses capacités aux images de haute résolution et à la vidéo. SAM3 adopte une architecture Vision Transformer comme encodeur d'image et un décodeur léger qui produit des masques binaires à partir de prompts géométriques (points, boîtes, polygones).
+SAM3 (Segment Anything Model 3) est le modèle de segmentation publié par Meta en 2024 @sam3. Il hérite de SAM2 et étend ses capacités aux images de haute résolution et à la vidéo. SAM3 adopte une architecture Vision Transformer (ViT) comme encodeur d'image et un décodeur léger qui produit des masques binaires à partir de prompts géométriques (points, boîtes, polygones).
 
-Le modèle fonctionne en mode _promptable_ et en mode _everything_.
+Le modèle fonctionne principalement en mode _promptable_ et en mode _everything_.
 
 En mode *prompt*, il attends simplement un message comme : "Un panneau octogonal avec le texte STOP à son centre", ou, simplement, "Un panneau".
 Tandis que en mode *everything*, il segmente tous les objets détectables de l'image. Aucune supervision n'est fournie à l'inférence et SAM3 propose des masques candidats que la pipeline filtre par classe et score.
@@ -28,12 +28,9 @@ Tandis que en mode *everything*, il segmente tous les objets détectables de l'i
 #pagebreak()
 SAM3 a été entraîné sur SA-1B, un corpus de 1,1 milliard de masques sur 11 millions d'images. Cette couverture lui confère une généralisation forte sur des domaines non vus à l'entraînement, dont les images routières équirectangulaires.
 
-Ce modèle accepte des images jusqu'à 1'008x1'008 pixels. Une panoramique de 8'192 x 4'096 pixels doit donc être découpée avant l'inférence. Ce travail adopte des tuiles de 508x508pixels, ce qui produit 128 tuiles par image à pleine résolution. Un downsampling à 50 % ramène ce nombre à 32 tuiles et réduit le temps d'inférence d'un facteur 4, au prix d'une perte de détail acceptable pour les classes cibles.
+Ce modèle accepte des images jusqu'à 1'008 x 1'008 pixels. Une panoramique de 8'192 x 4'096 pixels doit donc être découpée avant l'inférence. Ce travail adopte des tuiles de 508 x 508 pixels, ce qui produit 128 tuiles par image à pleine résolution. Un downsampling à 50 % ramènerait ce nombre à 32 tuiles et réduirait le temps d'inférence d'un facteur 4, au prix d'une perte de détail acceptable pour les classes cibles.
 
 Les images équirectangulaires présentent une distorsion géométrique croissante vers le zénith et le nadir. Les objets cibles (panneaux, marquages) se concentrent dans la bande centrale de l'image, correspondant à ±30° d'élévation, là où la distorsion est minimale. La correction de projection n'est donc pas implémentée, elle apporterait un gain marginal pour un coût d'implémentation élevé. Le bas du panorama est en grande partie occulté par la carrosserie du véhicule. Ce choix est documenté comme limitation connue.
-
-La compléxité est due que rien ne garanti à 100% que un signe ou feu de signaisaiton ne soit présent sur le Zenith de l'image du à l'angle de la prise.
-
 
 #linebreak()
 #figure(
@@ -43,11 +40,14 @@ La compléxité est due que rien ne garanti à 100% que un signe ou feu de signa
   ],
 ) <sam3promtp>
 
+La compléxité est due que rien ne garanti à 100% que un signe ou feu de signaisaiton ne soit présent sur le Zenith de l'image du à l'angle de la prise.
+
+#pagebreak()
 == Ultralytics
 
-Ultralytics est une librairie Python open-source qui unifie l'usage de modèles de vision sous une interface unique @ultralytics. Connue pour son implémentation de YOLO, elle intègre aussi la famille Segment Anything, dont SAM3. Là où le dépôt de référence de Meta expose un pipeline bas niveau (préparation des tenseurs, collation des tuiles, post-traitement manuel), Ultralytics réduit l'inférence à un seul appel `model.predict` en chargeant les poids depuis un fichier `.pt` puis place le modèle sur le GPU et renvoie directement les masques.
+Ultralytics est une librairie Python open-source qui unifie l'usage de modèles de vision sous une interface unique @ultralytics. Connue pour son implémentation de YOLO, elle intègre aussi la famille Segment Anything, dont SAM3. Là où le dépôt de référence de Meta expose une pipeline bas niveau (préparation des tenseurs, collation des tuiles, post-traitement manuel), Ultralytics réduit l'inférence à un seul appel `model.predict` en chargeant les poids depuis un fichier `.pt` puis place le modèle sur le GPU et renvoie directement les masques.
 
-Cette abstraction sert la segmentation interactive. SAM3 accepte un prompt visuel (un point ou une boîte) qui désigne un objet à un endroit précis de l'image. L'appel `model.predict(points=, labels=)` suffit alors à retourner le contour de l'objet sous le curseur, sans le pipeline de tuilage requis par le traitement par lot. Le coût est une moindre maîtrise des étapes internes. Ultralytics fige le pré- et le post-traitement, là où le dépôt de Meta les laisse configurables.
+Ainsi, SAM3 accepte un prompt visuel (un point ou une boîte) qui désigne un objet à un endroit précis de l'image. L'appel `model.predict(points=, labels=)` suffit alors à retourner le contour de l'objet sous le curseur, sans le pipeline de tuilage requis par le traitement par lot. Le coût est une moindre maîtrise des étapes internes. Ultralytics fige le pré- et le post-traitement, là où le dépôt de Meta les laisse configurables.
 
 == Calcul distribué
 
@@ -55,7 +55,7 @@ Apache Spark est le framework de calcul distribué dominant pour les workloads a
 
 Spark présente trois limitations structurelles pour l'inférence GPU :
 
-*Héritage CPU* : Spark a été conçu dans l'écosystème Hadoop pour le traitement de données tabulaires. Le support GPU a été ajouté a posteriori via RAPIDS (NVIDIA). Il n'est pas natif : les workers Spark ne savent pas scheduler dynamiquement des tâches GPU hétérogènes.
+*Héritage CPU* : Spark a été conçu dans l'écosystème Hadoop pour le traitement de données tabulaires. Le support GPU a été ajouté a posteriori via RAPIDS (NVIDIA). Il n'est pas natif, les workers Spark ne savent pas scheduler dynamiquement des tâches GPU hétérogènes.
 
 *Clusters homogènes* : Spark optimise pour la localité des données sur des clusters uniformes. Le cluster iict-rad dispose de trois types de GPU (L40S, A40, L4) avec des performances très différentes. Ray gère nativement cette hétérogénéité via ses mécanismes de placement group et de priorité par ressource.
 
@@ -64,12 +64,12 @@ Spark présente trois limitations structurelles pour l'inférence GPU :
 Le signal industriel le plus fort est la migration d'Amazon en 2024 : leur équipe Business Data Technologies a migré 1,5 exaoctets de données Parquet de Spark vers Ray, réalisant une économie de plus de 120 millions de dollars par an avec une efficacité 82 % supérieure par GiB traité @amazon-ray. Cette migration a pris 4 ans et constitue la plus grande validation publique de Ray en production.
 
 
-Ray est un framework Python open-source pour distribuer des workloads ML/IA sur des clusters hétérogènes CPU/GPU @ray.
+*Ray* est un framework Python open-source pour distribuer des workloads ML/IA sur des clusters hétérogènes CPU/GPU @ray.
 
 Il expose deux primitives fondamentales :
 
-- Une *Task* (`@ray.remote` sur une fonction) est une unité de calcul sans état, exécutée de façon asynchrone sur un worker disponible.
-- Un *Actor* (`@ray.remote` sur une classe) est une unité de calcul avec état, maintenu en mémoire sur un worker assigné. L'Actor est LE patron adapté au chargement de modèles. Le modèle est chargé une fois dans `__init__`, puis réutilisé sur toutes les requêtes sans rechargement, évitant les erreurs OOM qui surviennent lorsqu'un modèle est rechargé à chaque tâche.
+- Une *Task* (`@ray.remote` sur une fonction), une unité de calcul sans état, exécutée de façon asynchrone sur un worker disponible.
+- Un *Actor* (`@ray.remote` sur une classe),  une unité de calcul avec état, maintenu en mémoire sur un worker assigné. L'Actor est LE patron adapté au chargement de modèles. Le modèle est chargé une fois dans `__init__`, puis réutilisé sur toutes les requêtes sans rechargement, évitant les erreurs OOM qui surviennent lorsqu'un modèle est rechargé à chaque tâche.
 
 #linebreak()
 #figure(
@@ -82,7 +82,7 @@ Il expose deux primitives fondamentales :
       def process(self, batch):
           return infer(self.model, batch)
   ```,
-  caption: [L'Actor initialise le modèle, le preprocesseur et le postprocesseur une seule fois dans `__init__` ; `process()` les réutilise sur chaque image sans rechargement],
+  caption: [L'Actor initialise le modèle, le preprocesseur et le postprocesseur une seule fois dans `__init__` puis, `process()` les réutilise sur chaque image sans rechargement],
 )
 #linebreak()
 
@@ -90,15 +90,16 @@ Ray gère l'allocation des ressources (CPU, GPU, mémoire), la sérialisation de
 
 Spark reste pertinent pour les pipelines ETL sur données structurées. Pour l'inférence GPU sur images non structurées à grande échelle sur un cluster hétérogène, Ray est le choix correct.
 
-#pagebreak()
 Deux stratégies de parallélisation GPU existent pour l'inférence de modèles :
 
 - *Data parallelism* : chaque GPU héberge une copie complète du modèle et traite une image indépendante. Le throughput scale linéairement avec le nombre de GPU.
-- *Model parallelism* : le modèle est fragmenté sur plusieurs GPU pour réduire la latence d'une seule inférence. Implique un overhead de communication inter-GPU à chaque couche.
+- *Model parallelism* : le modèle est fragmenté sur plusieurs GPU lorsqu'il est trop volumineux pour tenir dans la mémoire d'un seul. Implique une communication inter-GPU à chaque couche, au détriment de la latence.
 
 Le model parallelism est justifié uniquement lorsque le modèle ne tient pas sur un seul GPU (LLMs de 70 milliards de paramètres et plus). SAM3 ViT-H occupe ~3,8 Go de VRAM une fois chargé et les GPU du cluster (L40S 48 Go, A40 48 Go, L4 24 Go) l'hébergent sans contrainte.
+
 L'objectif de la pipeline est le throughput sur 300'000 images, pas la latence sur une image isolée. Avec $N$ workers en data parallelism, $N$ images sont traitées simultanément sans aucune synchronisation inter-GPU. Le modèle Ray Actor (un modèle chargé par GPU, $N$ workers indépendants) est la stratégie la plus correcte pour ce workload.
 
+#pagebreak()
 *KubeRay* est l'opérateur Kubernetes officiel pour Ray @kuberay. Il introduit la ressource `RayCluster`, qui déclare un nœud head et un ou plusieurs groupes de workers. L'opérateur crée et gère les pods correspondants, expose les ports GCS (:6379), dashboard (:8265), métriques (:8080) et client Ray (:10001) via des Services Kubernetes.
 
 Le driver externe se connecte au cluster via `ray.init("ray://ray-cluster-head-svc:10001")`.
@@ -117,7 +118,6 @@ Une distinction importante sépare la terminologie Kubernetes de la terminologie
   caption: [Terminologie Kubernetes vs Ray],
 ) <tab-k8s-ray-terms>
 
-#pagebreak()
 == Stockage objet
 
 Les images panoramiques (JPEG, ~50 Mo chacune), les fichiers Parquet et les poids de modèles sont des *BLOBs*, des objets binaires nonstructurés que les bases de données relationnelles gèrent mal et que les systèmes de fichiers partagés (NFS) ne scalent pas.
@@ -148,6 +148,7 @@ L'image illustre la différence entre les trois approches.
 
 Parquet stocke des statistiques min/max par column chunk. Un moteur de requête peut ainsi ignorer des row groups entiers si le prédicat tombe hors de leur plage. C'est le _predicate pushdown_, supporté nativement par PyArrow. Filtrer les polygones par zone GPS ou par seuil de score ne charge que les colonnes `latitude`, `longitude` et `score`, indépendamment du volume total.
 
+#pagebreak()
 *PostGIS* (extension PostgreSQL pour les données géospatiales) a été évalué comme alternative. Il offre des index spatiaux GIST et des requêtes géométriques natives (`ST_Within`, `ST_Intersects`). La décision est de le remplacer par Parquet sur S3. Les requêtes du projet ne nécessitent pas de jointures géospatiales complexes, et Parquet évite de maintenir une base de données.
 
 *JSON* (JavaScript Object Notation) est le format accepté par LabelStudio pour importer les données géospatiales sur une images. Ce format va être utiliser uniquement pour le mode `on demand` et en legacy pour labelstudio afin de visualiser les résultats des runs.
@@ -185,7 +186,7 @@ Il est configuré avec MinIO comme _cloud storage_ source.
 
 Les URLs `s3://nearai/...` sont converties en URLs HTTP temporaires signées, ce qui évite d'exposer les credentials de stockage aux navigateurs clients.
 
-XXXX Parler ici de NearLabel, le projet fait par mon collègue Valentin Ricard.
+En parallèle de ce projet, le service NearLabel a été mis en place par un autre étudiant. Il vise à offrir une interface plus simple et rapide pour l'annotation des images et leur visualisation selon leurs données géographiques. Une API sera également conçue sur ce projet pour piloter la segmentation à la volée et l'analyse des résultats depuis NearLabel.
 
 == Gestion des secrets
 

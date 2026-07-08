@@ -10,7 +10,7 @@
 La pipeline suit un flux linéaire en cinq étapes :
 
 + *Lecture* : le driver liste les objets du préfixe S3 d'entrée et distribue les clés d'image aux workers Ray.
-+ *Téléchargement* : chaque worker télécharge l'image depuis MinIO et extrait les coordonnées GPS de l'EXIF.
++ *Téléchargement* : chaque worker télécharge l'image depuis MinIO et récupère ses coordonnées GPS dans le fichier de trajectoire de l'acquisition (EXIF en secours).
 + *Inférence* : l'image est découpée en tuiles 512 × 512 px (après downsampling optionnel), chaque tuile est passée à SAM3 en mode _everything_.
 + *Agrégation* : les masques produits sont convertis en polygones, normalisés en pourcentage des dimensions de l'image originale, filtrés par score de confiance.
 + *Écriture* : les polygones sont sérialisés dans un fichier Parquet et envoyés sur MinIO.
@@ -76,6 +76,13 @@ Le déploiement et les mises à jour reposent sur une pipeline d'intégration co
 + *Publication* : push des images sur le registre privé GitHub Container Registry, sous le tag attendu par les manifestes Kustomize.
 
 Le cluster tire ensuite ces images via `imagePullPolicy: Always`, ce qui propage les changements au prochain redémarrage des pods. Cette automatisation garantit qu'une modification mergée est testée puis empaquetée de façon reproductible, et supprime les builds manuels locaux, source d'images incohérentes entre développeurs.
+
+#figure(
+  image("../images/Schema-Pipeline.png", width: 85%),
+  caption: [
+    Chaque commit sur la branche master trigger le workflow, tests et build-images s'executent en paralèlle.
+  ],
+) <Schema-Overall>
 
 == Infrastructure Kubernetes
 
@@ -257,6 +264,16 @@ Chaque image produit un fichier Parquet nommé `<acquisition_id>/<image_stem>.pa
 ) <tab-parquet-schema>
 
 La compression Snappy est appliquée. Les fichiers sont interrogeables directement depuis DuckDB ou PyArrow sans étape de chargement en base de données.
+
+== Géoréférencement des détections
+
+Chaque polygone hérite des coordonnées GPS de son image, portées par les colonnes `latitude` et `longitude` du schéma (@tab-parquet-schema). Ces coordonnées ne sont pas lues dans l'EXIF, mais dans le fichier de trajectoire de l'acquisition.
+
+L'EXIF s'est révélé une source peu fiable : les panoramas Ladybug5+ ne portent aucune balise `GPSLatitude`/`GPSLongitude`, là où les prises GoPro Max les renseignent. Le lire directement laissait des colonnes vides sur des acquisitions entières.
+
+La position de chaque prise vit dans un fichier écrit par le système de cartographie mobile : `<acquisition>/02_poses/<session>_trajectory.csv`. Il associe chaque nom d'image à sa latitude, sa longitude, son altitude et son cap, échantillonnés par le récepteur GNSS/IMU embarqué. Présent pour toutes les acquisitions, il constitue la source de pose autoritative.
+
+Pour chaque image, le worker déduit le chemin de ce fichier, le charge une fois par session — mis en cache dans l'acteur Ray, un CSV de quelques milliers de lignes étant négligeable — puis joint la ligne correspondant au nom de fichier. La session provient de l'arborescence (`01_images/<session>/`) ou, pour les acquisitions à plat, du jeton `S<NNN>` du nom de fichier ; l'EXIF ne subsiste qu'en secours. Ce découplage rend le géoréférencement indépendant du capteur : le format des images peut évoluer sans rompre la chaîne, tant que l'acquisition fournit sa trajectoire.
 
 == Intégration Label Studio
 

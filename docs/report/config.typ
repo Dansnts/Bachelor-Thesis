@@ -53,8 +53,11 @@
       Kubernetes de la HEIG-VD. Les images sont lues depuis le service S3 sur MinIO, découpées en
       patches et traitées en parallèle par des workers Ray. Les métadonnées GPS extraites
       de l'EXIF sont associées aux polygones produits, stockés au format Parquet sur S3.
+
       Une couche d'observabilité basée sur Prometheus, Loki et Grafana permet de surveiller
       l'état du cluster, ses performances et d'identifier les incidents.
+
+      Enfin, la gestion chiffrée des secrets et une pipeline CI/CD assurent la sécurité de la configuration et la validation continue du code et des images produites.
 
       #v(0.8em)
       #block(

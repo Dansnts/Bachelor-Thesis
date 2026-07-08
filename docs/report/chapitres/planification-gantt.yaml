@@ -9,7 +9,6 @@ start: 2026-02-01
 end: 2026-09-30
 # A list of tasks
 tasks:
-  # The name of the task.
   - name: Démarrage
     subtasks:
       - name: "Documents administratifs"
@@ -20,15 +19,69 @@ tasks:
         start: 2026-02-23
         end: 2026-03-13
 
-      - name: "Rédaction du CdC"
+      - name: "Rédaction du cahier des charges"
         start: 2026-02-23
-        end: 2026-03-13
+        end: 2026-04-09
 
-  - name: Etat de l'art
+  - name: Prototypage
     subtasks:
-      - name: Recherche
-        start: 2026-03-02
-        end: 2026-03-06
+      - name: "Étude de Ray et SAM3"
+        start: 2026-02-23
+        end: 2026-03-15
+
+      - name: "SAM3 sur cluster GPU"
+        start: 2026-03-09
+        end: 2026-03-29
+
+      - name: "Prototype Ray distribué"
+        start: 2026-03-16
+        end: 2026-03-29
+
+      - name: "Pipeline MinIO + Ray + SAM3"
+        start: 2026-03-30
+        end: 2026-04-12
+
+      - name: "Scénarios batch et on-demand"
+        start: 2026-04-06
+        end: 2026-04-12
+
+  - name: Intégration
+    subtasks:
+      - name: "Observabilité (Prometheus, Grafana, Loki)"
+        start: 2026-04-20
+        end: 2026-05-03
+
+      - name: "Label Studio"
+        start: 2026-05-04
+        end: 2026-05-24
+
+      - name: "Manifestes K8s et tests E2E"
+        start: 2026-05-11
+        end: 2026-05-19
+
+  - name: Consolidation
+    subtasks:
+      - name: "Optimisations et benchmarks"
+        start: 2026-05-25
+        end: 2026-06-07
+
+  - name: Plein temps
+    subtasks:
+      - name: "Déploiement production HEIG"
+        start: 2026-06-15
+        end: 2026-06-21
+
+      - name: "Benchmarks E2E et tuning"
+        start: 2026-06-22
+        end: 2026-06-28
+
+      - name: "Rédaction du rapport"
+        start: 2026-06-29
+        end: 2026-07-19
+
+      - name: "Finalisation et rendu"
+        start: 2026-07-20
+        end: 2026-07-24
 
 milestones:
   - name: Kick-off
@@ -36,11 +89,15 @@ milestones:
     show-date: true
 
   - name: CdC final
-    date: 2026-04-01
+    date: 2026-04-09
     show-date: true
 
   - name: Rapport intermédiaire
     date: 2026-05-20
+    show-date: true
+
+  - name: Plein temps
+    date: 2026-06-15
     show-date: true
 
   - name: Rendu travail Bachelor

@@ -10,7 +10,7 @@ La pipeline exploite SAM3 pour la segmentation et Ray pour distribuer le traitem
 
 === Contexte
 
-La HEIG-VD dispose d'un cluster Kubernetes équipé de GPUs permettant d'exécuter des charges de calcul intensif. Dans le cadre de projets liés à l'analyse d'images géospatiales, il est nécessaire de disposer d'une pipeline automatisée capable de traiter de grands volumes de données.
+La HEIG-VD dispose d'un cluster Kubernetes équipé de GPUs permettant d'exécuter des charges de calcul intensif. Dans le cadre de projets liés à l'analyse d'images géospatiales (images satellitaires ou aériennes), il est nécessaire de disposer d'une pipeline automatisée capable de traiter de grands volumes de données.
 
 Les images sont stockées sur un serveur MinIO compatible S3. Les annotations sont gérées via Label Studio. Le modèle SAM3 est utilisé pour la segmentation automatique.
 
@@ -59,6 +59,49 @@ Les éléments suivants sont explicitement hors du périmètre de ce travail.
 - Le développement d'une interface utilisateur de visualisation.
 - La gestion de la sécurité et des accès au cluster, supposée existante.
 
+== Exigences
+
+=== Exigences fonctionnelles
+
+#figure(
+  table(
+    columns: (1fr, auto),
+    align: (left, center),
+    table.header([*Description*], [*Priorité*]),
+    [Le système lit des images JPEG depuis un stockage S3.], [Haute],
+    [Le système découpe chaque image en tuiles avant inférence.], [Haute],
+    [Le système exécute SAM3 sur chaque tuile d'image.], [Haute],
+    [Le système distribue le traitement sur plusieurs workers Ray.], [Haute],
+    [Le système extrait les métadonnées GPS de l'EXIF et les associe aux résultats.], [Haute],
+    [Le système stocke les polygones de segmentation au format Parquet sur S3.], [Haute],
+    [Le système gère les erreurs par image sans interrompre la pipeline.], [Haute],
+    [Le système produit un rapport de traitement (nombre d'images, durée, erreurs).], [Moyenne],
+    [Le système exporte les annotations vers Label Studio.], [Moyenne],
+    [Le système expose des métriques de traitement consultables via Grafana.], [Moyenne],
+    [Le système agrège les logs des workers et les rend consultables.], [Moyenne],
+    [Le système convertit les images au format ZARR pour un accès par tuiles depuis S3.], [Basse],
+  ),
+  caption: [Exigences fonctionnelles]
+)
+
+=== Exigences non fonctionnelles
+
+#figure(
+  table(
+    columns: (1fr, auto),
+    align: (left, center),
+    table.header([*Description*], [*Priorité*]),
+    [La pipeline est déployable sur le cluster Kubernetes de la HEIG-VD.], [Haute],
+    [Le système exploite les GPUs disponibles sur le cluster.], [Haute],
+    [Le traitement d'un lot d'images est scalable horizontalement.], [Haute],
+    [Les composants sont conteneurisés avec Docker.], [Haute],
+    [Le code source est versionné sur Git et documenté.], [Haute],
+    [Le stockage objet retenu est compatible avec le protocole S3.], [Haute],
+    [Le système ne charge pas plus d'une image à la fois par worker.], [Haute],
+  ),
+  caption: [Exigences non fonctionnelles]
+)
+
 == Architecture du système
 
 === Vue d'ensemble
@@ -105,6 +148,7 @@ Le scénario secondaire traite une image unique avec une réponse proche du temp
     [Orchestration], [Kubernetes], [Déploiement et gestion du cycle de vie des pods],
     [Annotation], [Label Studio], [Validation humaine des annotations produites],
     [Métriques cluster et GPU], [Prometheus + DCGM Exporter], [Scrape des métriques Ray et GPU],
+    [Métriques jobs éphémères], [Pushgateway], [Réception des métriques des Ray Jobs avant leur arrêt],
     [Logs], [Promtail + Loki], [Collecte et agrégation des logs des pods K8s],
     [Visualisation], [Grafana], [Dashboards métriques et logs],
   ),
@@ -125,7 +169,7 @@ ZARR est évalué comme amélioration optionnelle. Il permettrait une lecture pa
 
 === Stockage objet : MinIO
 
-MinIO est conservé comme solution de stockage pour la durée du TB. La pipeline ne dépend de MinIO qu'à travers le protocole S3. Changer de solution de stockage revient à modifier uniquement la configuration de l'endpoint.
+MinIO est conservé comme solution de stockage pour la durée du TB. L'analyse des alternatives (RustFS, CEPH) est documentée dans `docs/storage-analysis.md`. La pipeline ne dépend de MinIO qu'à travers le protocole S3. Changer de solution de stockage revient à modifier uniquement la configuration de l'endpoint.
 
 === Format de sortie : Parquet
 
@@ -133,7 +177,9 @@ Parquet est un format de stockage colonnaire adapté aux résultats produits en 
 
 === Observabilité
 
-Ray expose nativement des métriques au format Prometheus. DCGM Exporter ajoute les métriques GPU (utilisation, mémoire, température). Promtail tourne comme DaemonSet sur chaque node K8s, collecte les logs de tous les pods et les envoie à Loki. Grafana affiche métriques et logs dans la même interface.
+Ray expose nativement des métriques au format Prometheus. DCGM Exporter ajoute les métriques GPU (utilisation, mémoire, température). Les Ray Jobs sont éphémères : ils meurent avant que Prometheus puisse les scraper. Le Pushgateway résout ce problème. Chaque job pousse ses métriques finales avant de s'arrêter.
+
+Promtail tourne comme DaemonSet sur chaque node K8s. Il collecte les logs de tous les pods et les envoie à Loki. Loki stocke ces logs sur MinIO, sans infrastructure supplémentaire. Grafana affiche métriques et logs dans la même interface, ce qui permet de corréler un incident visible sur une courbe avec les logs correspondants.
 
 === Orchestration : Kubernetes
 
@@ -143,3 +189,17 @@ Le cluster Kubernetes de la HEIG-VD est l'environnement cible. La pipeline est p
 
 SAM3 (Segment Anything Model v3) est le modèle de segmentation retenu. Il est utilisé en inférence uniquement, sans réentraînement.
 
+== Risques et mitigations
+
+#figure(
+  table(
+    columns: (1fr, auto, 1fr),
+    align: (left, center, left),
+    table.header([*Risque*], [*Impact*], [*Mitigation*]),
+    [SAM3 trop lent sur GPU], [Critique], [Optimisation ONNX, quantisation, réduction de résolution],
+    [Cluster K8s HEIG indisponible avant juin], [Critique], [Développement local avec Minikube],
+    [Images trop volumineuses pour la mémoire], [Faible], [Downsampling ou intégration de ZARR],
+    [Fichiers Parquet trop fragmentés sur S3], [Faible], [Agrégation en fin de batch, partitionnement par lot],
+  ),
+  caption: [Risques et mitigations]
+)

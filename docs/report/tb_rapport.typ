@@ -311,7 +311,7 @@ Toute utilisation, même partielle, de ce TB doit être faite dans le respect du
 */
 
 #include "chapitres/introduction.typ"
-// #include "chapitres/planification.typ"
+#include "chapitres/planification.typ"
 #include "chapitres/etat-de-lart.typ"
 #include "chapitres/architecture.typ"
 #include "chapitres/implementation.typ"
@@ -420,7 +420,7 @@ Toute utilisation, même partielle, de ce TB doit être faite dans le respect du
 
     [*Data Plane*], [Partie de l'infrastructure qui est responsable pour la transmitions de donnée/paquets],
     [*DAG*],
-    [Directed Acyclic Graph, système de séquences pour optimiser l'exécution en étapes non cycliques permettant un traitement parallèle efficace et avec une tolérance aux pannes],
+    [Directed Acyclic Graph, définit un pipeline d'exécution où chaque étape dépend strictement de la réussite des précédentes. En éliminant les cycles, ce modèle permet d'identifier les tâches exécutables simultanément (parallélisation) et de reprendre le traitement à partir des points de défaillance.],
 
     [*PIL*],
     [Python Image Library, bibliothèque historique de traitement d'images permettant l'ouverture, la manipulation et la sauvegarde de nombreux formats graphiques],
@@ -499,8 +499,17 @@ Toute utilisation, même partielle, de ce TB doit être faite dans le respect du
     [*RAPIDS*],
     [Bibliothèque NVIDIA ajoutant le support GPU à Spark. Non natif : ne gère pas le scheduling dynamique de tâches GPU hétérogènes],
 
+    [*RDD*],
+    [Resilient Distributed Dataset, API historique de Apache Spark. Collection immuable d'objets bruts distribués sur un cluster.],
+
+    [*DataFrames*],
+    [API moderne de Spark optimisée automatiquement par le moteur Catalyst. Abstraction de haut niveau organisant les données en tables avec des colonnes nommées et un schéma.],
+
     [*ETL*],
     [Extract Transform Load, pipeline d'extraction, transformation et chargement de données. Cas d'usage principal d'Apache Spark],
+
+    [*SQL*],
+    [Structured Language Query, langage standardisé utilisé pour communiquer avec les bases de données relationnelles],
 
     [*PVC*],
     [Persistant Volume Claim, contrat de location entre un pod et un noeud avec une capacité et des droits spécifiques],
