@@ -148,8 +148,16 @@ class TestPoseCsvKey:
             == "data/acquisitions/20241003-Nyon/02_poses/S003_trajectory.csv"
         )
 
-    def test_none_without_session_folder(self, batch_module):
-        # image directly under 01_images has no session to key the CSV on
+    def test_flat_layout_reads_session_from_filename(self, batch_module):
+        # no session folder: session comes from the _S001_ token in the name
+        key = "data/acquisitions/Samples/01_images/20251210-NeoCapture-bis_S001_Trimblemx50_000001.jpg"
+        assert (
+            batch_module.pose_csv_key(key)
+            == "data/acquisitions/Samples/02_poses/S001_trajectory.csv"
+        )
+
+    def test_none_when_flat_and_no_session_token(self, batch_module):
+        # flat layout and no S<NNN> token -> no session to key on
         key = "data/acquisitions/Vevey/01_images/img.jpg"
         assert batch_module.pose_csv_key(key) is None
 
