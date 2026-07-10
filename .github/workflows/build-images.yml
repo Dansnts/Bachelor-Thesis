@@ -57,7 +57,7 @@ jobs:
           all='[
             {"name":"ray-sam3","context":"deploy","dockerfile":"deploy/jobs/batch/Dockerfile"},
             {"name":"sam3-solo","context":"deploy","dockerfile":"deploy/jobs/solo/Dockerfile"},
-            {"name":"sam3-api","context":"deploy/api","dockerfile":"deploy/api/Dockerfile"},
+            {"name":"sam3-api","context":"deploy","dockerfile":"deploy/api/Dockerfile"},
             {"name":"sam3-segment","context":"deploy","dockerfile":"deploy/segment/Dockerfile"}
           ]'
           sel='${{ github.event.inputs.image }}'

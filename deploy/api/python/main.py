@@ -3,6 +3,7 @@ import io
 import json
 import logging
 import os
+import sys
 import time
 import uuid
 from typing import List, Optional
@@ -21,6 +22,14 @@ from kubernetes import client, config
 from pydantic import (
     BaseModel,  # JSON validation / parsing: Pydantic validates types and converts the JSON
 )
+
+try:
+    from jobCore.s3 import make_s3_client
+except ImportError:
+    # in the image jobCore sits next to main.py; on a local run from the
+    # repo checkout it lives in deploy/jobs
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "jobs"))
+    from jobCore.s3 import make_s3_client
 
 try:
     config.load_incluster_config()
@@ -177,39 +186,10 @@ async def log_requests(request, call_next):
 
 
 # S3 --------------------------------------------------
-_s3_client = None
-
-
 def s3_client():
-    # Built once and reused: creating a boto3 client loads the botocore
-    # service models (expensive in CPU and memory), and the console polls
-    # /jobs/{name}/status for every batch — one client per request pinned
-    # the pod at its CPU limit. boto3 clients are thread-safe.
-    global _s3_client
-    if _s3_client is not None:
-        return _s3_client
-
-    import boto3
-    import urllib3
-    from botocore.client import Config
-
-    # Silence the per-request InsecureRequestWarning that would flood the logs.
-    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-    _s3_client = boto3.session.Session().client(
-        service_name="s3",
-        endpoint_url=os.getenv("S3_ENDPOINT_URL"),
-        aws_access_key_id=os.getenv("AWS_ACCESS_KEY"),
-        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-        config=Config(
-            connect_timeout=5,
-            read_timeout=10,
-            retries={"max_attempts": 1},
-            max_pool_connections=32,  # parallel /import reads share the client
-        ),
-        verify=False,  # We deactivate SSL verification here, we should enable it for security measures only when we are running with a non auto signed certificate
-    )
-    return _s3_client
+    # Fail fast: an endpoint answering the console must not hang on storage
+    # retries, and /import reads the Parquet 16-wide in parallel.
+    return make_s3_client(read_timeout=10, retries=1, pool_connections=32)
 
 
 def to_s3_uri(bucket, path):

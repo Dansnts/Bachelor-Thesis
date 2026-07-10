@@ -23,10 +23,16 @@ import os
 import sys
 import time
 
-import boto3
 import requests
 import urllib3
 from botocore.exceptions import BotoCoreError, ClientError
+
+# S3 client shared with the rest of the project (the CLI runs from the repo)
+sys.path.insert(
+    0,
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "deploy", "jobs"),
+)
+from jobCore.s3 import make_s3_client
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -34,17 +40,6 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 API_URL = os.getenv("API_URL", "https://sam3-api.iict-rad.iict-heig-vd.in")
 BUCKET = os.getenv("BUCKET", "nearai")
 IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png")
-
-
-# S3 --------------------------------------------------
-def make_s3_client():
-    return boto3.client(
-        "s3",
-        endpoint_url=os.getenv("S3_ENDPOINT_URL"),
-        aws_access_key_id=os.getenv("AWS_ACCESS_KEY"),
-        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-        verify=False,  # We deactivate SSL verification here, we should enable it for security measures only when we are running with a non auto signed certificate
-    )
 
 
 # Functions --------------------------------------------------
