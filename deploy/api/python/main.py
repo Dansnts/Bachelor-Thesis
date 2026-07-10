@@ -131,7 +131,12 @@ logging.basicConfig(
 )
 log = logging.getLogger("nearapi")
 
-app = FastAPI()
+app = FastAPI(
+    title="NearAI API",
+    version="1.0",
+    description="Pilotage de la pipeline d'annotation SAM3 : jobs batch et solo, "
+    "segmentation interactive, import Label Studio. Console web sur /ui.",
+)
 
 
 @app.middleware("http")

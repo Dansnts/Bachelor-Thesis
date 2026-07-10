@@ -47,7 +47,7 @@ class TestUi:
         r = client.get("/ui")
         assert r.status_code == 200
         assert "text/html" in r.headers["content-type"]
-        assert "Console du pipeline" in r.text
+        assert "NearAI" in r.text and "Console" in r.text
 
 
 class TestSubmitBatch:

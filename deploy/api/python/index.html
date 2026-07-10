@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>NearAI — Console du pipeline</title>
+<title>Console pipeline NearAI</title>
 <style>
   /* ---- tokens: asphalt, road paint, signal ---- */
   :root {
@@ -80,6 +80,17 @@
   }
 
   .header-tools { display: flex; align-items: center; gap: 18px; padding-bottom: 4px; }
+
+  .doc-link {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+    text-decoration: none;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 4px 10px;
+  }
+  .doc-link:hover { color: var(--paint); border-color: var(--muted); }
 
   .health { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 12px; color: var(--muted); }
 
@@ -315,18 +326,19 @@
 
 <header>
   <div class="brand">
-    <div class="eyebrow">NearAI · HEIG-VD</div>
-    <h1>Console du pipeline</h1>
+    <div class="eyebrow">NearAI</div>
+    <h1>Console de la pipeline</h1>
   </div>
   <div class="header-tools">
     <div class="seg">
-      <span>Service interactif</span>
+      <span>Service de segmentation Off</span>
       <span class="led" id="seg-led"></span>
       <span id="seg-state">—</span>
-      <button id="seg-up" title="Démarre le pod GPU du service de segmentation à la volée">Réveiller</button>
-      <button id="seg-down" title="Stoppe le pod GPU pour libérer la carte">Endormir</button>
+      <button id="seg-up" title="Démarre le pod GPU du service de segmentation à la volée">Up</button>
+      <button id="seg-down" title="Stoppe le pod GPU pour libérer la carte">Down</button>
     </div>
     <div class="health"><span class="led" id="led"></span><span id="health-text">API…</span></div>
+    <a class="doc-link" href="/docs" target="_blank" rel="noopener">Doc API</a>
   </div>
 </header>
 
@@ -549,9 +561,9 @@ async function checkSegment() {
   const led = $("seg-led"), state = $("seg-state");
   try {
     const st = await api("/segment/status");
-    if (st.ready > 0)            { led.className = "led ok";   state.textContent = "prêt"; }
-    else if (st.replicas > 0)    { led.className = "led warn"; state.textContent = "démarrage…"; }
-    else                         { led.className = "led";      state.textContent = "endormi"; }
+    if (st.ready > 0)            { led.className = "led ok";   state.textContent = "Up"; }
+    else if (st.replicas > 0)    { led.className = "led warn"; state.textContent = "Démarrage…"; }
+    else                         { led.className = "led";      state.textContent = "Down"; }
   } catch (e) {
     led.className = "led";
     state.textContent = "—";
@@ -559,10 +571,10 @@ async function checkSegment() {
 }
 
 $("seg-up").onclick = () => api("/segment/up", { method: "POST" })
-  .then(() => { toast("Service interactif réveillé (le pod GPU démarre)."); checkSegment(); })
+  .then(() => { toast("Service interactif Up."); checkSegment(); })
   .catch(e => toast(e.message, true));
 $("seg-down").onclick = () => api("/segment/down", { method: "POST" })
-  .then(() => { toast("Service interactif endormi."); checkSegment(); })
+  .then(() => { toast("Service interactif Down."); checkSegment(); })
   .catch(e => toast(e.message, true));
 
 /* ---- jobs board ---- */
