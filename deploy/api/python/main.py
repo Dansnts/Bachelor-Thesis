@@ -50,7 +50,12 @@ class BatchRequest(BaseModel):
 
     Attributes:
         s3Uri: prefix (or s3:// URI) of the images to segment.
-        s3OutputUri: where to write the Parquet results; derived from s3Uri when omitted (see default_output_prefix).
+        s3Uris: explicit list of full s3://bucket/key image URLs, as an
+            alternative to s3Uri; exactly one of the two must be provided.
+            The scheme is mandatory so a future https:// source can be added
+            explicitly. The images can live in any bucket; the results still
+            land under a single output prefix.
+        s3OutputUri: where to write the Parquet results; derived from s3Uri (or the first of s3Uris) when omitted (see default_output_prefix).
         s3Bucket: bucket holding the images and receiving the results.
         labels: text labels the model looks for.
         numWorkers: number of parallel GPU actors on the RayCluster.
@@ -60,7 +65,8 @@ class BatchRequest(BaseModel):
         downsample: shrink factor applied before tiling (1.0 = full resolution).
     """
 
-    s3Uri: str
+    s3Uri: Optional[str] = None
+    s3Uris: Optional[List[str]] = None
     s3OutputUri: Optional[str] = None
     s3Bucket: str
     labels: List[str]
@@ -185,6 +191,29 @@ def to_s3_uri(bucket, path):
         return path
 
     return f"s3://{bucket}/{path.lstrip('/')}"
+
+
+def require_s3_url(url):
+    """Validate one full s3://bucket/key image URL, or raise a 422.
+
+    Explicit image lists demand the scheme: a bare key would be ambiguous,
+    and a future https:// source (downloading straight from the image
+    provider) must be added explicitly, not guessed from the path.
+
+        Attributes:
+            url : one image URL from the request's s3Uris list
+    """
+    if not url.startswith("s3://"):
+        raise HTTPException(
+            status_code=422,
+            detail="unsupported URL '%s': only s3:// is handled for now" % url,
+        )
+    bucket, _, key = url[5:].partition("/")
+    if not bucket or not key:
+        raise HTTPException(
+            status_code=422, detail="expected s3://bucket/key, got '%s'" % url
+        )
+    return url
 
 
 def default_output_prefix(s3_uri):
@@ -566,15 +595,34 @@ def health():
 @app.post("/jobs/batch")
 def submit_batch(req: BatchRequest):
     # Creates a new batch job
+    if bool(req.s3Uri) == bool(req.s3Uris):
+        raise HTTPException(
+            status_code=422, detail="exactly one of s3Uri or s3Uris is required"
+        )
+
     name = f"sam3-batch-{uuid.uuid4().hex[:8]}"
-    base_output = req.s3OutputUri or default_output_prefix(req.s3Uri)
+
+    if req.s3Uris:
+        urls = [require_s3_url(u) for u in req.s3Uris]
+        input_args = ["--s3_uris", ",".join(urls)]
+        input_log = "%d explicit urls" % len(urls)
+        # no common prefix on an explicit list: derive from the first image
+        base_output = req.s3OutputUri or default_output_prefix(
+            urls[0].rsplit("/", 1)[0] + "/"
+        )
+    else:
+        input_uri = to_s3_uri(req.s3Bucket, req.s3Uri)
+        input_args = ["--s3_uri", input_uri]
+        input_log = input_uri
+        base_output = req.s3OutputUri or default_output_prefix(req.s3Uri)
+
     output_uri = to_s3_uri(
         req.s3Bucket, "%s%s/" % (base_output.rstrip("/") + "/", name)
     )
     log.info(
         "batch_submit job=%s input=%s workers=%d batch_size=%d tile=%d downsample=%.2f labels=%d",
         name,
-        to_s3_uri(req.s3Bucket, req.s3Uri),
+        input_log,
         req.numWorkers,
         req.batchSize,
         req.tileSize,
@@ -582,9 +630,7 @@ def submit_batch(req: BatchRequest):
         len(req.labels),
     )
 
-    arg_list = [
-        "--s3_uri",
-        to_s3_uri(req.s3Bucket, req.s3Uri),
+    arg_list = input_args + [
         "--s3_output_uri",
         output_uri,
         "--labels",

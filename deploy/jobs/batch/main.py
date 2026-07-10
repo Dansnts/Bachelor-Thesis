@@ -20,6 +20,11 @@ The output mirrors the sub-structure of the input prefix: an image at
 <input>/S001/foo.jpg lands at <output>/S001/foo.parquet. A params.json and a
 dataset_info.txt describing the run are written at the root of <output>.
 
+Instead of a prefix, --s3_uris takes an explicit comma-separated list of full
+s3://bucket/key image URLs. The images can then live anywhere (any bucket, any
+prefix); the output still lands under the single --s3_output_uri, each Parquet
+mirroring its image's full parent path so scattered inputs cannot collide.
+
     # local test (single GPU, no cluster)
     python3.12 main.py --local --s3_uri ... --s3_output_uri ... --labels sign
 """
@@ -53,6 +58,24 @@ log = logging.getLogger(__name__)
 
 
 # S3 / EXIF --------------------------------------------------
+def parse_s3_url(url):
+    """Split a full s3://bucket/key image URL into (bucket, key).
+
+    The scheme is mandatory: anything else is rejected, so a future source
+    (e.g. https:// to download straight from the image provider) gets its own
+    explicit handling instead of being silently misread as an S3 key.
+
+    Arguments :
+    url                  full URL of one image
+    """
+    if not url.startswith("s3://"):
+        raise ValueError("unsupported URL (only s3:// is handled): %s" % url)
+    bucket, _, key = url[5:].partition("/")
+    if not bucket or not key:
+        raise ValueError("expected s3://bucket/key, got: %s" % url)
+    return bucket, key
+
+
 def list_images(client, bucket, prefix):
     """List every supported image under an S3 prefix, sorted.
 
@@ -271,7 +294,7 @@ def write_run_params(client, bucket, prefix, args, labels, images, detections):
     params = {
         "run": prefix.strip("/").rsplit("/", 1)[-1],
         "generated_utc": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
-        "input_uri": args.s3_uri,
+        "input_uri": args.s3_uri or "explicit list of %d s3 urls" % images,
         "output_uri": args.s3_output_uri,
         "labels": labels,
         "num_workers": args.num_workers,
@@ -568,7 +591,12 @@ def main():
     root of the output. Parameters come from the command line (see --help).
     """
     parser = argparse.ArgumentParser()
-    parser.add_argument("--s3_uri", required=True, help="s3://bucket/prefix/")
+    parser.add_argument("--s3_uri", default=None, help="s3://bucket/prefix/")
+    parser.add_argument(
+        "--s3_uris",
+        default=None,
+        help="comma-separated full s3://bucket/key image URLs (alternative to --s3_uri)",
+    )
     parser.add_argument("--s3_output_uri", required=True, help="s3://bucket/prefix/")
     parser.add_argument("--labels", required=True, help="comma-separated labels")
     parser.add_argument("--batch_size", type=int, default=DEFAULT_BATCH_SIZE)
@@ -589,24 +617,37 @@ def main():
 
     logging.basicConfig(level=logging.INFO)
 
+    if bool(args.s3_uri) == bool(args.s3_uris):
+        parser.error("exactly one of --s3_uri or --s3_uris is required")
+    if not args.s3_output_uri.startswith("s3://"):
+        parser.error("--s3_output_uri must be a full s3://bucket/prefix/ URI")
+
     labels = [l.strip() for l in args.labels.split(",") if l.strip()]
-    in_bucket, in_prefix = args.s3_uri[5:].split("/", 1)
     out_bucket, out_prefix = args.s3_output_uri[5:].split("/", 1)
 
     ray.init() if args.local else ray.init(RAY_HEAD)
     log.info("Ray: %d node(s)", len(ray.nodes()))
 
     client = make_s3_client()
-    keys = list_images(client, in_bucket, in_prefix)
+    if args.s3_uri:
+        if not args.s3_uri.startswith("s3://"):
+            parser.error("--s3_uri must be a full s3://bucket/prefix/ URI")
+        in_bucket, in_prefix = args.s3_uri[5:].split("/", 1)
+        images = [(in_bucket, k) for k in list_images(client, in_bucket, in_prefix)]
+    else:
+        # explicit list: the images can live anywhere; with no common prefix to
+        # strip, each Parquet mirrors its image's full parent path in the output
+        in_prefix = ""
+        images = [parse_s3_url(u.strip()) for u in args.s3_uris.split(",") if u.strip()]
 
     if args.resume:
         done = already_processed(client, out_bucket, out_prefix)
-        keys = [k for k in keys if Path(k).stem not in done]
-        log.info("Resume: %d images left", len(keys))
+        images = [(b, k) for b, k in images if Path(k).stem not in done]
+        log.info("Resume: %d images left", len(images))
     else:
-        log.info("Processing %d images", len(keys))
+        log.info("Processing %d images", len(images))
 
-    if not keys:
+    if not images:
         ray.shutdown()
         return
 
@@ -629,15 +670,15 @@ def main():
     # round-robin dispatch: image i -> worker (i mod n)
     futures = [
         workers[i % n].process.remote(
-            in_bucket, key, in_prefix, out_bucket, out_prefix, labels
+            bucket, key, in_prefix, out_bucket, out_prefix, labels
         )
-        for i, key in enumerate(keys)
+        for i, (bucket, key) in enumerate(images)
     ]
 
     started_at = time.time()
     total_detections = 0
     sum_worker_time = 0.0
-    total_images = len(keys)
+    total_images = len(images)
     processed_images = 0
     last_percent = -1
 
