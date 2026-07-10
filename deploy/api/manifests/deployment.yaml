@@ -59,13 +59,15 @@ spec:
               value: "8000"
             - name: V4_ADDRESS
               value: "0.0.0.0"
+          # Memory sized for /import on a full acquisition (thousands of
+          # Parquet read in parallel): 512Mi got the pod OOMKilled.
           resources:
             requests:
               cpu: "100m"
-              memory: "128Mi"
+              memory: "256Mi"
             limits:
-              cpu: "500m"
-              memory: "512Mi"
+              cpu: "1"
+              memory: "2Gi"
           # rootfs en lecture seule : /tmp reste inscriptible via un emptyDir
           volumeMounts:
             - name: tmp
