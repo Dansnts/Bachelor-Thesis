@@ -10,8 +10,13 @@ from typing import List, Optional
 import requests
 from botocore.exceptions import BotoCoreError, ClientError
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import (
+    FileResponse,
+    JSONResponse,
+    RedirectResponse,
+    StreamingResponse,
+)
 from kubernetes import client, config
 from pydantic import (
     BaseModel,  # JSON validation / parsing: Pydantic validates types and converts the JSON
@@ -581,7 +586,11 @@ def iter_label_studio_json(task_iter):
 
 # Endpoints --------------------------------------------------
 @app.get("/")
-async def root():
+async def root(request: Request):
+    # A browser landing on the bare API URL is sent to the console (which
+    # links the OpenAPI doc); API clients keep getting the JSON banner.
+    if "text/html" in request.headers.get("accept", ""):
+        return RedirectResponse("/ui")
     return {"message": "NearAPI is running."}
 
 

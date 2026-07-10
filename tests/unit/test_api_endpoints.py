@@ -42,6 +42,18 @@ def _fake_job(name, *, succeeded=None, failed=None, active=None, created=None):
     return types.SimpleNamespace(metadata=meta, status=status)
 
 
+class TestRoot:
+    def test_browser_is_redirected_to_the_console(self, client):
+        r = client.get("/", headers={"Accept": "text/html"}, follow_redirects=False)
+        assert r.status_code == 307
+        assert r.headers["location"] == "/ui"
+
+    def test_api_client_keeps_the_json_banner(self, client):
+        r = client.get("/")
+        assert r.status_code == 200
+        assert "message" in r.json()
+
+
 class TestUi:
     def test_ui_serves_the_control_panel(self, client):
         r = client.get("/ui")
