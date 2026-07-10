@@ -42,6 +42,14 @@ def _fake_job(name, *, succeeded=None, failed=None, active=None, created=None):
     return types.SimpleNamespace(metadata=meta, status=status)
 
 
+class TestUi:
+    def test_ui_serves_the_control_panel(self, client):
+        r = client.get("/ui")
+        assert r.status_code == 200
+        assert "text/html" in r.headers["content-type"]
+        assert "Console du pipeline" in r.text
+
+
 class TestSubmitBatch:
     def test_returns_job_name_and_submitted(self, client, fake_k8s):
         r = client.post("/jobs/batch", json=BATCH)
@@ -244,6 +252,27 @@ class TestSegmentScaling:
     def test_scale_failure_propagates(self, client, fake_k8s):
         fake_k8s.apps.error = fake_k8s.ApiException(status=409, reason="conflict")
         assert client.post("/segment/up").status_code == 409
+
+
+class TestSegmentStatus:
+    def test_asleep(self, client, fake_k8s):
+        body = client.get("/segment/status").json()
+        assert body["replicas"] == 0 and body["ready"] == 0
+
+    def test_starting(self, client, fake_k8s):
+        fake_k8s.apps.replicas = 1
+        body = client.get("/segment/status").json()
+        assert body["replicas"] == 1 and body["ready"] == 0
+
+    def test_ready(self, client, fake_k8s):
+        fake_k8s.apps.replicas = 1
+        fake_k8s.apps.ready_replicas = 1
+        body = client.get("/segment/status").json()
+        assert body["ready"] == 1
+
+    def test_read_failure_propagates(self, client, fake_k8s):
+        fake_k8s.apps.error = fake_k8s.ApiException(status=404, reason="not found")
+        assert client.get("/segment/status").status_code == 404
 
 
 class TestImport:

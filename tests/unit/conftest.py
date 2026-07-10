@@ -205,12 +205,22 @@ class FakeAppsApi:
     def __init__(self):
         self.scaled_to = None
         self.error = None
+        self.replicas = 0
+        self.ready_replicas = None
 
     def patch_namespaced_deployment_scale(self, name, namespace, body):
         if self.error:
             raise self.error
         self.scaled_to = body["spec"]["replicas"]
         return body
+
+    def read_namespaced_deployment(self, name, namespace):
+        if self.error:
+            raise self.error
+        return types.SimpleNamespace(
+            spec=types.SimpleNamespace(replicas=self.replicas),
+            status=types.SimpleNamespace(ready_replicas=self.ready_replicas),
+        )
 
 
 @pytest.fixture
