@@ -8,6 +8,8 @@ file and the S3 listing helpers (with the in-memory fake S3).
 import json
 import types
 
+import pytest
+
 
 class TestRelativeToPrefix:
     """Mirroring of the input sub-structure under the output prefix.
@@ -66,6 +68,37 @@ class TestRelativeToPrefix:
             "data/acq/01_images_backup/foo.jpg", "data/acq/01_images"
         )
         assert rel == "data/acq/01_images_backup"
+
+
+class TestParseS3Url:
+    """Explicit image URLs must carry the s3:// scheme and a bucket + key."""
+
+    def test_valid_url_splits_bucket_and_key(self, batch_module):
+        bucket, key = batch_module.parse_s3_url(
+            "s3://nearai/data/acquisitions/A/01_images/a.jpg"
+        )
+        assert bucket == "nearai"
+        assert key == "data/acquisitions/A/01_images/a.jpg"
+
+    def test_other_bucket_is_kept(self, batch_module):
+        bucket, key = batch_module.parse_s3_url("s3://other/x/b.jpg")
+        assert bucket == "other" and key == "x/b.jpg"
+
+    def test_https_scheme_rejected(self, batch_module):
+        with pytest.raises(ValueError):
+            batch_module.parse_s3_url("https://ville.example/img.jpg")
+
+    def test_bare_key_rejected(self, batch_module):
+        with pytest.raises(ValueError):
+            batch_module.parse_s3_url("data/acquisitions/A/01_images/a.jpg")
+
+    def test_bucket_without_key_rejected(self, batch_module):
+        with pytest.raises(ValueError):
+            batch_module.parse_s3_url("s3://nearai")
+
+    def test_empty_bucket_rejected(self, batch_module):
+        with pytest.raises(ValueError):
+            batch_module.parse_s3_url("s3:///a.jpg")
 
 
 class TestWriteRunParams:

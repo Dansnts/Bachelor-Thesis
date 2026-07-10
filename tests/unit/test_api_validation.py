@@ -108,6 +108,56 @@ class TestAccepted:
         assert "--tile_stride" in args and "768" in args
 
 
+class TestExplicitUrlList:
+    """s3Uris: an explicit list of full s3:// image URLs instead of a prefix.
+
+    The scheme is mandatory (a future https:// source must be added
+    explicitly, not guessed), and the list is exclusive with s3Uri.
+    """
+
+    URLS = [
+        "s3://nearai/data/acquisitions/A/01_images/a.jpg",
+        "s3://other-bucket/somewhere/else/b.jpg",
+    ]
+
+    def _list_batch(self, **over):
+        body = _batch(s3Uris=self.URLS)
+        body.pop("s3Uri")
+        return {**body, **over}
+
+    def test_valid_url_list_ok(self, client):
+        assert client.post("/jobs/batch", json=self._list_batch()).status_code == 200
+
+    def test_urls_reach_driver_as_s3_uris(self, client, fake_k8s):
+        client.post("/jobs/batch", json=self._list_batch())
+        job = next(iter(fake_k8s.batch.jobs.values()))
+        args = job.spec.template.spec.containers[0].args
+        assert "--s3_uris" in args
+        assert args[args.index("--s3_uris") + 1] == ",".join(self.URLS)
+        assert "--s3_uri" not in args
+
+    def test_both_uri_and_urls_rejected(self, client):
+        body = self._list_batch(s3Uri="in/")
+        assert client.post("/jobs/batch", json=body).status_code == 422
+
+    def test_neither_uri_nor_urls_rejected(self, client):
+        body = _batch()
+        body.pop("s3Uri")
+        assert client.post("/jobs/batch", json=body).status_code == 422
+
+    def test_https_url_rejected(self, client):
+        body = self._list_batch(s3Uris=["https://ville.example/img.jpg"])
+        assert client.post("/jobs/batch", json=body).status_code == 422
+
+    def test_bare_key_rejected(self, client):
+        body = self._list_batch(s3Uris=["data/acquisitions/A/01_images/a.jpg"])
+        assert client.post("/jobs/batch", json=body).status_code == 422
+
+    def test_bucket_only_url_rejected(self, client):
+        body = self._list_batch(s3Uris=["s3://nearai"])
+        assert client.post("/jobs/batch", json=body).status_code == 422
+
+
 class TestHardeningGaps:
     """Ranges the API does NOT check yet. These are the edge cases from the
     mid-July hardening campaign. They are xfail until a validator is added
