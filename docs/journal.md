@@ -679,4 +679,53 @@
 | Idea of YOLOv8 stretch goal + Talk with Valentin + journal | Done | 30min |
 | **Subtotal** |    | 9h |
 | **Total** |    | **9h** |
-| **Total** |    | **20h30** |
+
+*Wednesday July 8, 2026*
+
+| Task              | Status | Time |
+| :---------------- | :------: | ----: |
+| Report : fill `planification.typ` (weekly 450h plan, milestones, expand the Gantt) + sync `cahier-des-charges.typ` with the Specification (Exigences, Pushgateway, Risques) | Done | 1h30 |
+| Report writing support : observability third pillar, data/model parallelism vs embarrassingly parallel framing, NearLabel + cahier corrections | Done | 1h |
+| Diagnose null `latitude`/`longitude` in the Parquet : EXIF vs `02_poses` trajectory, bucket inspection over VPN (camera-dependent EXIF, trajectory coverage) | Done | 3h30 |
+| GPS fix : read coordinates from `02_poses/<session>_trajectory.csv` (join by image_name, per-session cache in the Ray actor) + transmit lat/lon to Label Studio tasks + unit tests | Done | 2h |
+| Flat-layout robustness : `pose_csv_key` derives the session from the `_S<NNN>_` filename token when no session folder + tests | Done | 1h |
+| Build / rollout / validate : rollout the RayCluster on the fresh image + real batch runs on Samples to check coordinates + verify Parquet coords match the trajectory CSV exactly (40/40) | Done | 2h |
+| Report : new `Géoréférencement des détections` section in `architecture.typ` (source `02_poses`, join, sensor decoupling) | Done | 1h |
+| Commits (author / co-author split) + push + memory + journal | Done | 40min |
+| **Subtotal** |    | 12h40 |
+| **Total** |    | **12h40** |
+| **Total** |    | **33h10** |
+
+*Thursday July 9, 2026*
+
+| Task              | Status | Time |
+| :---------------- | :------: | ----: |
+| GPU benchmark A40 vs L40S : 4 solo runs (504 sweep) pinned on the A40, read pod logs, fix inverted run mapping, fill the notes.md comparison table (1,49× -> 1,02×, detections identical) | Done | 1h30 |
+| Report in Results : review and fix of the L40S vs A40 chapter (GPU times inverted in the prose, architecture years, ratio-vs-load reading, duplicate Typst labels, chart axes) | Done | 1h30 |
+| Report État de l'art : GeoParquet paragraph (image-space geometry -> not retained, future work) after inspecting a real Parquet + float64 vs float32 justification in Architecture | Done | 1h30 |
+| Diagnose batch startup crashes : gRPC fork race in the Ray Client proxier (`ev_epoll1` fatal check, retry pod masks it) + "Processing 0 images" from a doubled bucket prefix in the request | Done | 1h |
+| Assisted-annotation benchmark : 10-image batch on testValentin, chronometer manual vs assisted annotation in Label Studio, per-image SAM3 times from the job logs | Done | 2h30 |
+| Report Résultats : assisted-annotation table (restructure to 6 columns, totals, 47 % human-time gain, clearer headers) | Done | 1h |
+| Label Studio : tasks JSON without annotations + pre-annotations import from `09_Pipeline_result` (177 polygons, fix stale `image_key` paths after the `01_images` move) | Done | 1h15 |
+| Report Résultats : bubble chart volume × confidence per label (lilaq scatter, fixed-size legend workaround) | Done | 1h |
+| Day planning + journal | Done | 45min |
+| **Subtotal** |    | 12h |
+| **Total** |    | **12h** |
+| **Total** |    | **45h10** |
+
+*Friday July 10, 2026*
+
+| Task              | Status | Time |
+| :---------------- | :------: | ----: |
+| Report Résultats : new `Analyse des coûts` section (cloud GPU rental pricing L40S/A40, ~660 GPU-h for the 300k corpus, on-prem electricity estimate, full-chain skeleton awaiting confidential acquisition/blurring figures) + conclusion milestones (SAM3 exploited not improved) | Done | 1h30 |
+| Batch feature for Valentin : explicit `s3Uris` list of full s3:// URLs (scattered inputs, per-image bucket, mandatory scheme for future https support) in API + driver + 13 unit tests | Done | 2h |
+| Prod validation of `s3Uris` : CI build check via ghcr, API rollout, 422 rejection cases, 2 real batch runs on scattered testValentin+Vevey images, output layout + params.json verified | Done | 1h15 |
+| Web console `/ui` served by the API : launch batch (prefix or URL list), live tile-grid progress with ETA, segment service status + wake/sleep, Label Studio import, health LED ; local proxy for pre-deploy demo | Done | 3h |
+| Console iterations : segment status endpoint `GET /segment/status` + tests, custom label chips, generic placeholders, OpenAPI doc named (`NearAI API`), Doc API link, browser redirect `/` -> `/ui` | Done | 1h30 |
+| API incident : pod OOMKilled (512Mi) then CPU pinned at 100 % — diagnosed one-boto3-client-per-request (status polls at 27s each), fix client reuse + limits 2Gi/1cpu, apply + rollout | Done | 1h |
+| Refactor : single S3 factory `jobCore.s3` shared by API/jobs/CLI (API build context moved to `deploy`, process-wide client cache for every component) | Done | 45min |
+| Report Architecture + Implémentation : `Console web` sections (served-by-API rationale, pull model, tile grid, segment states) + OpenAPI paragraph after the endpoint table | Done | 45min |
+| Journal | Done | 15min |
+| **Subtotal** |    | 12h |
+| **Total** |    | **12h** |
+| **Total** |    | **57h10** |
