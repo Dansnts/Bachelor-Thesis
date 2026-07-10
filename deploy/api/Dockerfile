@@ -5,7 +5,7 @@ WORKDIR /app
 COPY ./python/requirements.txt .
 RUN pip install --no-cache-dir -r ./requirements.txt
 
-COPY ./python/main.py .
+COPY ./python/main.py ./python/index.html .
 
 # Utilisateur non-root pour l'exécution
 RUN useradd --create-home --uid 1000 appuser

@@ -11,7 +11,7 @@ import requests
 from botocore.exceptions import BotoCoreError, ClientError
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from kubernetes import client, config
 from pydantic import (
     BaseModel,  # JSON validation / parsing: Pydantic validates types and converts the JSON
@@ -580,6 +580,13 @@ async def root():
     return {"message": "NearAPI is running."}
 
 
+@app.get("/ui")
+def ui():
+    # Control panel for demos: a single self-contained page served by the API
+    # itself, so the browser talks to the same origin (no CORS to configure).
+    return FileResponse(os.path.join(os.path.dirname(__file__), "index.html"))
+
+
 @app.get("/health")
 def health():
     # confirms the API is up and the Kubernetes
@@ -831,6 +838,26 @@ def segment(req: SegmentRequest):
 
     log.info("segment_ok url=%s items=%d", req.url, len(req.items))
     return resp.json()
+
+
+@app.get("/segment/status")
+def segment_status():
+    """Return the segment deployment's state so the UI can display it.
+
+    replicas is the wanted scale (0 = asleep), ready the pods actually
+    serving; "démarrage" is the window where replicas > ready.
+    """
+    try:
+        dep = apps_v1.read_namespaced_deployment(SEGMENT_DEPLOYMENT, NAMESPACE)
+    except client.ApiException as e:
+        log.error(
+            "segment_status_failed deployment=%s reason=%s", SEGMENT_DEPLOYMENT, e.reason
+        )
+        raise HTTPException(status_code=e.status, detail=e.reason)
+
+    replicas = dep.spec.replicas or 0
+    ready = dep.status.ready_replicas or 0
+    return {"deployment": SEGMENT_DEPLOYMENT, "replicas": replicas, "ready": ready}
 
 
 @app.post("/segment/up")

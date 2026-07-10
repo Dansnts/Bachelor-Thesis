@@ -1,0 +1,676 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NearAI — Console du pipeline</title>
+<style>
+  /* ---- tokens: asphalt, road paint, signal ---- */
+  :root {
+    --asphalt: #17181b;
+    --panel: #1f2126;
+    --panel-2: #25282e;
+    --line: #33363d;
+    --paint: #eceae3;
+    --muted: #8e9198;
+    --mark: #f3c53d;   /* road-marking yellow: the single accent */
+    --sign: #4b8bff;   /* signal blue: info badges */
+    --ok: #46b96c;
+    --err: #e5544b;
+    --radius: 10px;
+    --display: "Futura", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+    --body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; }
+
+  body {
+    background: var(--asphalt);
+    color: var(--paint);
+    font-family: var(--body);
+    font-size: 14px;
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+
+  a { color: var(--sign); }
+
+  button, input, textarea, select { font: inherit; color: inherit; }
+
+  :focus-visible { outline: 2px solid var(--mark); outline-offset: 2px; }
+
+  /* ---- header: the road ---- */
+  header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    padding: 28px 32px 18px;
+    /* dashed centre line under the header, like a road marking */
+    border-bottom: 4px solid transparent;
+    background:
+      linear-gradient(var(--asphalt), var(--asphalt)) padding-box,
+      repeating-linear-gradient(90deg,
+        var(--mark) 0 46px, transparent 46px 78px) border-box;
+  }
+
+  .brand .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .22em;
+    color: var(--mark);
+    text-transform: uppercase;
+  }
+
+  .brand h1 {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 26px;
+    letter-spacing: .01em;
+  }
+
+  .brand h1 small {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--muted);
+    margin-left: 10px;
+  }
+
+  .header-tools { display: flex; align-items: center; gap: 18px; padding-bottom: 4px; }
+
+  .health { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+
+  .led { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+  .led.ok  { background: var(--ok);  box-shadow: 0 0 8px var(--ok); }
+  .led.err { background: var(--err); box-shadow: 0 0 8px var(--err); }
+
+  .seg { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+
+  .seg button {
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    color: var(--paint);
+    padding: 4px 10px;
+    cursor: pointer;
+  }
+  .seg button:hover { border-color: var(--muted); }
+
+  /* ---- layout ---- */
+  main {
+    display: grid;
+    grid-template-columns: 400px 1fr;
+    gap: 20px;
+    padding: 24px 32px 48px;
+    max-width: 1280px;
+    margin: 0 auto;
+  }
+
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+
+  .col { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 20px;
+  }
+
+  .panel h2 {
+    font-family: var(--display);
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .panel h2 .hint { font-family: var(--mono); font-size: 11px; font-weight: 400; color: var(--muted); text-transform: none; letter-spacing: 0; }
+
+  /* ---- form ---- */
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+
+  .field input[type=text], .field input[type=number], .field textarea {
+    width: 100%;
+    background: var(--asphalt);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 7px 9px;
+    font-family: var(--mono);
+    font-size: 12.5px;
+  }
+  .field textarea { resize: vertical; min-height: 84px; }
+  .field input::placeholder, .field textarea::placeholder { color: #5b5e66; }
+
+  .mode {
+    display: flex;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    overflow: hidden;
+    margin-bottom: 14px;
+  }
+  .mode button {
+    flex: 1;
+    background: transparent;
+    border: 0;
+    padding: 7px 0;
+    font-size: 12.5px;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .mode button.active { background: var(--panel-2); color: var(--paint); font-weight: 600; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    background: var(--asphalt);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 3px 10px;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .chip.on { border-color: var(--mark); color: var(--mark); }
+
+  .add-label { display: flex; gap: 6px; margin-top: 8px; }
+  .add-label input {
+    flex: 1;
+    background: var(--asphalt);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 5px 9px;
+    font-family: var(--mono);
+    font-size: 11.5px;
+  }
+  .add-label input::placeholder { color: #5b5e66; }
+  .add-label .quiet-btn { padding: 5px 12px; font-size: 12px; }
+
+  .led.warn { background: var(--mark); box-shadow: 0 0 8px var(--mark); }
+
+  .params { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+
+  .launch-btn {
+    width: 100%;
+    margin-top: 6px;
+    background: var(--mark);
+    color: #191a12;
+    border: 0;
+    border-radius: 6px;
+    padding: 10px;
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .launch-btn:hover { filter: brightness(1.06); }
+  .launch-btn:disabled { opacity: .5; cursor: default; }
+
+  .quiet-btn {
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 8px 12px;
+    cursor: pointer;
+  }
+  .quiet-btn:hover { border-color: var(--muted); }
+
+  .result-line {
+    margin-top: 10px;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--muted);
+    word-break: break-all;
+  }
+
+  /* ---- jobs ---- */
+  .jobs-list { display: flex; flex-direction: column; gap: 12px; max-height: 78vh; overflow-y: auto; }
+
+  .job {
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 12px 14px;
+  }
+
+  .job-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+  .job-name { font-family: var(--mono); font-size: 12.5px; }
+
+  .badge {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    border-radius: 4px;
+    padding: 2px 7px;
+  }
+  .badge.batch { background: rgba(75, 139, 255, .16); color: var(--sign); }
+  .badge.solo  { background: rgba(142, 145, 152, .16); color: var(--muted); }
+  .badge.Active    { background: rgba(243, 197, 61, .14); color: var(--mark); }
+  .badge.Succeeded { background: rgba(70, 185, 108, .14); color: var(--ok); }
+  .badge.Failed    { background: rgba(229, 84, 75, .14); color: var(--err); }
+  .badge.Pending   { background: rgba(142, 145, 152, .14); color: var(--muted); }
+
+  .job-meta { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+
+  /* signature: progress as the pipeline's own tiling */
+  .tiles {
+    display: grid;
+    grid-template-columns: repeat(24, 1fr);
+    gap: 3px;
+    margin: 10px 0 8px;
+  }
+  .tiles i {
+    display: block;
+    aspect-ratio: 1;
+    border-radius: 1.5px;
+    background: var(--asphalt);
+    border: 1px solid #2c2f35;
+  }
+  .tiles i.done { background: var(--mark); border-color: var(--mark); }
+  .tiles i.next { animation: scan 1.2s ease-in-out infinite; }
+
+  @keyframes scan { 50% { background: #6b5a1f; border-color: var(--mark); } }
+
+  .job-stats { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+  .job-stats b { color: var(--paint); font-weight: 600; }
+
+  .empty {
+    border: 1px dashed var(--line);
+    border-radius: 8px;
+    padding: 28px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  /* ---- toasts ---- */
+  #toasts { position: fixed; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 10; max-width: 420px; }
+  .toast {
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--mark);
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: 13px;
+    box-shadow: 0 6px 24px rgba(0,0,0,.4);
+  }
+  .toast.err { border-left-color: var(--err); }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="eyebrow">NearAI · HEIG-VD</div>
+    <h1>Console du pipeline</h1>
+  </div>
+  <div class="header-tools">
+    <div class="seg">
+      <span>Service interactif</span>
+      <span class="led" id="seg-led"></span>
+      <span id="seg-state">—</span>
+      <button id="seg-up" title="Démarre le pod GPU du service de segmentation à la volée">Réveiller</button>
+      <button id="seg-down" title="Stoppe le pod GPU pour libérer la carte">Endormir</button>
+    </div>
+    <div class="health"><span class="led" id="led"></span><span id="health-text">API…</span></div>
+  </div>
+</header>
+
+<main>
+  <div class="col">
+    <section class="panel">
+      <h2>Lancer un batch</h2>
+
+      <div class="mode" role="tablist">
+        <button id="mode-prefix" class="active" role="tab">Préfixe S3</button>
+        <button id="mode-urls" role="tab">Liste d'URLs s3://</button>
+      </div>
+
+      <div class="field" id="f-prefix">
+        <label for="in-prefix">Préfixe des images</label>
+        <input type="text" id="in-prefix" value="data/acquisitions/testValentin/01_images/">
+      </div>
+
+      <div class="field" id="f-urls" hidden>
+        <label for="in-urls">URLs complètes, une par ligne (schéma s3:// obligatoire)</label>
+        <textarea id="in-urls" placeholder="s3://nearai/data/acquisitions/Vevey/01_images/pano_0001.jpg&#10;s3://nearai/data/acquisitions/Nyon/01_images/pano_0042.jpg"></textarea>
+      </div>
+
+      <div class="field">
+        <label for="in-bucket">Bucket de sortie</label>
+        <input type="text" id="in-bucket" value="nearai">
+      </div>
+
+      <div class="field">
+        <label>Labels</label>
+        <div class="chips" id="chips"></div>
+        <div class="add-label">
+          <input type="text" id="in-new-label" placeholder="autre label, ex. bench">
+          <button type="button" class="quiet-btn" id="add-label">Ajouter</button>
+        </div>
+      </div>
+
+      <div class="params">
+        <div class="field"><label for="in-workers">Workers GPU</label><input type="number" id="in-workers" value="3" min="1"></div>
+        <div class="field"><label for="in-batch">Batch</label><input type="number" id="in-batch" value="4" min="1"></div>
+        <div class="field"><label for="in-tile">Tuile</label><input type="number" id="in-tile" value="1008"></div>
+        <div class="field"><label for="in-stride">Stride</label><input type="number" id="in-stride" value="768"></div>
+        <div class="field"><label for="in-down">Downsample</label><input type="number" id="in-down" value="0.75" step="0.05" min="0.05" max="1"></div>
+      </div>
+
+      <button class="launch-btn" id="launch">Lancer le batch</button>
+    </section>
+
+    <section class="panel">
+      <h2>Import Label Studio</h2>
+      <div class="field">
+        <label for="ls-acq">Acquisition</label>
+        <input type="text" id="ls-acq" placeholder="nom du dossier d'acquisition">
+      </div>
+      <div class="field">
+        <label for="ls-run">Run (optionnel — tous les runs si vide)</label>
+        <input type="text" id="ls-run" placeholder="identifiant d'un run précis">
+      </div>
+      <button class="quiet-btn" id="ls-go">Générer le JSON sur S3</button>
+      <div class="result-line" id="ls-result"></div>
+    </section>
+  </div>
+
+  <div class="col">
+    <section class="panel">
+      <h2>Runs <span class="hint">actualisé toutes les 4 s</span></h2>
+      <div class="jobs-list" id="jobs"></div>
+    </section>
+  </div>
+</main>
+
+<div id="toasts"></div>
+
+<script>
+"use strict";
+
+/* ---- constants ---- */
+const LABELS = [
+  "circular_sign", "rectangular_sign", "circular_manhole_cover",
+  "rectangular_drain_grate", "road_marking", "arrow_marking",
+  "sign", "road_mark", "manhole",
+];
+const PRESELECTED = new Set(LABELS.slice(0, 6));
+const TILE_COUNT = 72;   // 24 x 3 grid, a nod to the 72-patch ViT grid
+
+const $ = (id) => document.getElementById(id);
+
+/* ---- toasts ---- */
+function toast(msg, isErr) {
+  const el = document.createElement("div");
+  el.className = "toast" + (isErr ? " err" : "");
+  el.textContent = msg;
+  $("toasts").appendChild(el);
+  setTimeout(() => el.remove(), 6000);
+}
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  if (!r.ok) {
+    let detail = r.statusText;
+    try { detail = (await r.json()).detail || detail; } catch (e) { /* non-JSON body */ }
+    throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
+  }
+  return r.json();
+}
+
+/* ---- health ---- */
+async function checkHealth() {
+  const led = $("led"), txt = $("health-text");
+  try {
+    await api("/health");
+    led.className = "led ok";
+    txt.textContent = "API en ligne";
+  } catch (e) {
+    led.className = "led err";
+    txt.textContent = "API injoignable";
+  }
+}
+
+/* ---- label chips ---- */
+const selected = new Set(PRESELECTED);
+const knownChips = new Set();
+
+function addChip(name, on) {
+  if (knownChips.has(name)) return;
+  knownChips.add(name);
+  if (on) selected.add(name);
+  const c = document.createElement("button");
+  c.type = "button";
+  c.className = "chip" + (on ? " on" : "");
+  c.textContent = name;
+  c.onclick = () => {
+    selected.has(name) ? selected.delete(name) : selected.add(name);
+    c.classList.toggle("on");
+  };
+  $("chips").appendChild(c);
+}
+
+for (const name of LABELS) addChip(name, selected.has(name));
+
+function addCustomLabel() {
+  const name = $("in-new-label").value.trim().toLowerCase().replaceAll(" ", "_");
+  if (!name) return;
+  addChip(name, true);
+  $("in-new-label").value = "";
+}
+$("add-label").onclick = addCustomLabel;
+$("in-new-label").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); addCustomLabel(); }
+});
+
+/* ---- input mode: prefix vs explicit url list ---- */
+let mode = "prefix";
+function setMode(m) {
+  mode = m;
+  $("mode-prefix").classList.toggle("active", m === "prefix");
+  $("mode-urls").classList.toggle("active", m === "urls");
+  $("f-prefix").hidden = m !== "prefix";
+  $("f-urls").hidden = m !== "urls";
+}
+$("mode-prefix").onclick = () => setMode("prefix");
+$("mode-urls").onclick = () => setMode("urls");
+
+/* ---- launch ---- */
+$("launch").onclick = async () => {
+  const body = {
+    s3Bucket: $("in-bucket").value.trim(),
+    labels: [...selected],
+    numWorkers: +$("in-workers").value,
+    batchSize: +$("in-batch").value,
+    tileSize: +$("in-tile").value,
+    tileStride: +$("in-stride").value,
+    downsample: +$("in-down").value,
+  };
+  if (mode === "prefix") {
+    body.s3Uri = $("in-prefix").value.trim();
+  } else {
+    body.s3Uris = $("in-urls").value.split("\n").map(s => s.trim()).filter(Boolean);
+  }
+  if (!selected.size) return toast("Choisissez au moins un label.", true);
+
+  $("launch").disabled = true;
+  try {
+    const res = await api("/jobs/batch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    toast("Batch " + res.job_name + " soumis.");
+    refreshJobs();
+  } catch (e) {
+    toast(e.message, true);
+  } finally {
+    $("launch").disabled = false;
+  }
+};
+
+/* ---- label studio import ---- */
+$("ls-go").onclick = async () => {
+  const acq = $("ls-acq").value.trim();
+  if (!acq) return toast("Indiquez le nom de l'acquisition.", true);
+  const run = $("ls-run").value.trim();
+  const qs = "?write=true" + (run ? "&run=" + encodeURIComponent(run) : "");
+  $("ls-go").disabled = true;
+  $("ls-result").textContent = "Conversion des Parquet en cours…";
+  try {
+    const res = await api("/import/" + encodeURIComponent(acq) + qs, { method: "POST" });
+    $("ls-result").textContent = res.files + " parquet convertis → " + res.uri;
+    toast("Import Label Studio écrit sur S3.");
+  } catch (e) {
+    $("ls-result").textContent = "";
+    toast(e.message, true);
+  } finally {
+    $("ls-go").disabled = false;
+  }
+};
+
+/* ---- segment service ---- */
+async function checkSegment() {
+  const led = $("seg-led"), state = $("seg-state");
+  try {
+    const st = await api("/segment/status");
+    if (st.ready > 0)            { led.className = "led ok";   state.textContent = "prêt"; }
+    else if (st.replicas > 0)    { led.className = "led warn"; state.textContent = "démarrage…"; }
+    else                         { led.className = "led";      state.textContent = "endormi"; }
+  } catch (e) {
+    led.className = "led";
+    state.textContent = "—";
+  }
+}
+
+$("seg-up").onclick = () => api("/segment/up", { method: "POST" })
+  .then(() => { toast("Service interactif réveillé (le pod GPU démarre)."); checkSegment(); })
+  .catch(e => toast(e.message, true));
+$("seg-down").onclick = () => api("/segment/down", { method: "POST" })
+  .then(() => { toast("Service interactif endormi."); checkSegment(); })
+  .catch(e => toast(e.message, true));
+
+/* ---- jobs board ---- */
+const statusCache = {};   // job_name -> final status body, so done runs are fetched once
+
+function fmtDuration(s) {
+  if (s == null) return "—";
+  s = Math.round(s);
+  if (s < 60) return s + " s";
+  const m = Math.floor(s / 60), h = Math.floor(m / 60);
+  if (h) return h + " h " + String(m % 60).padStart(2, "0") + " min";
+  return m + " min " + String(s % 60).padStart(2, "0") + " s";
+}
+
+function fmtTime(iso) {
+  const d = new Date(iso);
+  return d.toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit" }) +
+         " " + d.toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit" });
+}
+
+function tileGrid(percent) {
+  const filled = Math.round(TILE_COUNT * percent / 100);
+  let html = '<div class="tiles" role="img" aria-label="Progression ' + percent + ' %">';
+  for (let i = 0; i < TILE_COUNT; i++) {
+    const cls = i < filled ? "done" : (i === filled && percent < 100 ? "next" : "");
+    html += "<i" + (cls ? ' class="' + cls + '"' : "") + "></i>";
+  }
+  return html + "</div>";
+}
+
+async function jobStatus(name) {
+  if (statusCache[name]) return statusCache[name];
+  try {
+    const st = await api("/jobs/" + name + "/status");
+    if (st.done) statusCache[name] = st;   // frozen: no need to poll again
+    return st;
+  } catch (e) {
+    return null;   // 404 while the driver boots
+  }
+}
+
+function renderJob(job, st) {
+  const div = document.createElement("div");
+  div.className = "job";
+  let head =
+    '<div class="job-head">' +
+    '<span class="badge ' + job.kind + '">' + job.kind + "</span>" +
+    '<span class="job-name">' + job.job_name + "</span>" +
+    '<span class="badge ' + job.status + '">' + job.status + "</span>" +
+    '<span class="job-meta">' + fmtTime(job.created_at) + "</span>" +
+    "</div>";
+
+  let bodyHtml = "";
+  if (job.kind === "batch") {
+    if (st) {
+      const pct = st.percent ?? 0;
+      const remaining = (!st.done && st.processed > 0)
+        ? st.elapsed_seconds / st.processed * (st.total - st.processed) : null;
+      bodyHtml = tileGrid(pct) +
+        '<div class="job-stats"><b>' + st.processed.toLocaleString("fr-CH") + "</b> / " +
+        st.total.toLocaleString("fr-CH") + " images · <b>" + pct + " %</b>" +
+        " · écoulé " + fmtDuration(st.elapsed_seconds) +
+        (st.done ? "" : " · restant ≈ " + fmtDuration(remaining)) +
+        "</div>";
+    } else if (job.status === "Active" || job.status === "Pending") {
+      bodyHtml = '<div class="job-stats">Démarrage du driver…</div>';
+    }
+  } else if (job.status === "Succeeded") {
+    bodyHtml = '<div class="job-stats"><a href="/jobs/' + job.job_name +
+      '/result" target="_blank" rel="noopener">Voir le résultat JSON</a></div>';
+  }
+
+  div.innerHTML = head + bodyHtml;
+  return div;
+}
+
+async function refreshJobs() {
+  let data;
+  try {
+    data = await api("/jobs/");
+  } catch (e) {
+    return;   // health LED already reports the outage
+  }
+  const jobs = data.jobs.slice(0, 20);
+
+  // fetch progress for the batches worth polling (active, or finished once)
+  const statuses = await Promise.all(jobs.map(j =>
+    (j.kind === "batch" && j.status !== "Pending") ? jobStatus(j.job_name) : null
+  ));
+
+  const list = $("jobs");
+  list.replaceChildren();
+  if (!jobs.length) {
+    const e = document.createElement("div");
+    e.className = "empty";
+    e.textContent = "Aucun run pour l'instant. Lancez un batch pour voir ses tuiles se remplir ici.";
+    list.appendChild(e);
+    return;
+  }
+  jobs.forEach((j, i) => list.appendChild(renderJob(j, statuses[i])));
+}
+
+checkHealth();
+checkSegment();
+refreshJobs();
+setInterval(checkHealth, 10000);
+setInterval(checkSegment, 10000);
+setInterval(refreshJobs, 4000);
+</script>
+</body>
+</html>
