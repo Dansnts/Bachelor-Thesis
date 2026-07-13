@@ -38,7 +38,7 @@ Les images équirectangulaires présentent une distorsion géométrique croissan
   caption: [
     Dans ce cas, on peut voir en zone que même si non découpe le Nadir, nous pouvons perdre des éléments.
   ],
-) <sam3promtp>
+) <fig-zenith-nadir>
 
 La compléxité est due que rien ne garanti à 100% que un signe ou feu de signaisaiton ne soit présent sur le Zenith de l'image du à l'angle de la prise.
 
@@ -150,6 +150,12 @@ Parquet stocke des statistiques min/max par column chunk. Un moteur de requête 
 
 #pagebreak()
 *PostGIS* (extension PostgreSQL pour les données géospatiales) a été évalué comme alternative. Il offre des index spatiaux GIST et des requêtes géométriques natives (`ST_Within`, `ST_Intersects`). La décision est de le remplacer par Parquet sur S3. Les requêtes du projet ne nécessitent pas de jointures géospatiales complexes, et Parquet évite de maintenir une base de données.
+
+*GeoParquet* n'est pas un format distinct mais une convention posée au-dessus de Parquet, standardisée par l'OGC. Il est composé d'une colonne de géométrie encodée en WKB (_Well-Known Binary_) et un bloc de métadonnées déclarant cette colonne, son type et son système de coordonnées (CRS). Tout lecteur Parquet peut lire le fichier mais les les outils géospatiaux (QGIS, GeoPandas, DuckDB-spatial, Apache Sedona) reconnaissent en plus la géométrie et le CRS sans reconstruction manuelle. L'écosystème serait donc directement interopérable.
+
+Il n'est pourtant pas retenu, car la géométrie produite n'est pas géographique. Le polygone d'une détection (colonne `points`) est exprimé dans l'espace-image du panorama, en pourcentage de ses dimensions, et non dans un CRS au sol. Le reprojeter exigerait la pose de la caméra et une information de profondeur, hors du scope de ce travail.
+
+La seule coordonnée géographique disponible est la position de la caméra (`latitude`, `longitude`), identique pour toutes les détections d'une même image. Deux colonnes flottantes suffisent à ce besoin de filtrage par zone, sans la machinerie WKB et CRS. GeoParquet, et à plus grande échelle un moteur spatial distribué comme Apache Sedona, ne prendrait son sens qu'une fois les détections reprojetées en coordonnées sol, une piste laissée aux travaux futurs.
 
 *JSON* (JavaScript Object Notation) est le format accepté par LabelStudio pour importer les données géospatiales sur une images. Ce format va être utiliser uniquement pour le mode `on demand` et en legacy pour labelstudio afin de visualiser les résultats des runs.
 
