@@ -9,11 +9,11 @@
 
 La pipeline suit un flux linéaire en cinq étapes :
 
-+ *Lecture* : le driver liste les objets du préfixe S3 d'entrée et distribue les clés d'image aux workers Ray.
-+ *Téléchargement* : chaque worker télécharge l'image depuis MinIO et récupère ses coordonnées GPS dans le fichier de trajectoire de l'acquisition (EXIF en secours).
-+ *Inférence* : l'image est découpée en tuiles 512 × 512 px (après downsampling optionnel), chaque tuile est passée à SAM3 en mode _everything_.
-+ *Agrégation* : les masques produits sont convertis en polygones, normalisés en pourcentage des dimensions de l'image originale, filtrés par score de confiance.
-+ *Écriture* : les polygones sont sérialisés dans un fichier Parquet et envoyés sur MinIO.
++ *Lecture* : le driver liste les objets sous le préfixe S3 d'entrée et distribue les clés d'image aux workers Ray.
++ *Téléchargement* : chaque worker télécharge l'image depuis MinIO et récupère ses coordonnées GPS (fichier de trajectoire, EXIF en secours).
++ *Inférence* : l'image est découpée en tuiles de 1008 × 1008 px par défaut (après un downsampling optionnel), chaque tuile est passée à SAM3 en mode _everything_.
++ *Agrégation* : les masques produits sont convertis en polygones et normalisés en pourcentage des dimensions de l'image originale, puis filtrés par score de confiance.
++ *Écriture* : les polygones sont sérialisés dans un fichier Parquet et envoyés sur le bucket.
 
 #let col-blue = rgb("#2563EB")
 #let col-violet = rgb("#7C3AED")
@@ -36,11 +36,11 @@ La pipeline suit un flux linéaire en cinq étapes :
     node-stroke: none,
     edge-stroke: e-stroke,
     spacing: (2.5em, 2em),
-    node((0, 0), wt[*MinIO*\ #text(size: 0.78em)[Images S3]], corner-radius: 8pt, fill: col-blue, name: <s3in>),
+    node((0, 0), wt[*Bucket S3*\ #text(size: 0.78em)[Images]], corner-radius: 8pt, fill: col-blue, name: <s3in>),
     node((1, 0), wt[*Driver*], corner-radius: 8pt, fill: col-violet, name: <driver>),
-    node((2, 0), wt[*Workers*\ #text(size: 0.78em)[SAM3 × N]], corner-radius: 8pt, fill: col-cyan, name: <workers>),
-    node((3, 0), wt[*MinIO*\ #text(size: 0.78em)[Parquet S3]], corner-radius: 8pt, fill: col-blue, name: <s3out>),
-    node((4, 0), wt[*Label*\ *Studio*], corner-radius: 8pt, fill: col-green, name: <ls>),
+    node((2, 0), wt[*Workers*\ #text(size: 0.78em)[SAM3 avec N workers]], corner-radius: 8pt, fill: col-cyan, name: <workers>),
+    node((3, 0), wt[*Boto 3*\ #text(size: 0.78em)[Upload fichiers Parquet]], corner-radius: 8pt, fill: col-green, name: <s3out>),
+    node((4, 0), wt[*Bucket S3*\ #text(size: 0.78em)[Images + Prédictions]], corner-radius: 8pt, fill: col-blue, name: <ls>),
     edge(<s3in>, <driver>, "->"),
     edge(<driver>, <workers>, "->"),
     edge(<workers>, <s3out>, "->"),
@@ -48,6 +48,8 @@ La pipeline suit un flux linéaire en cinq étapes :
   ),
   caption: [Vue d'ensemble de la pipeline dans le cas d'un scénario en Batch],
 ) <fig-pipeline-overview>
+
+#pagebreak()
 
 == Infrastructure Générale
 
@@ -66,6 +68,7 @@ Ce découplage permet de déployer et de faire évoluer chaque partie indépenda
   ],
 ) <Schema-Overall>
 
+#pagebreak()
 
 == CI/CD
 
@@ -80,9 +83,12 @@ Le cluster tire ensuite ces images via `imagePullPolicy: Always`, ce qui propage
 #figure(
   image("../images/Schema-Pipeline.png", width: 85%),
   caption: [
-    Chaque commit sur la branche master trigger le workflow, tests et build-images s'executent en paralèlle.
+    Chaque commit sur la branche master lance le workflow. Les tests et les builds d'images s'exécutent en parallèle.
   ],
-) <Schema-Overall>
+) <Schema-Pipeline>
+
+#pagebreak()
+
 
 == Infrastructure Kubernetes
 
@@ -95,9 +101,9 @@ La pipeline s'exécute sur le cluster `iict-rad` de la HEIG-VD (Kubernetes 1.33.
     table.header(
       text(fill: white)[*Nœud*], text(fill: white)[*GPUs*], text(fill: white)[*Modèle*], text(fill: white)[*VRAM*]
     ),
-    [`iict-suchet`], [3], [NVIDIA L40S], [46 GB],
-    [`iict-k8s-node4-rad`], [2], [NVIDIA A40], [46 GB],
-    [`iict-chasseron`], [4], [NVIDIA L4], [23 GB],
+    [`iict-suchet`], [3], [NVIDIA L40S], [48 GB],
+    [`iict-k8s-node4-rad`], [2], [NVIDIA A40], [48 GB],
+    [`iict-chasseron`], [4], [NVIDIA L4], [24 GB],
   ),
   caption: [GPUs disponibles sur le cluster iict-rad],
 ) <tab-gpus>
@@ -107,7 +113,7 @@ Le cluster suit l'architecture Kubernetes standard : un control plane gère l'é
 Par défaut, les pods sont schedulés sur n'importe quel nœud disponible.
 
 Deux exceptions s'appliquent dans ce projet :
-- les workers Ray ciblent les nœuds L40S (noeud `iict-suchet`) et A40 (noeud `iict-k8s-node4-rad`) via `nodeAffinity`
+- les workers Ray ciblent les nœuds L40S (nœud `iict-suchet`) et A40 (nœud `iict-k8s-node4-rad`) via `nodeAffinity`
 - les pods Prometheus et Grafana sont épinglés sur `iict-suchet` via `nodeSelector` en raison de volumes Longhorn défectueux sur `iict-k8s-node4-rad`.
 
 #figure(
@@ -118,10 +124,8 @@ Deux exceptions s'appliquent dans ce projet :
 ) <Schema-Kubernets>
 
 Le nœud `iict-chasseron` est exclu pour deux raisons :
-- ses L4 offrent une puissance de calcul inférieure (23 GB VRAM vs 46 GB)
-- il portait un taint `node.kubernetes.io/disk-pressure` lors des tests, exposant les pods à des évictions SIGTERM sans préavis.#footnote[Le taint `disk-pressure` est appliqué automatiquement par Kubernetes quand l'usage disque dépasse le seuil `evictionHard`. Les pods sur ce nœud reçoivent un SIGTERM et sont immédiatement reschedules sur un autre nœud, interrompant toute inférence en cours sans possibilité de reprise.]
-
-Ce taint est appliqué automatiquement par Kubernetes quand l'usage disque franchit un seuil configuré sur le nœud.
+- ses L4 offrent une puissance de calcul inférieure (24 GB de VRAM contre 48 GB)
+- il portait un taint `node.kubernetes.io/disk-pressure` lors des tests, exposant les pods à des évictions SIGTERM sans préavis.#footnote[Le taint `disk-pressure` est appliqué automatiquement par Kubernetes quand l'usage disque dépasse le seuil `evictionHard`. Les pods sur ce nœud reçoivent un SIGTERM et sont immédiatement reschedulés sur un autre nœud, interrompant toute inférence en cours sans possibilité de reprise.]
 
 Le GPU Operator NVIDIA est installé sur le cluster. Il installe automatiquement les drivers GPU, le device plugin et DCGM Exporter sur chaque nœud. Les requêtes de ressource `nvidia.com/gpu` fonctionnent sans configuration manuelle.
 
@@ -135,7 +139,7 @@ Le *Solo Job Driver* soumet une seule image et attend la réponse de façon sync
 
 Les deux modes partagent le même *Ray Control Plane*, hébergé sur le Head Node : le *Global Control Store* (GCS) maintient l'état global du cluster (Actors actifs, tâches en attente, état des workers) et le *Raylet* tourne sur chaque nœud pour scheduler localement les tâches que le GCS lui assigne.
 
-Chaque worker process héberge un Actor SAM3 avec son propre *Plasma Object Store* local, évitant ainsi la sérialisation et la désérialisation. Les objets volumineux (poids du modèle, données image, résultats) transitent via cet object store partagé en mémoire plutôt que par sérialisation réseau, ce qui évite les copies inutiles entre le driver et les workers.
+Chaque worker process héberge un Actor SAM3 avec son propre *Plasma Object Store* local. Les objets volumineux (poids du modèle, données image, résultats) transitent par cet object store partagé en mémoire plutôt que par le réseau, ce qui évite les copies inutiles entre le driver et les workers.
 
 #figure(
   diagram(
@@ -152,91 +156,63 @@ Chaque worker process héberge un Actor SAM3 avec son propre *Plasma Object Stor
     ),
     node((0, 2), wt[*L40S × 3*\ #text(size: 0.78em)[iict-suchet]], corner-radius: 8pt, fill: col-cyan, name: <l40s>),
     node((1, 2), wt[*A40 × 2*\ #text(size: 0.78em)[iict-node4]], corner-radius: 8pt, fill: col-cyan, name: <a40>),
-    node((2, 2), wt[*L4 × 4*\ #text(size: 0.78em)[iict-chasseron]], corner-radius: 8pt, fill: col-teal, name: <l4>),
+    node((2, 2), wt[*L4 × 4*\ #text(size: 0.78em)[iict-chasseron]], corner-radius: 8pt, fill: col-red, name: <l4>),
     edge(<rdriver>, <head>, "->", [`ray.init(:10001)`]),
     edge(<head>, <l40s>, "<->"),
     edge(<head>, <a40>, "<->"),
-    edge(<head>, <l4>, "<->"),
+    edge(<head>, <l4>, "<->", stroke: (dash: "dashed")),
   ),
   caption: [Architecture du RayCluster sur iict-rad],
 ) <fig-raycluster>
 
 
 #figure(
-  image("../images/Schema-Ray.jpg", width: 100%),
+  image("../images/Schema-Ray.png", width: 100%),
   caption: [
-    Le driver soumet les tâches au Ray Control Plane (GCS + Raylet) puis, chaque worker process héberge les Actors avec leur Plasma Object Store local, ainsi, les résultats sont écrits sur MinIO via Boto3.
+    Le driver soumet les tâches au Ray Control Plane (GCS + Raylet), puis chaque worker process héberge les Actors avec leur Plasma Object Store local ; les résultats sont écrits sur MinIO via boto3.
   ],
 ) <Schema-Ray>
 
-Le RayCluster est déclaré via la ressource CRD `ray.io/v1alpha1/RayCluster`. KubeRay crée automatiquement les pods head et workers, les Services associés (GCS [:6379], dashboard [:8265], client [:10001]) et gère leur cycle de vie.
+Le RayCluster est déclaré via la ressource CRD `ray.io/v1/RayCluster`. KubeRay crée automatiquement les pods head et workers, les Services associés (GCS [:6379], dashboard [:8265], client [:10001]) et gère leur cycle de vie.
 
-Le driver s'exécute à l'extérieur du cluster en tant que Job Kubernetes sans GPU. Il se connecte au head via `ray.init("ray://ray-head-svc:10001")` et soumet les tâches au GCS. Les workers ne sont jamais contactés directement : Ray dispatche les tâches via le GCS.
+Le driver s'exécute à l'extérieur du cluster en tant que Job Kubernetes sans GPU. Il se connecte au head via `ray.init("ray://ray-cluster-head-svc:10001")` et soumet les tâches au GCS. Les workers ne sont jamais contactés directement : Ray dispatche les tâches via le GCS.
 
-#pagebreak()
+Les workers Ray doivent s'exécuter sur des nœuds GPU : une contrainte `nodeAffinity` sur le groupe de workers restreint leur scheduling aux nœuds `iict-suchet` (L40S) et `iict-k8s-node4-rad` (A40).
 
-Les workers Ray doivent s'exécuter sur des nœuds GPU. La configuration `nodeAffinity` du groupe de workers restreint le scheduling aux nœuds `iict-suchet` (L40S) et `iict-k8s-node4-rad` (A40) :
+Les workers s'exécutent dans des pods séparés et n'héritent pas des variables d'environnement du driver : les credentials MinIO et le token HuggingFace doivent donc être déclarés explicitement dans le `workerGroupSpec`, par référence aux Secrets Kubernetes (cf. @arch-secrets). Sans cette déclaration, chaque appel S3 depuis un Actor échoue avec `NoCredentialsError` et le premier démarrage du worker tente de télécharger les poids SAM3 sans authentification.
 
-```yaml
-nodeAffinity:
-  requiredDuringSchedulingIgnoredDuringExecution:
-    nodeSelectorTerms:
-      - matchExpressions:
-          - key: kubernetes.io/hostname
-            operator: In
-            values:
-              - iict-suchet
-              - iict-k8s-node4-rad
-```
-
-Les workers Ray s'exécutent dans des pods séparés et n'héritent pas des variables d'environnement du driver. Les credentials MinIO (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `S3_ENDPOINT_URL`) et le token HuggingFace (`HF_TOKEN`) doivent être déclarés explicitement dans le `workerGroupSpec` via des références à un Secret Kubernetes :
-
-```yaml
-env:
-  - name: AWS_ACCESS_KEY_ID
-    valueFrom:
-      secretKeyRef:
-        name: minio-secret
-        key: access-key
-  - name: HF_TOKEN
-    valueFrom:
-      secretKeyRef:
-        name: hf-secret
-        key: token
-```
-
-Sans cette configuration, chaque appel S3 depuis un Actor échoue avec `NoCredentialsError` et le premier démarrage du worker tente de télécharger les poids SAM3 sans authentification.
+Les manifestes correspondants sont détaillés au chapitre implémentation.
 
 == Cache du modèle SAM3
 
 Les poids du modèle SAM3 représentent 3,3 GB téléchargés depuis HuggingFace Hub. Sans cache persistant, chaque recréation de pod lance un nouveau téléchargement, ajoutant plusieurs minutes de latence avant que le worker soit opérationnel.
 
-Pour cela il faut ajouter un `StorageClass` et un `PersistantVolumClaim`.
+Pour cela il faut ajouter une `StorageClass` et un `PersistentVolumeClaim`.
 
-Un PVC Longhorn de 10 Gi est partagé entre tous les workers Ray. HuggingFace Hub vérifie ce répertoire avant tout téléchargement. Si les poids sont présents, il les charge directement sans accès réseau. Le PVC survit aux redéploiements du RayCluster car les poids ne sont téléchargés qu'une seule fois.
+Un PVC Longhorn de 10 Gi est partagé entre tous les workers Ray. HuggingFace Hub vérifie ce répertoire avant tout téléchargement. Si les poids sont présents, il les charge directement sans accès réseau. Le PVC survit aux redéploiements du RayCluster : les poids ne sont donc téléchargés qu'une seule fois.
 
 Le mode `ReadWriteMany` est retenu car les workers s'exécutent sur deux nœuds distincts (`iict-suchet` et `iict-k8s-node4-rad`). Un PVC `ReadWriteOnce` ne peut être monté que par un seul nœud à la fois, ce qui bloquerait les workers sur le second nœud.
 
-Longhorn implémente le `ReadWriteMany` via un share-manager NFS. Chaque nœud qui monte le volume agit comme client NFS et a besoin de `mount.nfs`, fourni par le paquet `nfs-common`. Ce paquet doit être installé sur tous les noeuds sinon tout pod ordonnancé dessus échourait au montage avec `FailedMount` : "bad option".
+Longhorn implémente le `ReadWriteMany` via un share-manager NFS. Chaque nœud qui monte le volume agit comme client NFS et a besoin de `mount.nfs`, fourni par le paquet `nfs-common`. Ce paquet doit être installé sur tous les nœuds, sinon tout pod ordonnancé dessus échouerait au montage avec `FailedMount` : "bad option".
 
-Déclarer une StorageClass RWX ne suffit donc pas car elle peut supposer implicitement que tous les nœuds candidats sont homogènes. Un pod sans affinité tombant sur un nœud sans `nfs-common` reste bloqué. Une verifications de la dépendance d'infrastructure ßßßdoit être vérifiée avant de compter sur le RWX.
+Déclarer une StorageClass RWX ne suffit donc pas car elle peut supposer implicitement que tous les nœuds candidats sont homogènes. Un pod sans affinité tombant sur un nœud sans `nfs-common` reste bloqué. Cette dépendance d'infrastructure doit être vérifiée avant de compter sur le RWX.
 
 == Stratégie de tuilage
 
-L'hardware est une contrainte pour les performances de notre pipeline, les deux autres vecteurs qui sont envisageables pour gagner en performances est le software (Choix du modèle, optimisation du code) ou bien simplement les données brutes a traitées. Dans notre cas, nous avons des images de très haute résolution (8192 × 4096 px) qui devront être traité par SAM3 qui, pour rappel, à comme taille maximale de traitement par tuilles de 1008x1008px.
+Le hardware est une contrainte pour les performances de notre pipeline. Les deux autres vecteurs envisageables pour gagner en performances sont le software (choix du modèle, optimisation du code) ou simplement les données brutes à traiter. Dans notre cas, des images de très haute résolution (8192 × 4096 px) doivent être traitées par SAM3 qui, pour rappel, a comme taille maximale de traitement une tuile de 1008 × 1008 px.
 
-Les conséquances sont les suivantes :
-- > 1008px : l'image est downsamplée par SAM3 et nous avons une perte d'information.
-- < 1008px : l'image est upscalée par SAM3 et il n'y à aucun gain d'information.
-- \= 1008 px : Natif, donc pas de changement
-Il faut donc jouer avec la taille des tuilles et ses nombres.
+Les conséquences sont les suivantes :
+- > 1008 px : la tuile est downsamplée par SAM3 et nous avons une perte d'information.
+- < 1008 px : la tuile est upscalée par SAM3 et il n'y a aucun gain d'information.
+- \= 1008 px : natif, donc pas de changement.
+Il faut donc jouer avec la taille des tuiles et leur nombre.
 
-Nous devons donc définir par défaut des valeurs des nombre de Tuiles et leurs dimmensions à travers de variables pour l'API.
+Nous devons donc définir des valeurs par défaut pour le nombre de tuiles et leurs dimensions, à travers des variables exposées par l'API.
 
 #figure(
   image("../images/tillingExplanation.jpg", width: 100%),
   caption: [
-    SAM3 comme tout modèée à base de ViT, attend une entrée carrée de taille fixe. Un objet à cheval sur une bordure de tuile se retrouve grâce au striding, au moins sur une tuile voisine.
+    SAM3, comme tout modèle à base de ViT, attend une entrée carrée de taille fixe. Un objet à cheval sur une bordure de tuile se retrouve, grâce au striding, entier sur au moins une des tuiles voisines.
   ],
 ) <Tilling-Explanation>
 
@@ -252,7 +228,7 @@ Chaque image produit un fichier Parquet nommé `<acquisition_id>/<image_stem>.pa
     table.header(text(fill: white)[*Colonne*], text(fill: white)[*Type*], text(fill: white)[*Description*]),
     [`image_key`], [`string`], [Chemin S3 complet de l'image source],
     [`acquisition_id`], [`string`], [Dossier parent (identifiant de l'acquisition)],
-    [`label`], [`string`], [`sign` ou `road_marking`],
+    [`label`], [`string`], [Label demandé (ex. `sign`, `road_marking`)],
     [`score`], [`float32`], [Score de confiance SAM3 (0–1)],
     [`points`], [`string`], [Polygone JSON encodé, en % des dimensions de l'image],
     [`original_width`], [`int32`], [Largeur de l'image source en pixels],
@@ -263,7 +239,11 @@ Chaque image produit un fichier Parquet nommé `<acquisition_id>/<image_stem>.pa
   caption: [Schéma Parquet de sortie de la pipeline],
 ) <tab-parquet-schema>
 
-La compression Snappy est appliquée. Les fichiers sont interrogeables directement depuis DuckDB ou PyArrow sans étape de chargement en base de données.
+Les coordonnées sont stockées en `float64` (double précision) et non en `float32` car le format standard `float32`, par sa capacité limitée, ne permet pas de conserver suffisamment de chiffres après la virgule, ce qui génère une imprécision d'environ 60 centimètres au moment même du stockage. L'utilisation du `float64` élimine cette erreur d'arrondi et préserve la précision du récepteur GNSS.
+
+Le `score` de confiance, lui, reste en `float32` car quelques décimales suffisent à un seuil de filtrage, et la colonne est ainsi deux fois plus compacte.
+
+La compression Snappy#footnote[Algorithme de compression développé par Google et utilisé par défaut par Parquet. Il privilégie la vitesse de compression et de décompression sur le taux de compression. Les fichiers sont un poil plus gros qu'avec gzip, mais leur lecture ne coûte presque rien en CPU.] est appliquée. Les fichiers sont interrogeables directement avec PyArrow, déjà présent dans la pipeline, sans étape de chargement en base de données.
 
 == Géoréférencement des détections
 
@@ -271,145 +251,78 @@ Chaque polygone hérite des coordonnées GPS de son image, portées par les colo
 
 L'EXIF s'est révélé une source peu fiable : les panoramas Ladybug5+ ne portent aucune balise `GPSLatitude`/`GPSLongitude`, là où les prises GoPro Max les renseignent. Le lire directement laissait des colonnes vides sur des acquisitions entières.
 
-La position de chaque prise vit dans un fichier écrit par le système de cartographie mobile : `<acquisition>/02_poses/<session>_trajectory.csv`. Il associe chaque nom d'image à sa latitude, sa longitude, son altitude et son cap, échantillonnés par le récepteur GNSS/IMU embarqué. Présent pour toutes les acquisitions, il constitue la source de pose autoritative.
+La position de chaque prise vit dans un fichier écrit par le système de cartographie mobile : `<acquisition>/02_poses/<session>_trajectory.csv`. Il associe chaque nom d'image à sa latitude, sa longitude, son altitude et son cap, échantillonnés par le récepteur GNSS embarqué.
 
-Pour chaque image, le worker déduit le chemin de ce fichier, le charge une fois par session — mis en cache dans l'acteur Ray, un CSV de quelques milliers de lignes étant négligeable — puis joint la ligne correspondant au nom de fichier. La session provient de l'arborescence (`01_images/<session>/`) ou, pour les acquisitions à plat, du jeton `S<NNN>` du nom de fichier ; l'EXIF ne subsiste qu'en secours. Ce découplage rend le géoréférencement indépendant du capteur : le format des images peut évoluer sans rompre la chaîne, tant que l'acquisition fournit sa trajectoire.
+Pour chaque image, le worker déduit le chemin de ce fichier, le charge une fois par session et le met en cache dans l'acteur Ray, ce qui est un coût négligeable pour un CSV de quelques milliers de lignes. Il joint ensuite la ligne correspondant au nom de fichier.
+
+La session est déduite de l'arborescence de l'acquisition (`01_images/<session>/`) et l'EXIF ne subsiste qu'en secours, s'il n'y a pas de CSV.
 
 == Intégration Label Studio
 
-=== Pré-annotations
-
 Label Studio est connecté à MinIO comme _source storage_ S3. Les URLs `s3://nearai/...` sont converties en URLs HTTP temporaires pré-signées, servies directement du stockage au navigateur sans proxy.
 
-L'interface de labeling XML définit deux classes :
+L'interface de labeling du projet déclare les classes annotables, et les pré-annotations importées doivent référencer exactement les mêmes noms d'interface (au format XML) ; une divergence provoque l'affichage des polygones sans label avec une couleur grise.
 
-```xml
-<View>
-  <Image name="image" value="$image"/>
-  <PolygonLabels name="label" toName="image">
-    <Label value="sign" background="#FF0000"/>
-    <Label value="road_marking" background="#FFFF00"/>
-    <!-- <Label value="value" background="#XXXXXX"/>  Add new pre-annotation -->
-  </PolygonLabels>
-</View>
-```
-
-Les pré-annotations importées doivent utiliser `from_name: "label"` et `to_name: "image"` pour correspondre à cette interface. Une divergence de noms provoque l'affichage des polygones sans label (gris).
-
-== Intégration Near Label
-
-=== Récupération des données
-
-=== Conversion des données Parquet --> JSON
-
-=== Segmentation manuelle
-
-Concernant la *segmentation à la demande*, un utilisateur peut simplement passer à l'API l'url ainsi que les items à re-passer en inférance :
-```JSON
-{
-  "url": "data/acquisitions/20241003-Nyon/01_images/S003/20241003-Nyon_S003_ladybug5plus_000001.jpg",
-  "items": [
-    { "point": [4637, 2675], "label": "manhole" },
-    { "point": [1200, 800],  "label": "road_marking" }
-  ]
-}
-```
-
-L'endpoit `/segment` lance alors une opération sur le pod `sam3-segment-*` et retourne en JSON le résulat des recherches demandées.
-
-Afin d'avoir une attente régulière sur le service, le choix de laisser un pod prêt à agir à été choisi.
-
-Le réveil aurait pu être automatisé avec KEDA et son extension HTTP, qui réveille un service dès qu'une requête arrive. Cette piste a été écartée pour trois raisons.
-
-Le problème dans notre cas, KEDA s'installe à l'échelle du cluster et requiert des droits d'administrateur, hors de portée du namespace actuel : il faudrait passer par l'admin de l'infrastructure.
-
-Ensuite, l'extension HTTP insère un _interceptor_ devant le service pour retenir la requête le temps que le pod démarre, ajoutant une pièce supplémentaire dans le chemin réseau.
-
-Enfin, et surtout, KEDA n'élimine pas le démarrage à froid (le chargement du modèle en mémoire GPU, de l'ordre de 20 à 30 secondes) : il ne fait que le déclencher automatiquement.
-
-Pour un usage ponctuel et séquentiel d'un seul annotateur et une image à la fois, le pilotage manuel par `/segment/up` et `/segment/down` offre la même expérience réelle, un unique démarrage à froid en début de session, sans dépendance d'infrastructure ni composant réseau additionnel.
-
-
-Le pod charge le modèle via Ultralytics, qui lit un fichier `sam3.pt` (format PyTorch) contenant les poids de SAM3. Le détail de cette intégration est traité au chapitre implémentation.
+La définition XML de l'interface et le format d'import sont détaillés au chapitre implémentation.
 
 #pagebreak()
+== Intégration Near Label
+
+NearLabel lit ses données directement depuis les fichiers Parquet stockés dans le bucket S3, sans passer par l'API de la pipeline. Le stockage objet sert de contrat d'échange entre les deux applications. Ce contrat repose sur une arborescence précise. Chaque acquisition expose un dossier `09_Pipeline_result/` contenant, par run, les fichiers Parquet de détections (en miroir de l'arborescence de `01_images/`), le fichier `params.json` qui fige les paramètres du run (labels, tuile, stride, downsample) et la configuration de la caméra propre à l'acquisition.
+
+C'est à partir de ces trois éléments que NearLabel reconstitue ce qu'il affiche sur l'application web : les Parquet fournissent les polygones et leurs coordonnées GPS, `params.json` documente la provenance des détections, et la configuration caméra permet d'interpréter la géométrie des panoramas. Tant que cette arborescence est respectée, les deux applications évoluent indépendamment et la pipeline peut changer d'implémentation sans casser NearLabel, et inversement.
+
+NearLabel peut enfin déclencher une *segmentation à la demande* : l'utilisateur transmet à l'endpoint `/segment` la clé de l'image et les points à segmenter, et reçoit les polygones en retour. Ce service est décrit à la section Segmentation interactive ; le format de la requête figure au chapitre implémentation.
+
 == Observabilité
 
-La stack d'observabilité collecte deux flux distincts : les métriques GPU et Ray via Prometheus, et les logs des pods via Alloy et Loki. Grafana agrège les deux sources dans un dashboard unique.
+La stack d'observabilité collecte deux flux distincts :
+1. les métriques GPU et Ray via Prometheus
+2. les logs des pods via Alloy et Loki.
+
+Grafana agrège les deux sources dans un dashboard unique.
 
 #figure(
-  image("../images/Schema-Observability.png", width: 80%),
+  image("../images/Schema-Observability.png", width: 65%),
   caption: [
     Prometheus récolte les métriques tandis que Loki s'occupe des logs afin d'alimenter Grafana.
   ],
 ) <Schema-Observability>
 
-#linebreak()
+Prometheus scrape deux sources de métriques toutes les 15 secondes :
 
-
-Prometheus scrape deux sources de métriques toutes les 15 secondes depuis 2 sources :
-
-*DCGM Exporter* : 4 métriques GPU par nœud (`DCGM_FI_DEV_GPU_UTIL`, `DCGM_FI_DEV_FB_USED`, `DCGM_FI_DEV_POWER_USAGE`, `DCGM_FI_DEV_GPU_TEMP`). Le scraping utilise `dns_sd_configs` sur le Service headless DCGM, ce qui résout l'IP de chaque pod DaemonSet individuellement et évite le round-robin du ClusterIP.
+*DCGM Exporter* : 4 métriques GPU par noeud (`DCGM_FI_DEV_GPU_UTIL`, `DCGM_FI_DEV_FB_USED`, `DCGM_FI_DEV_POWER_USAGE`, `DCGM_FI_DEV_GPU_TEMP`). Le scraping utilise `dns_sd_configs` sur le Service headless DCGM, ce qui résout l'IP de chaque pod DaemonSet individuellement et évite ainsi le round-robin du ClusterIP.
 
 *RayCluster* : métriques Ray exposées par le head node (`ray_running_jobs`, `ray_gcs_actors_count`).
 
-DCGM tourne via un DeamonSet sur chaque node. Via un endpoint `/metrics` sur le port [9400] et le DNS de K8s, les données peuvent être scrapées individuellment, ce qui permet de garder le `hostname` pour chaque métrique.
+*DCGM* tourne en DaemonSet, un pod par nœud GPU, et expose ses métriques via l'endpoint `/metrics` sur le port 9400. Le `hostname` de chaque nœud est ainsi conservé sur chaque métrique.
 
-Alloy est déployé en Deployment unique dans le namespace `dani`. Il lit les logs de tous les pods via l'API Kubernetes (`loki.source.kubernetes`) sans monter le système de fichiers du nœud hôte et les pousse vers Loki en continu.
+*Alloy* est déployé en Deployment unique dans le namespace `dani`. Il lit les logs de tous les pods via l'API Kubernetes (`loki.source.kubernetes`) sans monter le système de fichiers du nœud hôte et les pousse vers Loki en continu. Chaque ligne de log est indexée avec les labels `pod`, `container`, `namespace` et `app`, ce qui permet de filtrer les logs par composant depuis Grafana. Les règles de relabeling correspondantes sont données au chapitre implémentation.
 
-#figure(
-  ```yaml
-  discovery.relabel "pods" {
-        targets = discovery.kubernetes.pods.targets
-
-        rule {
-          source_labels = ["__meta_kubernetes_namespace"]
-          target_label  = "namespace"
-        }
-        rule {
-          source_labels = ["__meta_kubernetes_pod_name"]
-          target_label  = "pod"
-        }
-        rule {
-          source_labels = ["__meta_kubernetes_pod_container_name"]
-          target_label  = "container"
-        }
-        rule {
-          source_labels = ["__meta_kubernetes_pod_label_app"]
-          target_label  = "app"
-        }
-      }
-  ```,
-  caption: [Chaque ligne de log est indexée avec les labels `pod`, `container`, `namespace` et `app`.],
-)
-
-
-#linebreak()
-
-Loki stocke l'index (TSDB) et les chunks de logs dans MinIO sous le préfixe `nearai/dani/loki`. Il est ainsi _stateless_ : tout l'état réside dans le bucket S3, et le pod peut être redémarré sans perte de données.
+*Loki* stocke l'index (TSDB) et les chunks de logs dans MinIO, dans un bucket dédié `nearai-logs`. Il est ainsi _stateless_, tout l'état réside dans le bucket S3, et le pod peut être redémarré sans perte de données.
 
 Les logs du driver SAM3 contiennent les résultats de chaque run au format texte.
 
-
-
-Grafana intéroge les résultats interroge via LogQL avec `regexp` et `unwrap` pour en extraire des métriques comme le nombre d'images traitées, détections, et temps moyen par image.
+Grafana interroge les résultats via LogQL avec `regexp` et `unwrap` pour en extraire des métriques comme le nombre d'images traitées, détections, et temps moyen par image.
 
 #pagebreak()
 == API
 
-Une API REST expose la pipeline aux utilisateurs et aux systèmes externes. Elle permet de soumettre des jobs batch ou on-demand, de consulter leur état et d'importer automatiquement les résultats dans NearLabel ou sans accès direct au cluster Kubernetes.
+Une API REST expose la pipeline aux utilisateurs et aux systèmes externes. Elle permet de soumettre des jobs batch ou on-demand, de consulter leur état et d'importer automatiquement les résultats dans Label Studio, le tout sans accès direct au cluster Kubernetes.
 
 #figure(
   image("../images/API.png", width: 100%),
   caption: [
-    L'API permet de créer les pods, lire leurs status via les librairires K8s et de retourner le résultats post traitement.
+    L'API permet de créer les pods, de lire leur statut via les librairies K8s et de retourner les résultats post-traitement.
   ],
-) <Schema-Observability>
+) <Schema-API>
 
 #linebreak()
 
-L'API tourne comme un `Deployment` dans le namespace `dani`, avec un `ServiceAccount` disposant des droits `create/get/list` sur les `Jobs` Kubernetes. Elle soumet les jobs en créant des ressources `Job` via le SDK Kubernetes Python, ce qui découple l'API de l'état interne du RayCluster.
+L'API tourne comme un `Deployment` dans le namespace `dani`, avec un `ServiceAccount` aux droits limités (le détail du Role figure plus bas). Elle soumet les jobs en créant des ressources `Job` via le SDK Kubernetes Python, ce qui découple l'API de l'état interne du RayCluster.
 
+
+La liste des endpoints est la suivante :
 #figure(
   table(
     columns: (1fr, 1.5fr, 2fr),
@@ -420,16 +333,16 @@ L'API tourne comme un `Deployment` dans le namespace `dani`, avec un `ServiceAcc
     [#set par(justify: false); #text(
         size: 0.85em,
       )[`-`]],
-    [Retourne `NearApi vX is running`.],
+    [Message de vie en JSON ; redirige un navigateur vers la console `/ui`.],
 
     [`POST /jobs/batch`],
     [#set par(justify: false); #text(
         size: 0.85em,
-      )[`s3_uri`, `s3_output_uri`,\ `labels`, `num_workers`,\ `batch_size`, `tile_size`, `tile_stride`]],
+      )[`s3Uri` ou `s3Uris`, `s3OutputUri`,\ `s3Bucket`, `labels`, `numWorkers`,\ `batchSize`, `tileSize`, `tileStride`,\ `downsample`]],
     [Soumet un lot d'images S3. Retourne `{job_name, status}`.],
 
     [`POST /jobs/solo`],
-    [#set par(justify: false); #text(size: 0.85em)[`image_uri`, `labels`,\ `tile_size`, `tile_stride`]],
+    [#set par(justify: false); #text(size: 0.85em)[`imageUri`, `s3Bucket`, `labels`,\ `tileSize`, `tileStride`, `downsample`]],
     [Soumet une image unique, poll le statut du Job K8s et retourne le résultat au format JSON Label Studio.],
 
     [`GET /jobs`], [-], [Liste les Jobs `sam3-batch-*` et `sam3-solo-*` du namespace avec leur statut.],
@@ -437,56 +350,81 @@ L'API tourne comme un `Deployment` dans le namespace `dani`, avec un `ServiceAcc
     [#text(size: 0.85em)[`name`]],
     [Retourne le statut d'un Job (`Pending`, `Running`, `Succeeded`, `Failed`).],
 
-    [`POST /segment/`],
-    [#text(size: 0.85em)[`image_uri`, `items` (position + label)]],
-    [Utilise la fonction de SAM3 pour retrouver un item selon son label `label` à la position `position`.],
+    [`POST /segment`],
+    [#text(size: 0.85em)[`url`, `items` (point + label)]],
+    [Segmente l'objet situé sous chaque point cliqué et étiquette le masque avec le label fourni.],
 
     [`POST /import/\ {acquisition_id}`],
     [#text(size: 0.85em)[`acquisition_id`]],
     [Lit les Parquets depuis MinIO, les convertit et les importe via l'API REST Label Studio.],
+
+    [`GET /segment/status`],
+    [-],
+    [Retourne l'état du service de segmentation interactive (`replicas` voulus, `ready` prêts).],
+
+    [`GET /ui`],
+    [-],
+    [Sert la console web de pilotage de la pipeline.],
   ),
   caption: [Endpoints de l'API REST],
 ) <tab-api-endpoints>
 
-Les paramètres d'un traitement (image source, labels, nombre de workers, tuilage) changent à chaque requête. Un manifeste YAML statique ne peut pas les porter ; l'API construit donc chaque `V1Job` dynamiquement à partir du corps de la requête. Le Job hérite de `imagePullPolicy: Always` (toujours tirer la dernière image `:staging`), `restartPolicy: Never`, `runtimeClassName: nvidia` et des ressources `nvidia.com/gpu` pour les pods à GPU, et `ttlSecondsAfterFinished: 3600` pour l'auto-nettoyage.
+Ce tableau n'est d'ailleurs qu'une photographie, car la référence vivante est la documentation *OpenAPI* que FastAPI génère automatiquement par introspection du code : routes, modèles Pydantic (types, champs optionnels, valeurs par défaut) et docstrings.
 
-Ce modèle découple l'API de l'état du RayCluster : un Job batch n'est qu'un driver éphémère qui se connecte au cluster permanent, tandis qu'un Job solo embarque son propre GPU. L'API n'a pas à connaître la topologie Ray, elle ne fait que soumettre des Jobs.
+Elle est exposée en trois formes : `/docs` (interface Swagger interactive, qui permet d'exécuter une requête depuis le navigateur), `/redoc` (présentation de type manuel de référence) et `/openapi.json` (spécification brute, consommable par des générateurs de clients). Aucun fichier de documentation n'est maintenu à la main, le contrat publié ne peut pas diverger du code, puisqu'il en est extrait à chaque démarrage.
 
-L'API tourne sous le ServiceAccount `sam3-api`, lié par un `RoleBinding` à un `Role` au moindre privilège : `create/get/list/watch/delete` sur les `jobs`, `get` sur les `pods` et `pods/log`, et `get/patch` sur les `deployments/scale` pour le réveil du service de segmentation.
+Les paramètres d'un traitement (image source, labels, nombre de workers, tuilage) changent à chaque requête. Un manifeste YAML statique ne peut pas les porter, l'API construit donc chaque `V1Job` dynamiquement à partir du corps de la requête. Le Job hérite de `imagePullPolicy: Always` (toujours tirer la dernière image `:staging`), `restartPolicy: Never`, `runtimeClassName: nvidia` et des ressources `nvidia.com/gpu` pour les pods à GPU, et `ttlSecondsAfterFinished: 3600` pour l'auto-nettoyage.
 
-Une subtilité du modèle RBAC a coûté du temps : `jobs/status` est une sous-ressource distincte de `jobs`. Lire le statut d'un Job via `read_namespaced_job_status` exige une permission séparée et renvoie un `403` sans elle. La solution lit la ressource `jobs` complète avec `read_namespaced_job`, déjà couverte par le verbe `get`, et extrait le statut du résultat.
+Ce modèle découple l'API de l'état du RayCluster, un Job batch n'est qu'un driver éphémère qui se connecte au cluster permanent, tandis qu'un Job solo embarque son propre GPU. L'API n'a pas à connaître la topologie Ray, elle ne fait que soumettre des Jobs.
 
+L'API tourne sous le ServiceAccount `sam3-api`, lié par un `RoleBinding` à un `Role` au moindre privilège : `create/get/list/watch/delete` sur les `jobs`, `get` sur les `pods` et `pods/log`, et `get/patch` sur les `deployments/scale` pour le réveil du service de segmentation. Les subtilités du modèle RBAC rencontrées (sous-ressources distinctes) sont traitées au chapitre implémentation.
 
 Le Job solo écrit son résultat (`results/<job>.json`) sur S3, et l'endpoint `get_result` relit cet objet. Le stockage S3 est durable et indépendant du TTL des Jobs : le résultat survit à la suppression automatique du pod après une heure.
 
-Deux alternatives ont été écartées. Les logs du pod sont éphémères (effacés avec le pod) et, sur `kubernetes-client` 36.x, leur lecture souffre d'un bug d'encodage. Une base SQLite est inadaptée à un accès distribué et à un montage NFS partagé. S3 est déjà la source des données et le puits des prédictions : l'y conserver les résultats évite toute pièce supplémentaire.
+Deux alternatives ont été écartées. Les logs du pod sont éphémères (effacés avec le pod) et, sur `kubernetes-client` 36.x, leur lecture souffre d'un bug d'encodage. Une base SQLite est inadaptée à un accès distribué et à un montage NFS partagé. S3 est déjà la source des données et le puits des prédictions, l'y conserver les résultats évite toute pièce supplémentaire.
 
 == Segmentation interactive
 
-...
+SAM3 accepte deux familles de prompts :
 
-=== Prompt visuel (PVS) vs prompt concept (PCS)
-
-SAM3 accepte deux familles de prompts.
-
-Le *prompt visuel* (PVS) répond à la question OÙ : il produit un masque class-agnostic à l'endroit désigné, sans nommer l'objet.
-
-Le *prompt concept* (PCS) répond à QUOI: il trouve toutes les instances du concept fourni dans l'image.
+1. Le *prompt visuel* (PVS) répond à la question OÙ : il produit un masque class-agnostic à l'endroit désigné, sans nommer l'objet.
+2. Le *prompt concept* (PCS) répond à QUOI : il trouve toutes les instances du concept fourni dans l'image.
 
 La pipeline batch et le job solo utilisent le PCS, on leur passe des labels texte (`sign`, `road_marking`) et SAM3 détecte chaque occurrence. L'endpoint interactif (segmentation à la volée), lui, utilise le PVS, l'annotateur clique un point, SAM3 retourne le contour de l'objet sous le curseur.
 
 Le label n'oriente pas la détection ici car il est fourni en entrée et sert uniquement à étiqueter le masque retourné.
 
-La *segmentation à la volée* impose une latence faible. Lancer un Job par requête est exclu car chaque clic paierait le démarrage à froid. Le service de segmentation est donc un Deployment qui charge SAM3 une seule fois, au démarrage du pod avec FastAPI lifespan et garde le modèle chaud en VRAM pour toute la session.
+La *segmentation interactive* impose une latence faible. Lancer un Job par requête est exclu car chaque clic paierait le démarrage à froid. Le service de segmentation est donc un Deployment qui charge SAM3 une seule fois, au démarrage du pod avec FastAPI lifespan et garde le modèle chaud en VRAM pour toute la session.
 
-Mais, garder ce pod actif en permanence monopoliserait un GPU sur les ceux disponibles, même hors session d'annotation. Le Deployment reste donc à zéro réplica par défaut, et l'API le pilote : `POST /segment/up` le scale à 1 et `POST /segment/down` le scale à 0 et libère le GPU.
+Mais garder ce pod actif en permanence monopoliserait un GPU sur les neuf disponibles, même hors session d'annotation. Le Deployment reste donc à zéro réplica par défaut, et l'API le pilote : `POST /segment/up` le scale à 1 et `POST /segment/down` le scale à 0 et libère le GPU.
 
-Le détail de ce mécanisme et le choix d'écarter KEDA sont traités au chapitre implémentation.
+Le réveil aurait pu être automatisé avec KEDA et son extension HTTP, qui réveille un service dès qu'une requête arrive. Cette piste a été écartée pour trois raisons :
 
-L'endpoint interactif s'appuie sur l'API *Ultralytics*, qui expose la prédiction par prompt visuel en un seul appel (`model.predict(points=, labels=)`). Le service n'utilise que le prompt par point, l'annotateur clique, SAM3 renvoie le masque de l'objet sous le curseur. Cette API évite le pipeline complet du mode batch (tuilage, collate, postprocessor), inutile pour une inférence ponctuelle ; l'image en est plus légère. Le service n'a pas d'authentification propre : il est exposé via l'Ingress et protégé au niveau du cluster.
+1. KEDA s'installe à l'échelle du cluster et requiert des droits d'administrateur, hors de portée du namespace actuel.
+2. L'extension HTTP insère un _interceptor_ devant le service pour retenir la requête le temps que le pod démarre, ajoutant une pièce supplémentaire dans le chemin réseau.
+3. KEDA n'élimine pas le démarrage à froid (le chargement du modèle en mémoire GPU, de l'ordre de 20 à 30 secondes) : il ne fait que le déclencher automatiquement.
+
+Pour un usage ponctuel et séquentiel (un seul annotateur, une image à la fois), le pilotage manuel offre la même expérience réelle : un unique démarrage à froid en début de session, sans dépendance d'infrastructure ni composant réseau additionnel. Le mécanisme de scaling est détaillé au chapitre implémentation.
+
+L'endpoint interactif s'appuie sur l'API *Ultralytics*, qui expose la prédiction par prompt visuel en un seul appel (`model.predict(points=, labels=)`). Le service n'utilise que le prompt par point, l'annotateur clique, SAM3 renvoie le masque de l'objet sous le curseur. Cette API évite le pipeline complet du mode batch (tuilage, collate, postprocessor), inutile pour une inférence ponctuelle ; l'image Docker en est donc plus légère. Le service n'a pas d'authentification propre : il est exposé via l'Ingress et protégé au niveau du cluster.
+
+
+== Console web
+
+L'API REST suffit aux intégrations machine (NearLabel, CLI), mais piloter la pipeline exige alors `curl` ou `kubectl`, ce qui peut être inadapté à une démonstration ou à un utilisateur occasionnel. Une console web couvre ce besoin : lancer un batch ou un job solo (par préfixe S3 ou par liste explicite d'URLs), suivre sa progression en direct, consulter l'état de l'API et du service de segmentation interactive, et déclencher l'import Label Studio.
+
+La console est servie par l'API elle-même, sur l'endpoint `/ui`, plutôt que par un déploiement web dédié. Ce choix élimine trois problèmes d'un coup :
+1. le navigateur appelle les endpoints en même origine, donc aucune configuration CORS à introduire ni à justifier en revue de sécurité.
+2. la page est versionnée et livrée avec le contrat d'API qu'elle consomme, les deux ne peuvent pas diverger.
+3. l'infrastructure ne gagne aucun artefact supplémentaire (pas d'image nginx, de `Deployment`, ni de règle d'ingress à maintenir pour un fichier statique). Un pod web séparé ne se justifierait que si l'interface acquérait son propre cycle de vie.
+
+La console fonctionne en mode *pull* : elle interroge périodiquement les endpoints existants (`/jobs/`, `/jobs/{name}/status`, `/health`, `/segment/status`) au lieu d'exiger un canal temps réel (WebSocket, SSE). La progression d'un batch étant déjà matérialisée par le fichier de statut sur S3 (cf. plus haut), un sondage toutes les quelques secondes suffit et n'ajoute aucun état côté serveur.
+
+Le suivi de l'état du service de segmentation a motivé le seul endpoint spécifique créé pour la console, `GET /segment/status`, qui expose l'état du pod de segmentation : endormi, en cours de démarrage ou prêt.
 
 
 == Variables d'environnement
+
 Toutes les valeurs interchangeables du projet sont définies dans un fichier `.env` unique situé à la racine du projet. L'API les lit via `os.getenv`, avec une valeur par défaut raisonnable pour chacune. En développement local, `load_dotenv()` charge ce `.env`. Un `.env.example` versionné sert de modèle et ne contient aucun secret. En production, ces variables sont injectées par le Deployment Kubernetes.
 
 #figure(
@@ -512,46 +450,10 @@ Ces variables configurent le comportement de l'API, elles ne sont pas sensibles 
 
 == Gestion des secrets <arch-secrets>
 
-Trois secrets alimentent la pipeline : les credentials MinIO (`minio-secret`), le token HuggingFace (`hf-secret`) et les identifiants du registre privé (`ghcr-secret`). Aucun n'est inscrit dans une image ni dans un fichier en clair du dépôt. Ils existent comme Secrets Kubernetes dans le namespace `dani`, et les pods les consomment au runtime via `secretKeyRef`.
+Quatre secrets alimentent la stack : les credentials MinIO (`minio-secret`), le token HuggingFace (`hf-secret`), les identifiants du registre privé (`ghcr-secret`) et le compte administrateur du dashboard d'observabilité (`grafana-secret`).
 
-=== SOPS
+Aucun n'est inscrit dans une image ni dans un fichier en clair du dépôt. Ils existent comme Secrets Kubernetes dans le namespace `dani`, et les pods les consomment au runtime via `secretKeyRef` : ni l'API ni les workers ne manipulent jamais une valeur de secret, ils déclarent seulement quelle variable d'environnement doit être tirée de quelle clé, et le `kubelet` résout la référence au démarrage du pod.
 
-Créer ces Secrets uniquement à la main (`kubectl create secret`) les laisse hors du contrôle de version, rien ne documente leur structure, et un secret perdu doit être reconstitué de mémoire. SOPS résout ce problème en chiffrant les valeurs avant de les commiter.
+Pour que le déploiement reste reproductible, les manifestes de ces Secrets sont tout de même versionnés, mais *chiffrés* avec SOPS et une clé age, dont la clé privée vit hors du dépôt. Créer les Secrets uniquement à la main (`kubectl create secret`) les laisserait hors du contrôle de version : rien ne documenterait leur structure, et un secret perdu devrait être reconstitué de mémoire.
 
-Le fichier `.sops.yaml` déclare une règle qui chiffre, via une clé publique age, les seules valeurs sous `stringData` (`encrypted_regex`). Le reste du manifeste reste en clair, ce qui préserve des diffs Git lisibles. La clé privée `age` vit hors du dépôt (`~/.config/sops/age/keys.txt`) ; elle seule permet le déchiffrement.
-
-Un secret chiffré ressemble à ceci, sûr à versionner :
-
-```yaml
-stringData:
-    access_key: ENC[AES256_GCM,data:DjC2SqT5...,type:str]
-    secret_key: ENC[AES256_GCM,data:qduNJEEj...,type:str]
-```
-
-Le déploiement déchiffre à la volée vers `kubectl`, sans jamais écrire le secret en clair sur le disque :
-
-```sh
-sops -d deploy/secrets/minio-secret.enc.yaml | kubectl apply -f -
-```
-
-Cette approche reste volontairement simple car le déchiffrement est manuel au moment du déploiement. Un déchiffrement automatique en GitOps (Flux ou ArgoCD avec ksops) exigerait d'installer des composants à l'échelle du cluster, hors de portée du namespace dans notre cas.
-
-=== Kubernetes API python
-
-Une fois le Secret présent dans le cluster, l'API ne manipule jamais sa valeur : elle déclare seulement, dans le `V1Job` qu'elle construit, que telle variable d'environnement doit être tirée de telle clé d'un Secret. Le `kubelet` résout la référence au démarrage du pod.
-
-```python
-from kubernetes import client
-
-env = [
-    client.V1EnvVar(
-        name="AWS_ACCESS_KEY",
-        value_from=client.V1EnvVarSource(
-            secret_key_ref=client.V1SecretKeySelector(
-                name="minio-secret",
-                key="access_key",
-            )
-        ),
-    )
-]
-```
+Un déchiffrement automatique en GitOps (Flux ou ArgoCD avec ksops) exigerait d'installer des composants à l'échelle du cluster, hors de portée du namespace. Le déchiffrement reste donc une étape manuelle du déploiement. L'outillage complet (règles de chiffrement, édition, application) est décrit au chapitre implémentation.
