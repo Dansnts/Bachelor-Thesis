@@ -24,7 +24,7 @@
 | Reading redaction documents      |  To continue next week   | 1h |
 | Create base of the specifiaction document     |  Done   | 1h15 |
 | Create all the prelimenary tasks for the whole project   |  Done   | 1h45 |
-| **Total** |    | 8h |
+| **Total** |    | 9h |
 
 ---
 
@@ -49,9 +49,9 @@
 | Deployed SAM3 pod on K8s cluster (namespace dani) | Done | 45min |
 | Fixed GPU access : added runtimeClassName: nvidia to pod YAML | Done | 15min |
 | Explored SAM3 Python API (Sam3Processor, add_geometric_prompt) | Done | 30min |
-| Successfully ran SAM3 inference on GPU (CUDA 12.6) | Done | 20 |
+| Successfully ran SAM3 inference on GPU (CUDA 12.6) | Done | 20min |
 | Documented deployment process in docs/SAM3/Readme.md | Done | 20min |
-| **Total** |    | 9h30 |
+| **Total** |    | 9h35 |
 
 ---
 
@@ -67,14 +67,12 @@
 | wordcount.py : MapReduce with Ray | Done | 1h |
 | K8s manifests Ray : head, workers, services, ingress | Done | 1h30 |
 | Debug connexion Ray client (ray:// vs GCS, runtimeClassName, ray-client-server-port) | Done | 2h |
-| RayCluster on K8s (1 head + 3 workers GPU) need acces to continue | Not Done | - |
 | Dashboard Ray accessible via ingress | Done | 30min |
 | Documented Ray deployment in docs/RAY/Readme.md | Done | 20min |
 | Dog classifier : EfficientNet B0 distributed on Ray workers | Done | 2h |
 | Debug OOM : switched from @ray.remote function to Actor (model loaded once per worker) | Done | 45min |
-| Batch processing 5000 images (batches of 100) on Ray cluster | Done | - |
 | Cleaned up notes.md | Done | 15min |
-| **Total** |    | 11h30 |
+| **Total** |    | 11h35 |
 
 ---
 
@@ -96,7 +94,7 @@
 | Created Dockerfile.sam3 : Ray 2.54.0 + SAM3 + exif + Pillow on CUDA 12.6 | Done | 30min |
 | Created job-sam3-pipeline.yaml K8s manifest | Done | 15min |
 | Built and pushed ray-sam3 image to ghcr.io | Done | 30min |
-| Debug Ray () | Done | - |
+| Debug Ray () | Done | 3h55 |
 | **Total** |    | 11h |
 
 ---
@@ -126,7 +124,7 @@
 | Run SAM3 pipeline locally : validate downsampling at multiple scale factors | Done | 2h |
 | Analyse results : compare polygon count and inference time vs full-resolution baseline | Done | 45min |
 | Reorganise project structure : consolidate all docs under docs/ (Specification, report), remove legacy folders (TB_CahierDesCharges_Typst, specifications, report, tools) | Done | 1h |
-| **Total** |    | 7h |
+| **Total** |    | 7h25 |
 
 ---
 
@@ -181,7 +179,7 @@
 | Design API : 3 REST endpoints (`POST /batch`, `GET /status/{job_id}`, `POST /predict`) with full request/response schemas | Done | 45min |
 | Update notes.md : Week 10 full write-up (Parquet schema, CUDA bug, Ray worker env vars, Label Studio, projection decision) | Done | 20min |
 | Write first draft of TB report : 6 chapters (introduction, état de l'art, architecture, implémentation, résultats, conclusion) + bibliography | Done | 2h15 |
-| **Total** |    | 12h40 |
+| **Total** |    | 12h20 |
 
 ---
 
@@ -294,7 +292,7 @@
 | Architecture chapter, Observability section | Done | 1h30 |
 | Journal, notes week 14, dashboard screenshot | Done | 30min |
 | Git commits | Done | 15min |
-| **Total** | | **9h45** |
+| **Total** | | **10h45** |
 
 # Week 15
 
@@ -497,7 +495,7 @@
 | SOPS age key fix + GPU reservation email | Done | 20min |
 | Git : clean + commit deploy YAML manifest reorg (kustomize, drop legacy paths) | Done | 1h |
 | Journal week 19 | Done | 15min |
-| **Subtotal** |    | 11h20 |
+| **Subtotal** |    | 12h05 |
 
 ---
 
@@ -559,7 +557,7 @@
 | Review report edits + explanations (K8s frictions, Ultralytics, CLI scope) | Done | 1h30 |
 | Journal | Done | 15min |
 | **Subtotal** |    | 10h50 |
-| **Total** |    | **54h40** |
+| **Total** |    | **55h25** |
 
 # Week 20
 
@@ -645,7 +643,7 @@
 | Journal | Done | 15min |
 | **Subtotal** |    | 11h40 |
 | **Total** |    | **11h40** |
-| **Total** |    | **53h40** |
+| **Total** |    | **54h40** |
 
 # Week 21
 
@@ -679,6 +677,7 @@
 | Idea of YOLOv8 stretch goal + Talk with Valentin + journal | Done | 30min |
 | **Subtotal** |    | 9h |
 | **Total** |    | **9h** |
+| **Total** |    | **20h30** |
 
 *Wednesday July 8, 2026*
 
@@ -748,6 +747,8 @@
 | **Total** |    | **5h** |
 | **Total** |    | **66h10** |
 
+# Week 22
+
 *Monday July 13, 2026*
 
 | Task              | Status | Time |
@@ -763,3 +764,20 @@
 | Journal (weekend + today) | Done | 15min |
 | **Subtotal** |    | 13h |
 | **Total** |    | **13h** |
+
+*Tuesday July 14, 2026*
+
+| Task              | Status | Time |
+| :---------------- | :------: | ----: |
+| Journal audit : recompute every weekly total, fix 4h of missing hours (weeks 2/3/4/7/10/14/19/20), add the Week 22 header, settle each conflict case by case | Done | 30min |
+| Web console : job status read from the pod phase (`Running` vs `Pending`, retry pods no longer shown `Failed`), Dashboard + S3 bucket links via env vars (`GET /config`), request timeouts + non-overlapping polls, import path guard | Done | 1h30 |
+| Batch driver : retry the flaky first Ray Client connection (gRPC fork race) instead of failing the pod + unit tests, 170 tests green, 3 commits pushed | Done | 45min |
+| Report Résultats : fill the remaining TODOs (Grafana batch dashboard, pod logs, MinIO ceiling caveat, 1,2 TB upload cost) and write `Problèmes rencontrés` (driver crash, API saturation, GPU contention) | Done | 1h15 |
+| Report Résultats : cost section extended with Infomaniak (CHF, cheapest L40S) and the A40 purchase, sourced buy prices, cost-vs-images diagram, per-image price synthesis, full-chain table with rounded confidential figures | Done | 1h30 |
+| Report : worker/head/solo/segment resource shapes in Résultats + Architecture, side-by-side label tables, k9s cluster analysis section | Done | 45min |
+| Report Résultats : full chronological restructuring of the chapter (methodology first, SAM3 1008 constraint moved up, batch sections promoted, A40 comparison after the solo sweep) | Done | 45min |
+| Report Résultats : meticulous proofread, 44 fixes (time chart contradicting its own table, Vevey vs Nyon caption, triple Typst label, ratios and decimals normalised) | Done | 45min |
+| Journal | Done | 15min |
+| **Subtotal** |    | 8h |
+| **Total** |    | **8h** |
+| **Total** |    | **21h** |
