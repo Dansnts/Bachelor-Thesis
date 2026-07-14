@@ -53,7 +53,7 @@ SEGMENT_URL = os.getenv("SEGMENT_URL", "http://sam3-segment:8000")
 SEGMENT_DEPLOYMENT = os.getenv("SEGMENT_DEPLOYMENT", "sam3-segment")
 GRAFANA_URL = os.getenv("GRAFANA_URL", "https://grafana.iict-rad.iict-heig-vd.in")
 MINIO_CONSOLE_URL = os.getenv(
-    "MINIO_CONSOLE_URL", "https://storage-kubernetes.iict-heig-vd.in:9001"
+    "MINIO_CONSOLE_URL", "https://storage-kubernetes.iict-heig-vd.in:9090"
 )
 
 batch_v1 = client.BatchV1Api()
