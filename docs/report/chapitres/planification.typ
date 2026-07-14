@@ -1,5 +1,3 @@
-#import "@preview/gantty:0.5.1": gantt
-
 = Planification <planification>
 
 == Planification initiale <planification-initiale>
@@ -87,9 +85,156 @@ Le découpage prévisionnel par semaine, tel qu'établi en début de projet, est
   caption: [Jalons principaux du projet],
 )
 
+// ---- Diagramme de Gantt (Typst natif) : données ----
+#let gd(m, day) = datetime(year: 2026, month: m, day: day)
+#let g-start = gd(2, 1)
+#let g-end = gd(8, 1)
+#let g-days = (g-end - g-start).days()
+#let gx(dt) = (dt - g-start).days() / g-days * 100%
+
+#let g-phases = (
+  (name: "Démarrage", color: rgb("#2563EB"), tasks: (
+    ("Documents administratifs", gd(2, 16), gd(2, 27)),
+    ("Analyse des besoins", gd(2, 23), gd(3, 13)),
+    ("Rédaction du cahier des charges", gd(2, 23), gd(4, 9)),
+  )),
+  (name: "Prototypage", color: rgb("#7C3AED"), tasks: (
+    ("Étude de Ray et SAM3", gd(2, 23), gd(3, 15)),
+    ("SAM3 sur cluster GPU", gd(3, 9), gd(3, 29)),
+    ("Prototype Ray distribué", gd(3, 16), gd(3, 29)),
+    ("Pipeline MinIO + Ray + SAM3", gd(3, 30), gd(4, 12)),
+    ("Scénarios batch et on-demand", gd(4, 6), gd(4, 12)),
+  )),
+  (name: "Intégration", color: rgb("#0891B2"), tasks: (
+    ("Observabilité (Prometheus, Grafana, Loki)", gd(4, 20), gd(5, 3)),
+    ("Label Studio", gd(5, 4), gd(5, 24)),
+    ("Manifestes K8s et tests E2E", gd(5, 11), gd(5, 19)),
+  )),
+  (name: "Consolidation", color: rgb("#EA580C"), tasks: (
+    ("Optimisations et benchmarks", gd(5, 25), gd(6, 7)),
+  )),
+  (name: "Plein temps", color: rgb("#059669"), tasks: (
+    ("Déploiement production HEIG", gd(6, 15), gd(6, 21)),
+    ("Benchmarks E2E et tuning", gd(6, 22), gd(6, 28)),
+    ("Rédaction du rapport", gd(6, 29), gd(7, 19)),
+    ("Finalisation et rendu", gd(7, 20), gd(7, 24)),
+  )),
+)
+
+// (nom, date, ancre, niveau d'étiquette)
+#let g-milestones = (
+  ("Kick-off", gd(2, 16), "left", 0),
+  ("CdC final", gd(4, 9), "left", 1),
+  ("Rapport intermédiaire", gd(5, 20), "left", 2),
+  ("Plein temps", gd(6, 15), "left", 0),
+  ("Rendu final", gd(7, 24), "right", 1),
+)
+
+// ---- Diagramme de Gantt : rendu ----
+#let gantt-chart() = {
+  let row-h = 15pt
+  let head-h = 15pt
+  let label-size = 8.5pt
+  let grid-stroke = 0.5pt + rgb("#E2E8F0")
+  let months = ("Février", "Mars", "Avril", "Mai", "Juin", "Juillet")
+  let month-starts = range(2, 9).map(m => gd(m, 1))
+
+  // une ligne par phase (barre pleine) puis par tâche (barre claire)
+  let rows = ()
+  for p in g-phases {
+    let s = p.tasks.fold(p.tasks.first().at(1), (acc, t) => if t.at(1) < acc { t.at(1) } else { acc })
+    let e = p.tasks.fold(p.tasks.first().at(2), (acc, t) => if t.at(2) > acc { t.at(2) } else { acc })
+    rows.push((label: p.name, start: s, end: e, phase: true, color: p.color))
+    for t in p.tasks {
+      rows.push((label: t.at(0), start: t.at(1), end: t.at(2), phase: false, color: p.color))
+    }
+  }
+  let chart-h = rows.len() * row-h
+
+  grid(
+    columns: (auto, 1fr),
+    column-gutter: 10pt,
+    row-gutter: 0pt,
+
+    // coin vide au-dessus des libellés
+    box(height: head-h),
+
+    // bandeau des mois
+    box(width: 100%, height: head-h, {
+      for (i, m) in months.enumerate() {
+        let x0 = gx(month-starts.at(i))
+        let x1 = gx(month-starts.at(i + 1))
+        place(dx: x0, box(
+          width: x1 - x0, height: head-h,
+          align(center + horizon, text(size: 8pt, weight: "bold", fill: rgb("#64748B"), m)),
+        ))
+      }
+    }),
+
+    // colonne des libellés
+    stack(dir: ttb, ..rows.map(r => box(
+      height: row-h,
+      align(horizon, pad(
+        left: if r.phase { 0pt } else { 10pt },
+        text(size: label-size, weight: if r.phase { "bold" } else { "regular" }, r.label),
+      )),
+    ))),
+
+    // zone du diagramme
+    box(width: 100%, height: chart-h, {
+      // bandes de fond derrière les lignes de phase
+      for (i, r) in rows.enumerate() {
+        if r.phase {
+          place(dy: i * row-h, box(width: 100%, height: row-h, fill: rgb("#F1F5F9")))
+        }
+      }
+      // grille mensuelle
+      for m in (month-starts + (g-end,)) {
+        place(dx: gx(m), line(angle: 90deg, length: chart-h, stroke: grid-stroke))
+      }
+      // règles horizontales haut et bas
+      place(line(length: 100%, stroke: 0.6pt + rgb("#CBD5E1")))
+      place(dy: chart-h, line(length: 100%, stroke: 0.6pt + rgb("#CBD5E1")))
+      // jalons : ligne pointillée + losange sur l'axe du bas
+      for (name, date, anchor, level) in g-milestones {
+        place(dx: gx(date), line(
+          angle: 90deg, length: chart-h,
+          stroke: (paint: rgb("#94A3B8"), thickness: 0.6pt, dash: "densely-dashed"),
+        ))
+        place(dx: gx(date) - 2.6pt, dy: chart-h - 3.2pt, text(size: 6.5pt, fill: rgb("#334155"), sym.diamond.filled))
+      }
+      // barres
+      for (i, r) in rows.enumerate() {
+        let bar-h = if r.phase { 8pt } else { 6pt }
+        place(
+          dx: gx(r.start),
+          dy: i * row-h + (row-h - bar-h) / 2,
+          box(
+            width: gx(r.end) - gx(r.start), height: bar-h, radius: 3pt,
+            fill: if r.phase { r.color } else { r.color.lighten(55%) },
+          ),
+        )
+      }
+    }),
+
+    // étiquettes des jalons, sous le diagramme
+    box(height: 34pt),
+    box(width: 100%, height: 34pt, {
+      for (name, date, anchor, level) in g-milestones {
+        let lbl = text(size: 7.5pt)[*#name* #text(fill: rgb("#64748B"))[· #date.display("[day].[month]")]]
+        if anchor == "right" {
+          place(dy: 4pt + level * 10pt, box(width: gx(date) - 3pt, align(right, lbl)))
+        } else {
+          place(dx: gx(date) + 3pt, dy: 4pt + level * 10pt, lbl)
+        }
+      }
+    }),
+  )
+}
+
 #v(5%)
 #figure(
-  gantt(yaml("planification-gantt.yaml")),
+  block(breakable: false, gantt-chart()),
   caption: [
     Planification initiale du projet
   ],
