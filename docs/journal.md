@@ -729,3 +729,37 @@
 | **Subtotal** |    | 12h |
 | **Total** |    | **12h** |
 | **Total** |    | **57h10** |
+
+*Saturday July 11, 2026*
+
+| Task              | Status | Time |
+| :---------------- | :------: | ----: |
+| Report : full proofread of `architecture.typ` (wording, section order, figures and captions to rework, corrections noted for Monday) | Done | 4h |
+| **Subtotal** |    | 4h |
+| **Total** |    | **4h** |
+| **Total** |    | **61h10** |
+
+*Sunday July 12, 2026*
+
+| Task              | Status | Time |
+| :---------------- | :------: | ----: |
+| Report : full proofread of `implementation.typ` (wording, code snippets vs prose balance, corrections noted for Monday) | Done | 5h |
+| **Subtotal** |    | 5h |
+| **Total** |    | **5h** |
+| **Total** |    | **66h10** |
+
+*Monday July 13, 2026*
+
+| Task              | Status | Time |
+| :---------------- | :------: | ----: |
+| Report : mechanical fixes from the review inventory (duplicate Typst labels across all chapters, podsK9s caption, "exclusivement L40S" vs A40 measurements, 512 -> 1008 tiles, DuckDB dropped for PyArrow) | Done | 1h |
+| Web console : dedicated solo-run panel (own labels, tile/stride/downsample) + interactive segmentation panel (S3 key, click point, label -> `POST /segment`), `labelPicker`/`submitJob` factored, tests green | Done | 1h30 |
+| Report Résultats : cost section filled with official provider prices (RunPod/Scaleway/OVHcloud, sourced + dated), CHF conversion at real rates, single-run + 1-to-30-runs tables, lilaq break-even chart (buy beats OVH at 11 runs, RunPod at 23 | Done | 2h30 |
+| Report Planification : hand-made Typst Gantt replacing gantty (phase colors, month grid, milestone diamonds, unbreakable figure) | Done | 1h |
+| Report : architecture/implementation deduplication  | Done | 1h30 |
+| Report : meticulous proofread of `architecture.typ`  | Done | 2h |
+| Report : meticulous proofread of `implementation.typ`  | Done | 2h |
+| Report : `Gestion des secrets` + Kustomize sections written, NearLabel data-contract section cleaned, PIL/mask explanation simplified, 13 glossary entries added (OpenCV, SOPS, RBAC...), AI-proofreading entry in Outils | Done | 1h15 |
+| Journal (weekend + today) | Done | 15min |
+| **Subtotal** |    | 13h |
+| **Total** |    | **13h** |
