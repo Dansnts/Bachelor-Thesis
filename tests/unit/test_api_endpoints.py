@@ -154,9 +154,16 @@ class TestListJobs:
 
     def test_status_mapping(self, client, fake_k8s):
         self._seed(fake_k8s)
+        fake_k8s.core.pod_phases["sam3-solo-bbbb"] = "Running"
         by_name = {j["job_name"]: j["status"] for j in client.get("/jobs/").json()["jobs"]}
         assert by_name["sam3-batch-aaaa"] == "Succeeded"
-        assert by_name["sam3-solo-bbbb"] == "Active"
+        assert by_name["sam3-solo-bbbb"] == "Running"
+
+    def test_active_job_with_queued_pod_reports_pending(self, client, fake_k8s):
+        self._seed(fake_k8s)
+        fake_k8s.core.pod_phases["sam3-solo-bbbb"] = "Pending"
+        by_name = {j["job_name"]: j["status"] for j in client.get("/jobs/").json()["jobs"]}
+        assert by_name["sam3-solo-bbbb"] == "Pending"
 
     def test_list_failure_propagates(self, client, fake_k8s):
         fake_k8s.batch.list_error = fake_k8s.ApiException(status=500, reason="boom")

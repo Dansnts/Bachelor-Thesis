@@ -55,24 +55,58 @@ class TestToS3Uri:
 
 
 # --- job_status ------------------------------------------------------------
+def _job(name="sam3-solo-x", **flags):
+    return types.SimpleNamespace(
+        metadata=types.SimpleNamespace(name=name),
+        status=types.SimpleNamespace(**flags),
+    )
+
+
 class TestJobStatus:
     @pytest.mark.parametrize(
         "flags,expected",
         [
             (dict(succeeded=1, failed=None, active=None), "Succeeded"),
             (dict(succeeded=None, failed=1, active=None), "Failed"),
-            (dict(succeeded=None, failed=None, active=1), "Active"),
             (dict(succeeded=None, failed=None, active=None), "Pending"),
         ],
     )
     def test_mapping(self, api_module, flags, expected):
-        job = types.SimpleNamespace(status=types.SimpleNamespace(**flags))
+        assert api_module.job_status(_job(**flags)) == expected
+
+    @pytest.mark.parametrize(
+        "phase,expected",
+        [
+            ("Running", "Running"),   # the pod really runs
+            ("Pending", "Pending"),   # pod queued, e.g. waiting for a GPU
+            (None, "Pending"),        # no pod visible yet
+        ],
+    )
+    def test_active_job_reads_pod_phase(self, api_module, monkeypatch, phase, expected):
+        pods = []
+        if phase:
+            pods = [types.SimpleNamespace(status=types.SimpleNamespace(phase=phase))]
+        fake_core = types.SimpleNamespace(
+            list_namespaced_pod=lambda ns, label_selector=None: types.SimpleNamespace(items=pods)
+        )
+        monkeypatch.setattr(api_module, "core_v1", fake_core)
+        job = _job(succeeded=None, failed=None, active=1)
         assert api_module.job_status(job) == expected
 
     def test_succeeded_wins_over_active(self, api_module):
         # a job that had active pods but is now done reports Succeeded
-        job = types.SimpleNamespace(status=types.SimpleNamespace(succeeded=1, failed=None, active=1))
+        job = _job(succeeded=1, failed=None, active=1)
         assert api_module.job_status(job) == "Succeeded"
+
+    def test_retry_pod_wins_over_failed(self, api_module, monkeypatch):
+        # failed only counts dead pods : while a retry pod runs, the job runs
+        pods = [types.SimpleNamespace(status=types.SimpleNamespace(phase="Running"))]
+        fake_core = types.SimpleNamespace(
+            list_namespaced_pod=lambda ns, label_selector=None: types.SimpleNamespace(items=pods)
+        )
+        monkeypatch.setattr(api_module, "core_v1", fake_core)
+        job = _job(succeeded=None, failed=1, active=1)
+        assert api_module.job_status(job) == "Running"
 
 
 # --- rows_to_label_studio --------------------------------------------------

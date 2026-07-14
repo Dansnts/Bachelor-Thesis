@@ -194,10 +194,18 @@ class FakeBatchApi:
 class FakeCoreApi:
     def __init__(self):
         self.error = None
+        self.pod_phases = {}  # job name -> pod phase ("Running", "Pending", ...)
 
-    def list_namespaced_pod(self, namespace, limit=None):
+    def list_namespaced_pod(self, namespace, limit=None, label_selector=None):
         if self.error:
             raise self.error
+        if label_selector:
+            job = label_selector.split("=", 1)[1]
+            phase = self.pod_phases.get(job)
+            if phase is None:
+                return types.SimpleNamespace(items=[])
+            pod = types.SimpleNamespace(status=types.SimpleNamespace(phase=phase))
+            return types.SimpleNamespace(items=[pod])
         return types.SimpleNamespace(items=[])
 
 

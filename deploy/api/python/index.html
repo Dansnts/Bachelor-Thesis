@@ -266,7 +266,7 @@
   }
   .badge.batch { background: rgba(75, 139, 255, .16); color: var(--sign); }
   .badge.solo  { background: rgba(142, 145, 152, .16); color: var(--muted); }
-  .badge.Active    { background: rgba(243, 197, 61, .14); color: var(--mark); }
+  .badge.Running   { background: rgba(243, 197, 61, .14); color: var(--mark); }
   .badge.Succeeded { background: rgba(70, 185, 108, .14); color: var(--ok); }
   .badge.Failed    { background: rgba(229, 84, 75, .14); color: var(--err); }
   .badge.Pending   { background: rgba(142, 145, 152, .14); color: var(--muted); }
@@ -338,6 +338,8 @@
       <button id="seg-down" title="Stoppe le pod GPU pour libérer la carte">Down</button>
     </div>
     <div class="health"><span class="led" id="led"></span><span id="health-text">API…</span></div>
+    <a class="doc-link" id="link-grafana" target="_blank" rel="noopener" hidden>Grafana</a>
+    <a class="doc-link" id="link-bucket" target="_blank" rel="noopener" hidden>Bucket S3</a>
     <a class="doc-link" href="/docs" target="_blank" rel="noopener">Doc API</a>
   </div>
 </header>
@@ -481,8 +483,19 @@ function toast(msg, isErr) {
   setTimeout(() => el.remove(), 6000);
 }
 
-async function api(path, opts) {
-  const r = await fetch(path, opts);
+async function api(path, opts, timeoutMs) {
+  // Every call aborts after a deadline : a hung request would otherwise hold
+  // one of the browser's connections forever and end up freezing the page.
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), timeoutMs || 15000);
+  let r;
+  try {
+    r = await fetch(path, { ...(opts || {}), signal: ctl.signal });
+  } catch (e) {
+    throw new Error("API injoignable");
+  } finally {
+    clearTimeout(t);
+  }
   if (!r.ok) {
     let detail = r.statusText;
     try { detail = (await r.json()).detail || detail; } catch (e) { /* non-JSON body */ }
@@ -610,14 +623,16 @@ $("solo-launch").onclick = () => {
 
 /* ---- label studio import ---- */
 $("ls-go").onclick = async () => {
-  const acq = $("ls-acq").value.trim();
+  const acq = $("ls-acq").value.trim().replace(/^\/+|\/+$/g, "");
   if (!acq) return toast("Indiquez le nom de l'acquisition.", true);
+  if (acq.includes("/"))
+    return toast("Seulement le nom de l'acquisition (ex : Vevey), pas un chemin.", true);
   const run = $("ls-run").value.trim();
   const qs = "?write=true" + (run ? "&run=" + encodeURIComponent(run) : "");
   $("ls-go").disabled = true;
   $("ls-result").textContent = "Conversion des Parquet en cours…";
   try {
-    const res = await api("/import/" + encodeURIComponent(acq) + qs, { method: "POST" });
+    const res = await api("/import/" + encodeURIComponent(acq) + qs, { method: "POST" }, 300000);
     $("ls-result").textContent = res.files + " parquet convertis → " + res.uri;
     toast("Import Label Studio écrit sur S3.");
   } catch (e) {
@@ -662,7 +677,7 @@ $("seg-go").onclick = async () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ url: url, items: [{ point: [x, y], label: label }] }),
-    });
+    }, 120000);
     const r = res.results[0];
     $("seg-result").textContent = r.found
       ? "« " + r.label + " » trouvé : polygone de " + r.points.length + " points au point (" + x + ", " + y + ")."
@@ -744,7 +759,7 @@ function renderJob(job, st) {
         " · écoulé " + fmtDuration(st.elapsed_seconds) +
         (st.done ? "" : " · restant ≈ " + fmtDuration(remaining)) +
         "</div>";
-    } else if (job.status === "Active" || job.status === "Pending") {
+    } else if (job.status === "Running" || job.status === "Pending") {
       bodyHtml = '<div class="job-stats">Démarrage du driver…</div>';
     }
   } else if (job.status === "Succeeded") {
@@ -782,12 +797,38 @@ async function refreshJobs() {
   jobs.forEach((j, i) => list.appendChild(renderJob(j, statuses[i])));
 }
 
-checkHealth();
-checkSegment();
-refreshJobs();
-setInterval(checkHealth, 10000);
-setInterval(checkSegment, 10000);
-setInterval(refreshJobs, 4000);
+/* ---- external links, provided by the deployment via /config ---- */
+async function loadConfig() {
+  try {
+    const cfg = await api("/config");
+    if (cfg.grafanaUrl) { $("link-grafana").href = cfg.grafanaUrl; $("link-grafana").hidden = false; }
+    if (cfg.bucketUrl)  { $("link-bucket").href = cfg.bucketUrl;   $("link-bucket").hidden = false; }
+  } catch (e) { /* links stay hidden, the console still works */ }
+}
+
+/* a poll never piles on top of the previous one : when the API slows down,
+   overlapping fetches used to exhaust the browser's connections and the page
+   looked dead until a manual refresh */
+function noOverlap(fn) {
+  let busy = false;
+  return async () => {
+    if (busy) return;
+    busy = true;
+    try { await fn(); } finally { busy = false; }
+  };
+}
+
+const healthTick = noOverlap(checkHealth);
+const segmentTick = noOverlap(checkSegment);
+const jobsTick = noOverlap(refreshJobs);
+
+loadConfig();
+healthTick();
+segmentTick();
+jobsTick();
+setInterval(healthTick, 10000);
+setInterval(segmentTick, 10000);
+setInterval(jobsTick, 4000);
 </script>
 </body>
 </html>

@@ -51,6 +51,10 @@ spec:
                 secretKeyRef:
                   name: minio-secret
                   key: secret_key
+            - name: GRAFANA_URL
+              value: "https://grafana.iict-rad.iict-heig-vd.in"
+            - name: MINIO_CONSOLE_URL
+              value: "https://storage-kubernetes.iict-heig-vd.in:9001"
             - name: SOLO_IMAGE
               value: "ghcr.io/nearai-interreg/sam3-solo:staging"
             - name: BATCH_IMAGE

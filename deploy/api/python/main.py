@@ -51,6 +51,10 @@ ADDRESS = os.getenv("V4_ADDRESS", "0.0.0.0")
 BUCKET = os.getenv("BUCKET", "nearai")
 SEGMENT_URL = os.getenv("SEGMENT_URL", "http://sam3-segment:8000")
 SEGMENT_DEPLOYMENT = os.getenv("SEGMENT_DEPLOYMENT", "sam3-segment")
+GRAFANA_URL = os.getenv("GRAFANA_URL", "https://grafana.iict-rad.iict-heig-vd.in")
+MINIO_CONSOLE_URL = os.getenv(
+    "MINIO_CONSOLE_URL", "https://storage-kubernetes.iict-heig-vd.in:9001"
+)
 
 batch_v1 = client.BatchV1Api()
 core_v1 = client.CoreV1Api()
@@ -503,11 +507,19 @@ def job_status(job):
     if s.succeeded:
         return "Succeeded"
 
+    if s.active:
+        # Active means the Job has a pod, even after a failed attempt (failed
+        # only counts dead pods). That pod can still be queued behind a busy
+        # GPU, so Running is reserved for a pod that really runs.
+        pods = core_v1.list_namespaced_pod(
+            NAMESPACE, label_selector="job-name=" + job.metadata.name
+        ).items
+        if any(p.status.phase == "Running" for p in pods):
+            return "Running"
+        return "Pending"
+
     if s.failed:
         return "Failed"
-
-    if s.active:
-        return "Active"
 
     return "Pending"
 
@@ -596,6 +608,16 @@ def ui():
     # Control panel for demos: a single self-contained page served by the API
     # itself, so the browser talks to the same origin (no CORS to configure).
     return FileResponse(os.path.join(os.path.dirname(__file__), "index.html"))
+
+
+@app.get("/config")
+def get_config():
+    # External links shown by the console. They live in env vars so each
+    # deployment points to its own Grafana and MinIO without touching the page.
+    return {
+        "grafanaUrl": GRAFANA_URL,
+        "bucketUrl": f"{MINIO_CONSOLE_URL}/browser/{BUCKET}" if MINIO_CONSOLE_URL else "",
+    }
 
 
 @app.get("/health")
@@ -747,7 +769,7 @@ def get_jobs(kind: str = None):
 def get_job(name: str):
     """Return a single job's high-level state.
 
-    One of Succeeded/Failed/Active/Pending. For a batch's fine-grained progress use /jobs/{name}/status instead.
+    One of Succeeded/Failed/Running/Pending. For a batch's fine-grained progress use /jobs/{name}/status instead.
 
     Arguments :
     name                 job name to read
