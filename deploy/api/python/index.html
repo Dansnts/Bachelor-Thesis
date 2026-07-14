@@ -363,7 +363,7 @@
       </div>
 
       <div class="field">
-        <label for="in-bucket">Bucket de sortie</label>
+        <label for="in-bucket">Bucket (images et résultats)</label>
         <input type="text" id="in-bucket" value="nearai">
       </div>
 
@@ -385,6 +385,52 @@
       </div>
 
       <button class="launch-btn" id="launch">Lancer le batch</button>
+    </section>
+
+    <section class="panel">
+      <h2>Lancer un run solo <span class="hint">une seule image</span></h2>
+
+      <div class="field">
+        <label for="solo-image">Clé S3 de l'image</label>
+        <input type="text" id="solo-image" placeholder="data/acquisitions/Vevey/01_images/pano_0002_004731.jpg">
+      </div>
+
+      <div class="field">
+        <label for="solo-bucket">Bucket de l'image</label>
+        <input type="text" id="solo-bucket" value="nearai">
+      </div>
+
+      <div class="field">
+        <label>Labels</label>
+        <div class="chips" id="solo-chips"></div>
+        <div class="add-label">
+          <input type="text" id="solo-new-label" placeholder="autre label, ex. bench">
+          <button type="button" class="quiet-btn" id="solo-add-label">Ajouter</button>
+        </div>
+      </div>
+
+      <div class="params">
+        <div class="field"><label for="solo-tile">Tuile</label><input type="number" id="solo-tile" value="1008"></div>
+        <div class="field"><label for="solo-stride">Stride</label><input type="number" id="solo-stride" value="768"></div>
+        <div class="field"><label for="solo-down">Downsample</label><input type="number" id="solo-down" value="0.75" step="0.05" min="0.05" max="1"></div>
+      </div>
+
+      <button class="launch-btn" id="solo-launch">Lancer le run solo</button>
+    </section>
+
+    <section class="panel">
+      <h2>Segmentation interactive <span class="hint">nécessite le service Up</span></h2>
+      <div class="field">
+        <label for="seg-image">Clé S3 de l'image</label>
+        <input type="text" id="seg-image" placeholder="data/acquisitions/Vevey/01_images/pano_0002_004731.jpg">
+      </div>
+      <div class="params">
+        <div class="field"><label for="seg-x">Point X (px)</label><input type="number" id="seg-x" min="0"></div>
+        <div class="field"><label for="seg-y">Point Y (px)</label><input type="number" id="seg-y" min="0"></div>
+        <div class="field"><label for="seg-label">Label</label><input type="text" id="seg-label" placeholder="circular_manhole_cover"></div>
+      </div>
+      <button class="quiet-btn" id="seg-go">Segmenter au point</button>
+      <div class="result-line" id="seg-result"></div>
     </section>
 
     <section class="panel">
@@ -458,39 +504,46 @@ async function checkHealth() {
   }
 }
 
-/* ---- label chips ---- */
-const selected = new Set(PRESELECTED);
-const knownChips = new Set();
+/* ---- label chips: one independent picker per launch panel ---- */
+function labelPicker(chipsId, inputId, addBtnId) {
+  const selected = new Set(PRESELECTED);
+  const known = new Set();
 
-function addChip(name, on) {
-  if (knownChips.has(name)) return;
-  knownChips.add(name);
-  if (on) selected.add(name);
-  const c = document.createElement("button");
-  c.type = "button";
-  c.className = "chip" + (on ? " on" : "");
-  c.textContent = name;
-  c.onclick = () => {
-    selected.has(name) ? selected.delete(name) : selected.add(name);
-    c.classList.toggle("on");
-  };
-  $("chips").appendChild(c);
+  function addChip(name, on) {
+    if (known.has(name)) return;
+    known.add(name);
+    if (on) selected.add(name);
+    const c = document.createElement("button");
+    c.type = "button";
+    c.className = "chip" + (on ? " on" : "");
+    c.textContent = name;
+    c.onclick = () => {
+      selected.has(name) ? selected.delete(name) : selected.add(name);
+      c.classList.toggle("on");
+    };
+    $(chipsId).appendChild(c);
+  }
+
+  for (const name of LABELS) addChip(name, selected.has(name));
+
+  function addCustom() {
+    const name = $(inputId).value.trim().toLowerCase().replaceAll(" ", "_");
+    if (!name) return;
+    addChip(name, true);
+    $(inputId).value = "";
+  }
+  $(addBtnId).onclick = addCustom;
+  $(inputId).addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); addCustom(); }
+  });
+
+  return selected;
 }
 
-for (const name of LABELS) addChip(name, selected.has(name));
+const batchLabels = labelPicker("chips", "in-new-label", "add-label");
+const soloLabels = labelPicker("solo-chips", "solo-new-label", "solo-add-label");
 
-function addCustomLabel() {
-  const name = $("in-new-label").value.trim().toLowerCase().replaceAll(" ", "_");
-  if (!name) return;
-  addChip(name, true);
-  $("in-new-label").value = "";
-}
-$("add-label").onclick = addCustomLabel;
-$("in-new-label").addEventListener("keydown", (e) => {
-  if (e.key === "Enter") { e.preventDefault(); addCustomLabel(); }
-});
-
-/* ---- input mode: prefix vs explicit url list ---- */
+/* ---- batch input mode: prefix vs explicit url list ---- */
 let mode = "prefix";
 function setMode(m) {
   mode = m;
@@ -502,11 +555,30 @@ function setMode(m) {
 $("mode-prefix").onclick = () => setMode("prefix");
 $("mode-urls").onclick = () => setMode("urls");
 
-/* ---- launch ---- */
-$("launch").onclick = async () => {
+/* ---- submit helper shared by the two launch panels ---- */
+async function submitJob(btnId, path, body, kindLabel) {
+  $(btnId).disabled = true;
+  try {
+    const res = await api(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    toast(kindLabel + " " + res.job_name + " soumis.");
+    refreshJobs();
+  } catch (e) {
+    toast(e.message, true);
+  } finally {
+    $(btnId).disabled = false;
+  }
+}
+
+/* ---- launch: batch ---- */
+$("launch").onclick = () => {
+  if (!batchLabels.size) return toast("Choisissez au moins un label.", true);
   const body = {
     s3Bucket: $("in-bucket").value.trim(),
-    labels: [...selected],
+    labels: [...batchLabels],
     numWorkers: +$("in-workers").value,
     batchSize: +$("in-batch").value,
     tileSize: +$("in-tile").value,
@@ -518,22 +590,22 @@ $("launch").onclick = async () => {
   } else {
     body.s3Uris = $("in-urls").value.split("\n").map(s => s.trim()).filter(Boolean);
   }
-  if (!selected.size) return toast("Choisissez au moins un label.", true);
+  submitJob("launch", "/jobs/batch", body, "Batch");
+};
 
-  $("launch").disabled = true;
-  try {
-    const res = await api("/jobs/batch", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    toast("Batch " + res.job_name + " soumis.");
-    refreshJobs();
-  } catch (e) {
-    toast(e.message, true);
-  } finally {
-    $("launch").disabled = false;
-  }
+/* ---- launch: solo ---- */
+$("solo-launch").onclick = () => {
+  const imageUri = $("solo-image").value.trim();
+  if (!imageUri) return toast("Indiquez la clé S3 de l'image.", true);
+  if (!soloLabels.size) return toast("Choisissez au moins un label.", true);
+  submitJob("solo-launch", "/jobs/solo", {
+    imageUri: imageUri,
+    s3Bucket: $("solo-bucket").value.trim(),
+    labels: [...soloLabels],
+    tileSize: +$("solo-tile").value,
+    tileStride: +$("solo-stride").value,
+    downsample: +$("solo-down").value,
+  }, "Run solo");
 };
 
 /* ---- label studio import ---- */
@@ -557,10 +629,13 @@ $("ls-go").onclick = async () => {
 };
 
 /* ---- segment service ---- */
+let segReady = false;   // last known state, used to warn before an interactive call
+
 async function checkSegment() {
   const led = $("seg-led"), state = $("seg-state");
   try {
     const st = await api("/segment/status");
+    segReady = st.ready > 0;
     if (st.ready > 0)            { led.className = "led ok";   state.textContent = "Up"; }
     else if (st.replicas > 0)    { led.className = "led warn"; state.textContent = "Démarrage…"; }
     else                         { led.className = "led";      state.textContent = "Down"; }
@@ -569,6 +644,36 @@ async function checkSegment() {
     state.textContent = "—";
   }
 }
+
+/* ---- interactive segmentation ---- */
+$("seg-go").onclick = async () => {
+  const url = $("seg-image").value.trim();
+  const label = $("seg-label").value.trim() || "object";
+  const x = +$("seg-x").value, y = +$("seg-y").value;
+  if (!url) return toast("Indiquez la clé S3 de l'image.", true);
+  if (!$("seg-x").value || !$("seg-y").value)
+    return toast("Indiquez les coordonnées du point.", true);
+  if (!segReady) toast("Le service semble Down : la requête risque d'échouer.", true);
+
+  $("seg-go").disabled = true;
+  $("seg-result").textContent = "Segmentation en cours…";
+  try {
+    const res = await api("/segment", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: url, items: [{ point: [x, y], label: label }] }),
+    });
+    const r = res.results[0];
+    $("seg-result").textContent = r.found
+      ? "« " + r.label + " » trouvé : polygone de " + r.points.length + " points au point (" + x + ", " + y + ")."
+      : "Aucun objet trouvé au point (" + x + ", " + y + ").";
+  } catch (e) {
+    $("seg-result").textContent = "";
+    toast(e.message, true);
+  } finally {
+    $("seg-go").disabled = false;
+  }
+};
 
 $("seg-up").onclick = () => api("/segment/up", { method: "POST" })
   .then(() => { toast("Service interactif Up."); checkSegment(); })
