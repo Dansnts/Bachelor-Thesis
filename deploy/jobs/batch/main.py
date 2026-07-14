@@ -582,6 +582,34 @@ class SAM3Worker:
 # Main --------------------------------------------------
 
 
+def connect_ray(address, attempts=5, delay=10):
+    """Connect to the RayCluster head, retrying the flaky first contact.
+
+    The Ray Client proxier occasionally dies while spawning the per-connection
+    server (gRPC fork race), which aborts the very first connection. Retrying
+    in place is much cheaper than letting the whole pod fail and restart.
+
+    Arguments :
+    address              ray://host:port of the cluster head
+    attempts             connection attempts before giving up
+    delay                seconds between attempts
+    """
+    for i in range(attempts):
+        try:
+            return ray.init(address)
+        except ConnectionError as e:
+            if i == attempts - 1:
+                raise
+            log.warning(
+                "Ray connection failed (%s), retry %d/%d in %ds",
+                e,
+                i + 1,
+                attempts - 1,
+                delay,
+            )
+            time.sleep(delay)
+
+
 def main():
     """Driver: connect to Ray, dispatch the images, aggregate the results.
 
@@ -625,7 +653,7 @@ def main():
     labels = [l.strip() for l in args.labels.split(",") if l.strip()]
     out_bucket, out_prefix = args.s3_output_uri[5:].split("/", 1)
 
-    ray.init() if args.local else ray.init(RAY_HEAD)
+    ray.init() if args.local else connect_ray(RAY_HEAD)
     log.info("Ray: %d node(s)", len(ray.nodes()))
 
     client = make_s3_client()

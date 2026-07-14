@@ -270,3 +270,29 @@ class TestAlreadyProcessed:
 
     def test_empty_prefix_gives_empty_set(self, batch_module, fake_s3):
         assert batch_module.already_processed(fake_s3, "nearai", "out/") == set()
+
+
+class TestConnectRay:
+    def test_retries_the_flaky_first_contact(self, batch_module, monkeypatch):
+        # the proxier dies twice (gRPC fork race), the third attempt connects
+        calls = []
+
+        def flaky_init(address):
+            calls.append(address)
+            if len(calls) < 3:
+                raise ConnectionAbortedError("Initialization failure from server")
+            return "ctx"
+
+        monkeypatch.setattr(batch_module.ray, "init", flaky_init)
+        monkeypatch.setattr(batch_module.time, "sleep", lambda s: None)
+        assert batch_module.connect_ray("ray://head:10001", attempts=5, delay=0) == "ctx"
+        assert len(calls) == 3
+
+    def test_gives_up_after_the_last_attempt(self, batch_module, monkeypatch):
+        def dead_init(address):
+            raise ConnectionAbortedError("Initialization failure from server")
+
+        monkeypatch.setattr(batch_module.ray, "init", dead_init)
+        monkeypatch.setattr(batch_module.time, "sleep", lambda s: None)
+        with pytest.raises(ConnectionAbortedError):
+            batch_module.connect_ray("ray://head:10001", attempts=3, delay=0)
