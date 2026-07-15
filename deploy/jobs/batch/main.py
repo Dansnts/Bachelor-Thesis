@@ -39,7 +39,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import ray
-from jobCore.s3 import make_s3_client
+from jobCore.s3 import get_object_bytes, iter_keys, make_s3_client
 from jobCore.worker import (
     DEFAULT_BATCH_SIZE,
     DEFAULT_DOWNSAMPLE,
@@ -84,14 +84,11 @@ def list_images(client, bucket, prefix):
     bucket               bucket to scan
     prefix               prefix under which to list the images
     """
-    keys = []
-    paginator = client.get_paginator("list_objects_v2")
-    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
-        for obj in page.get("Contents", []):
-            key = obj["Key"]
-            if Path(key).suffix.lower() in SUPPORTED_EXT:
-                keys.append(key)
-    return sorted(keys)
+    return sorted(
+        key
+        for key in iter_keys(client, bucket, prefix)
+        if Path(key).suffix.lower() in SUPPORTED_EXT
+    )
 
 
 def already_processed(client, bucket, prefix):
@@ -105,14 +102,11 @@ def already_processed(client, bucket, prefix):
     bucket               output bucket to scan
     prefix               output prefix holding the existing Parquet
     """
-    done = set()
-    paginator = client.get_paginator("list_objects_v2")
-    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
-        for obj in page.get("Contents", []):
-            key = obj["Key"]
-            if key.endswith(".parquet"):
-                done.add(Path(key).stem)
-    return done
+    return {
+        Path(key).stem
+        for key in iter_keys(client, bucket, prefix)
+        if key.endswith(".parquet")
+    }
 
 
 def dms_to_decimal(dms, ref):
@@ -141,8 +135,7 @@ def download_image(client, bucket, key):
 
     Returns (image, latitude, longitude, meta).
     """
-    resp = client.get_object(Bucket=bucket, Key=key)
-    raw = resp["Body"].read()
+    raw = get_object_bytes(client, bucket, key)
     img = Image.open(io.BytesIO(raw)).convert("RGB")
     lat, lon = None, None
     meta = {
@@ -438,7 +431,7 @@ def load_poses(client, bucket, csv_key):
 
     poses = {}
     try:
-        raw = client.get_object(Bucket=bucket, Key=csv_key)["Body"].read()
+        raw = get_object_bytes(client, bucket, csv_key)
     except Exception:
         return poses
     lines = raw.decode("utf-8", "replace").splitlines()
@@ -720,7 +713,8 @@ def main():
         "directions": [],
     }
 
-    # ray.wait returns the futures as they complete (not in one block like ray.get), which lets us increment the counter image by image.
+    # ray.wait returns the futures as they complete (not in one block like
+    # ray.get), which lets us increment the counter image by image.
     pending = futures
     while pending:
         done, pending = ray.wait(pending, num_returns=1)

@@ -10,9 +10,19 @@ from PIL import Image
 
 
 def merge_masks(masks, coords_list, img_w, img_h, scores):
-    # Stitches the tile masks onto a large image, then splits the objects into
-    # connected components. Each component gets a mean score weighted by its
-    # overlap with the original tile masks.
+    """Stitch the tile masks onto the full image and split it into objects.
+
+    The stitched image is cut into connected components (one per object).
+    Each component gets a mean score weighted by its overlap with the
+    original tile masks.
+
+    Arguments :
+    masks                binary masks, one per tile detection
+    coords_list          (x, y, w, h) of each mask's tile in the full image
+    img_w                full image width in pixels
+    img_h                full image height in pixels
+    scores               detection score of each mask
+    """
     from scipy import ndimage
 
     full = np.zeros((img_h, img_w), dtype=np.uint8)
@@ -59,7 +69,13 @@ def merge_masks(masks, coords_list, img_w, img_h, scores):
 
 
 def mask_to_polygon(mask, w, h):
-    # Turns a binary mask into a simplified polygonal contour.
+    """Turn a binary mask into a simplified polygonal contour.
+
+    Arguments :
+    mask                 binary mask of one object
+    w                    image width, to express the points as percentages
+    h                    image height, to express the points as percentages
+    """
     import cv2
 
     contours, _ = cv2.findContours(

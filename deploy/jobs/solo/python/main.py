@@ -6,7 +6,8 @@ import logging
 import ray
 from PIL import Image
 
-from jobCore.s3 import make_s3_client
+from jobCore.labelstudio import polygon_result
+from jobCore.s3 import get_object_bytes, make_s3_client
 from jobCore.worker import (
     DEFAULT_DOWNSAMPLE,
     DEFAULT_TILE_SIZE,
@@ -20,32 +21,24 @@ log = logging.getLogger(__name__)
 
 # Helpers --------------------------------------------------
 def get_image(bucket, key):
-    obj = make_s3_client().get_object(Bucket=bucket, Key=key)
-    return obj["Body"].read()
+    """Download the image to segment from the bucket."""
+    return get_object_bytes(make_s3_client(), bucket, key)
 
 
 def to_label_studio(image_uri, polygons, img_w, img_h):
+    """Wrap the detected polygons as one Label Studio task.
+
+    Arguments :
+    image_uri            URI of the segmented image, echoed in the task data
+    polygons             list of (label, points, score) from the model
+    img_w                original image width in pixels
+    img_h                original image height in pixels
+    """
     results = []
     scores = []
     for label, points, score in polygons:
         scores.append(score)
-        results.append(
-            {
-                "type": "polygonlabels",
-                "from_name": "label",
-                "to_name": "image",
-                "original_width": img_w,
-                "original_height": img_h,
-                # SAM3's confidence for this detection (0..1). Label Studio uses
-                # it to sort/colour the pre-annotations.
-                "score": round(score, 4),
-                "value": {
-                    "closed": True,
-                    "polygonlabels": [label],
-                    "points": points,
-                },
-            }
-        )
+        results.append(polygon_result(label, points, img_w, img_h, score))
     # Prediction-level score = mean detection confidence, used by Label Studio
     # to rank predictions.
     prediction = {"model_version": "SAM3", "result": results}

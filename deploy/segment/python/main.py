@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from jobCore.postprocess import mask_to_polygon
-from jobCore.s3 import make_s3_client
+from jobCore.s3 import get_object_bytes, make_s3_client
 from PIL import Image
 from pydantic import BaseModel
 
@@ -62,8 +62,8 @@ app = FastAPI(lifespan=lifespan)
 
 # Helpers --------------------------------------------------
 def get_image(bucket, key):
-    obj = make_s3_client().get_object(Bucket=bucket, Key=key)
-    return obj["Body"].read()
+    """Download the image to segment from the bucket."""
+    return get_object_bytes(make_s3_client(), bucket, key)
 
 
 # Endpoints --------------------------------------------------

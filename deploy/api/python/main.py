@@ -19,17 +19,17 @@ from fastapi.responses import (
     StreamingResponse,
 )
 from kubernetes import client, config
-from pydantic import (
-    BaseModel,  # JSON validation / parsing: Pydantic validates types and converts the JSON
-)
+from pydantic import BaseModel
 
 try:
-    from jobCore.s3 import make_s3_client
+    from jobCore.labelstudio import polygon_result
+    from jobCore.s3 import get_object_bytes, iter_keys, make_s3_client
 except ImportError:
     # in the image jobCore sits next to main.py; on a local run from the
     # repo checkout it lives in deploy/jobs
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "jobs"))
-    from jobCore.s3 import make_s3_client
+    from jobCore.labelstudio import polygon_result
+    from jobCore.s3 import get_object_bytes, iter_keys, make_s3_client
 
 try:
     config.load_incluster_config()
@@ -89,12 +89,10 @@ class BatchRequest(BaseModel):
     s3Bucket: str
     labels: List[str]
     numWorkers: int
-    batchSize: int  # number of images sent to a worker at once
+    batchSize: int
     tileSize: int = 1008
-    tileStride: int = (
-        768  # tile overlap, ensures objects split across a cut are still analysed
-    )
-    downsample: float = 1.0  # shrink factor before tiling (1.0 = full resolution)
+    tileStride: int = 768
+    downsample: float = 1.0
 
 
 class SoloRequest(BaseModel):
@@ -191,13 +189,21 @@ async def log_requests(request, call_next):
 
 # S3 --------------------------------------------------
 def s3_client():
-    # Fail fast: an endpoint answering the console must not hang on storage
-    # retries, and /import reads the Parquet 16-wide in parallel.
+    """Return the shared S3 client, tuned for an interactive API.
+
+    Fail fast: an endpoint answering the console must not hang on storage
+    retries, and /import reads the Parquet 16-wide in parallel.
+    """
     return make_s3_client(read_timeout=10, retries=1, pool_connections=32)
 
 
 def to_s3_uri(bucket, path):
-    # the pipeline expects an s3://bucket/prefix URI. We accept both.
+    """Return a full s3:// URI, accepting either a bare prefix or a full URI.
+
+    Arguments :
+    bucket               bucket used when the path has no scheme
+    path                 S3 prefix or full s3://bucket/prefix URI
+    """
     if path.startswith("s3://"):
         return path
 
@@ -211,8 +217,8 @@ def require_s3_url(url):
     and a future https:// source (downloading straight from the image
     provider) must be added explicitly, not guessed from the path.
 
-        Attributes:
-            url : one image URL from the request's s3Uris list
+    Arguments :
+    url                  one image URL from the request's s3Uris list
     """
     if not url.startswith("s3://"):
         raise HTTPException(
@@ -228,19 +234,16 @@ def require_s3_url(url):
 
 
 def default_output_prefix(s3_uri):
-    """Creates the full path for the output folder.
+    """Derive the results prefix from the images prefix.
 
-    Each parquet file should be organized with his metadata and JSON parameters, so we create an universal rule to store our output.
-    We simply take our uri, stripe the end of the path and add /09_Pipeline_result/ to it.
+    Used when the caller does not pass s3OutputUri: everything up to the
+    acquisition folder, then 09_Pipeline_result/. Works whether s3_uri is
+    .../<acq>/01_images/ or just .../<acq>/, and whether it is a plain
+    prefix or a full s3:// URI.
 
-        Attributes:
-            s3_uri :  base uri of the s3 of the folder
-
+    Arguments :
+    s3_uri               prefix (or s3:// URI) of the images to segment
     """
-    # Results location derived from the images prefix when the caller does not
-    # pass s3OutputUri: everything up to the acquisition folder, then
-    # 09_Pipeline_result/. Works whether s3_uri is .../<acq>/01_images/ or just
-    # .../<acq>/, and whether it is a plain prefix or a full s3:// URI.
     path = s3_uri
 
     if path.startswith("s3://"):
@@ -254,23 +257,27 @@ def default_output_prefix(s3_uri):
 
 
 def list_parquet_keys(s3, bucket, prefix):
-    keys = []
-    paginator = s3.get_paginator("list_objects_v2")
+    """List every .parquet object under the prefix.
 
-    # Lists every .parquet object under the prefix.
-    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
-        for obj in page.get("Contents", []):
-            if obj["Key"].endswith(".parquet"):
-                keys.append(obj["Key"])
-
-    return keys
+    Arguments :
+    s3                   boto3 S3 client
+    bucket               bucket to scan
+    prefix               prefix under which to list the Parquet
+    """
+    return [k for k in iter_keys(s3, bucket, prefix) if k.endswith(".parquet")]
 
 
 def read_parquet_file(s3, bucket, key):
-    # Reads one .parquet and returns its rows as dicts (one row = one polygon).
+    """Read one .parquet and return its rows as dicts (one row = one polygon).
+
+    Arguments :
+    s3                   boto3 S3 client
+    bucket               bucket holding the file
+    key                  S3 key of the Parquet
+    """
     import pyarrow.parquet as pq
 
-    body = s3.get_object(Bucket=bucket, Key=key)["Body"].read()
+    body = get_object_bytes(s3, bucket, key)
 
     return pq.read_table(io.BytesIO(body)).to_pylist()
 
@@ -283,11 +290,11 @@ def stream_to_s3(s3, bucket, key, byte_iter):
     in memory. On any error the multipart upload is aborted before re-raising,
     so a failed write leaves no orphan parts behind.
 
-        Attributes:
-            s3        : the boto3 S3 client
-            bucket    : destination bucket
-            key       : destination object key
-            byte_iter : iterable yielding the body as byte chunks
+    Arguments :
+    s3                   boto3 S3 client
+    bucket               destination bucket
+    key                  destination object key
+    byte_iter            iterable yielding the body as byte chunks
 
     Returns the s3:// URI of the written object.
 
@@ -357,7 +364,7 @@ def build_job(name, image, command, args, gpu=True, access_key_env="AWS_ACCESS_K
 
     Returns the {job_name, status} handle, or raises HTTPException carrying the Kubernetes API error.
     """
-    # Environnement Variables
+    # MinIO and HuggingFace credentials injected from the cluster secrets
     env = [
         client.V1EnvVar(
             name=access_key_env,
@@ -446,7 +453,7 @@ def build_job(name, image, command, args, gpu=True, access_key_env="AWS_ACCESS_K
         kind="Job",
         metadata=client.V1ObjectMeta(name=name, namespace=NAMESPACE),
         spec=client.V1JobSpec(
-            ttl_seconds_after_finished=172800,  # garde les pods (logs, Done:) 48h après la fin de vie
+            ttl_seconds_after_finished=172800,  # keep finished pods 48h for their logs
             template=client.V1PodTemplateSpec(
                 metadata=client.V1ObjectMeta(labels={"app": name.rsplit("-", 1)[0]}),
                 spec=pod_spec,
@@ -501,7 +508,13 @@ def scale_segment(replicas):
 
 # Helpers --------------------------------------------------
 def job_status(job):
-    # Maps a V1Job status to a single readable state.
+    """Map a V1Job status to a single readable state.
+
+    One of Succeeded/Failed/Running/Pending.
+
+    Arguments :
+    job                  V1Job object read from the Kubernetes API
+    """
     s = job.status
 
     if s.succeeded:
@@ -525,8 +538,15 @@ def job_status(job):
 
 
 def rows_to_label_studio(bucket, rows):
-    # Groups the polygon rows by image and builds one Label Studio task per image (predictions = every polygon detected on that image).
-    # Points are already stored as percentages, so they map straight onto the image.
+    """Group the polygon rows by image, one Label Studio task per image.
+
+    The task's predictions hold every polygon detected on that image. Points
+    are already stored as percentages, so they map straight onto the image.
+
+    Arguments :
+    bucket               bucket holding the images, for the task's image URI
+    rows                 Parquet rows (one row = one polygon)
+    """
     tasks = {}
 
     for r in rows:
@@ -547,28 +567,31 @@ def rows_to_label_studio(bucket, rows):
             }
             tasks[key] = task
         task["predictions"][0]["result"].append(
-            {
-                "type": "polygonlabels",
-                "from_name": "label",
-                "to_name": "image",
-                "original_width": r["original_width"],
-                "original_height": r["original_height"],
-                "value": {
-                    "closed": True,
-                    "polygonlabels": [r["label"]],
-                    "points": json.loads(r["points"]),
-                },
-            }
+            polygon_result(
+                r["label"],
+                json.loads(r["points"]),
+                r["original_width"],
+                r["original_height"],
+                r.get("score"),
+            )
         )
 
     return list(tasks.values())
 
 
 def iter_label_studio_tasks(s3, bucket, keys, workers=16):
-    # Yields the Label Studio tasks one image at a time. The batch pipeline
-    # writes one Parquet per image, so we read + convert file by file and never
-    # hold the whole dataset in memory. Reads are done in parallel batches since
-    # the cost is dominated by the S3 round-trips.
+    """Yield the Label Studio tasks one image at a time.
+
+    The batch pipeline writes one Parquet per image, so we read + convert
+    file by file and never hold the whole dataset in memory. Reads are done
+    in parallel batches since the cost is dominated by the S3 round-trips.
+
+    Arguments :
+    s3                   boto3 S3 client
+    bucket               bucket holding the Parquet
+    keys                 Parquet keys to convert
+    workers              parallel S3 readers
+    """
     from concurrent.futures import ThreadPoolExecutor
 
     # 4 keys queued per thread: over-subscribe so no thread idles at a chunk boundary while a slow S3 read finishes (pool.map buffers <= batch results).
@@ -583,8 +606,13 @@ def iter_label_studio_tasks(s3, bucket, keys, workers=16):
 
 
 def iter_label_studio_json(task_iter):
-    # Frames the streamed tasks as a single JSON array, without building it all in memory.
-    # Yields bytes so it feeds both StreamingResponse and S3 upload.
+    """Frame the streamed tasks as one JSON array, never built in memory.
+
+    Yields bytes so it feeds both StreamingResponse and the S3 upload.
+
+    Arguments :
+    task_iter            iterator of Label Studio task dicts
+    """
     yield b"["
     first = True
     for task in task_iter:
@@ -596,8 +624,11 @@ def iter_label_studio_json(task_iter):
 # Endpoints --------------------------------------------------
 @app.get("/")
 async def root(request: Request):
-    # A browser landing on the bare API URL is sent to the console (which
-    # links the OpenAPI doc); API clients keep getting the JSON banner.
+    """Redirect browsers to the console, answer API clients with a banner.
+
+    A browser landing on the bare API URL is sent to the console (which
+    links the OpenAPI doc); API clients keep getting the JSON banner.
+    """
     if "text/html" in request.headers.get("accept", ""):
         return RedirectResponse("/ui")
     return {"message": "NearAPI is running."}
@@ -605,15 +636,21 @@ async def root(request: Request):
 
 @app.get("/ui")
 def ui():
-    # Control panel for demos: a single self-contained page served by the API
-    # itself, so the browser talks to the same origin (no CORS to configure).
+    """Serve the web console.
+
+    A single self-contained page served by the API itself, so the browser
+    talks to the same origin (no CORS to configure).
+    """
     return FileResponse(os.path.join(os.path.dirname(__file__), "index.html"))
 
 
 @app.get("/config")
 def get_config():
-    # External links shown by the console. They live in env vars so each
-    # deployment points to its own Grafana and MinIO without touching the page.
+    """Return the external links shown by the console.
+
+    They live in env vars so each deployment points to its own Grafana and
+    MinIO without touching the page.
+    """
     return {
         "grafanaUrl": GRAFANA_URL,
         "bucketUrl": f"{MINIO_CONSOLE_URL}/browser/{BUCKET}" if MINIO_CONSOLE_URL else "",
@@ -622,7 +659,7 @@ def get_config():
 
 @app.get("/health")
 def health():
-    # confirms the API is up and the Kubernetes
+    """Confirm the API is up and the Kubernetes API is reachable."""
     try:
         core_v1.list_namespaced_pod(NAMESPACE, limit=1)
     except client.ApiException as e:
@@ -634,7 +671,14 @@ def health():
 
 @app.post("/jobs/batch")
 def submit_batch(req: BatchRequest):
-    # Creates a new batch job
+    """Create a batch job segmenting a whole prefix (or an explicit list).
+
+    The run's output lands in its own folder named after the job, and its
+    progress file goes where /jobs/{name}/status reads it back.
+
+    Arguments :
+    req                  the run to launch (see BatchRequest)
+    """
     if bool(req.s3Uri) == bool(req.s3Uris):
         raise HTTPException(
             status_code=422, detail="exactly one of s3Uri or s3Uris is required"
@@ -701,7 +745,13 @@ def submit_batch(req: BatchRequest):
 
 @app.post("/jobs/solo")
 def submit_solo(req: SoloRequest):
-    # Creates a new solo job
+    """Create a solo job segmenting a single image.
+
+    The result JSON goes where /jobs/{name}/result reads it back.
+
+    Arguments :
+    req                  the image and parameters to run (see SoloRequest)
+    """
     name = f"sam3-solo-{uuid.uuid4().hex[:8]}"
     log.info(
         "solo_submit job=%s image=%s tile=%d downsample=%.2f labels=%d",
@@ -733,7 +783,11 @@ def submit_solo(req: SoloRequest):
 
 @app.get("/jobs/")
 def get_jobs(kind: str = None):
-    # Lists the sam3 batch and solo jobs of the namespace, newest first.
+    """List the sam3 batch and solo jobs of the namespace, newest first.
+
+    Arguments :
+    kind                 restrict the listing to "batch" or "solo"
+    """
     try:
         jobs = batch_v1.list_namespaced_job(NAMESPACE).items
     except client.ApiException as e:
@@ -790,12 +844,16 @@ def get_job(name: str):
 
 @app.get("/jobs/{name}/status")
 def get_status(name):
-    # Reads back the progress file written by the batch driver on S3.
+    """Read back the progress file written by the batch driver on S3.
+
+    Arguments :
+    name                 batch job name whose progress to read
+    """
     key = f"results/{name}.status.json"
     s3 = s3_client()
 
     try:
-        obj = s3.get_object(Bucket=BUCKET, Key=key)
+        body = get_object_bytes(s3, BUCKET, key)
     except s3.exceptions.NoSuchKey:
         log.warning("status_not_ready job=%s", name)
         raise HTTPException(status_code=404, detail="status not available yet")
@@ -803,7 +861,7 @@ def get_status(name):
         log.error("status_read_failed job=%s error=%s", name, e)
         raise HTTPException(status_code=503, detail="storage unreachable")
 
-    data = json.loads(obj["Body"].read())
+    data = json.loads(body)
 
     if not data.get("done") and data.get("started_at"):
         data["elapsed_seconds"] = round(time.time() - data["started_at"], 1)
@@ -835,7 +893,7 @@ def get_result(name):
     s3 = s3_client()
 
     try:
-        obj = s3.get_object(Bucket=BUCKET, Key=key)
+        body = get_object_bytes(s3, BUCKET, key)
     except s3.exceptions.NoSuchKey:
         log.warning("result_not_found job=%s", name)
         raise HTTPException(status_code=404, detail="result not found")
@@ -843,7 +901,7 @@ def get_result(name):
         log.error("result_read_failed job=%s error=%s", name, e)
         raise HTTPException(status_code=503, detail="storage unreachable")
 
-    return json.loads(obj["Body"].read())
+    return json.loads(body)
 
 
 @app.post("/segment")
@@ -895,11 +953,13 @@ def segment_status():
 
 @app.post("/segment/up")
 def segment_up():
+    """Wake the interactive segmentation service (scale to 1)."""
     return scale_segment(1)
 
 
 @app.post("/segment/down")
 def segment_down():
+    """Put the interactive segmentation service to sleep (scale to 0)."""
     return scale_segment(0)
 
 
@@ -907,6 +967,17 @@ def segment_down():
 def parquet_to_label_studio(
     acquisition_id: str, run: str = None, prefix: str = None, write: bool = False
 ):
+    """Convert an acquisition's Parquet output to Label Studio JSON.
+
+    Streams the JSON back by default; with write=true it is stored on S3
+    instead and only its URI is returned.
+
+    Arguments :
+    acquisition_id       name of the acquisition folder
+    run                  restrict to one run's folder (default: every run)
+    prefix               explicit Parquet prefix overriding the convention
+    write                store the JSON on S3 instead of streaming it
+    """
     if prefix is None:
         base = f"data/acquisitions/{acquisition_id}/09_Pipeline_result/"
         prefix = f"{base}{run}/" if run else base
@@ -943,8 +1014,9 @@ def parquet_to_label_studio(
     return StreamingResponse(json_bytes, media_type="application/json")
 
 
-#  Main --------------------------------------------------
+# Main --------------------------------------------------
 def main():
+    """Run the API with uvicorn (entrypoint of the image and of local runs)."""
     import uvicorn
 
     uvicorn.run(app, host=ADDRESS, port=PORT)

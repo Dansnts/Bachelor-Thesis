@@ -162,6 +162,17 @@ class TestRowsToLabelStudio:
         assert task["data"]["latitude"] is None
         assert task["data"]["longitude"] is None
 
+    def test_score_travels_rounded(self, api_module):
+        # the Parquet rows carry the detection score: it must reach Label Studio
+        row = self._row("a.jpg")
+        row["score"] = 0.87654
+        r0 = api_module.rows_to_label_studio("nearai", [row])[0]["predictions"][0]["result"][0]
+        assert r0["score"] == 0.8765
+
+    def test_missing_score_omits_the_field(self, api_module):
+        r0 = api_module.rows_to_label_studio("nearai", [self._row("a.jpg")])[0]["predictions"][0]["result"][0]
+        assert "score" not in r0
+
 
 # --- iter_label_studio_json ------------------------------------------------
 class TestIterLabelStudioJson:

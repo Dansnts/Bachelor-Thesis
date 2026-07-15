@@ -48,3 +48,32 @@ def make_s3_client(read_timeout=30, retries=3, pool_connections=10):
         verify=False,
     )
     return _client
+
+
+def get_object_bytes(client, bucket, key):
+    """Download one S3 object and return its raw bytes.
+
+    Arguments :
+    client               boto3 S3 client
+    bucket               bucket holding the object
+    key                  S3 key of the object
+    """
+    return client.get_object(Bucket=bucket, Key=key)["Body"].read()
+
+
+def iter_keys(client, bucket, prefix):
+    """Yield every object key under an S3 prefix, page by page.
+
+    Single listing loop of the project: callers filter the keys they want
+    (image extensions, .parquet, ...) instead of each rewriting the
+    paginator dance.
+
+    Arguments :
+    client               boto3 S3 client
+    bucket               bucket to scan
+    prefix               prefix under which to list the objects
+    """
+    paginator = client.get_paginator("list_objects_v2")
+    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+        for obj in page.get("Contents", []):
+            yield obj["Key"]
