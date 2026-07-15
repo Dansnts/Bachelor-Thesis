@@ -781,3 +781,16 @@
 | **Subtotal** |    | 8h |
 | **Total** |    | **8h** |
 | **Total** |    | **21h** |
+
+*Wednesday July 15, 2026*
+
+| Task              | Status | Time |
+| :---------------- | :------: | ----: |
+| Report : Claude entry in Outils extended to debugging + web console development, YOLOv8 dropped and written up as a future improvement (notes ready in `conclusion.typ`), AI-transparency check | Done | 30min |
+| Refactor : S3 listing/download and Label Studio result builders shared in jobCore (were duplicated 3-6x), uniform docstring style across every module, the import now carries the detection score | Done | 1h30 |
+| API hardening with AI: Pydantic Field constraints + stride<=tile validator, the 7 xfail flipped to passing tests (empty labels, zero workers, negative tiling, downsample range), 183 tests green | Done | 45min |
+| Release 1.0 prep : `docs/release_v1.0.md` checklist (Thursday end-to-end tests, Friday final builds), CI review (missing tests->build gate + 1.0 image tag identified) | Done | 45min |
+| Commits (refactor + hardening), history cleanup, push -> tests + 4 image builds triggered, journal | Done | 30min |
+| **Subtotal** |    | 4h |
+| **Total** |    | **4h** |
+| **Total** |    | **25h** |
