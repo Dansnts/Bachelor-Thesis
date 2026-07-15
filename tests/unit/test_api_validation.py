@@ -1,14 +1,9 @@
 """Input validation of the API — "everything a user can do wrong".
 
-Two kinds of tests live here:
-
-  * TestRejected / TestAccepted document the *current* behaviour and act as a
-    regression baseline.
-  * TestHardeningGaps are `xfail`: they describe validation the API *should*
-    enforce but does not yet (negative tile size, downsample out of range,
-    stride larger than tile, empty labels, zero workers). Each xfail is a line
-    item for the hardening pass — when the guard is added, the test flips to
-    passing and the `xfail` marker can be removed.
+TestRequiredFields / TestWrongTypes / TestAccepted document the baseline
+Pydantic behaviour; TestValueRanges pins the hardening pass of mid-July
+(negative tile size, downsample out of range, stride larger than tile,
+empty labels, zero workers all get a 422).
 
 The Kubernetes and S3 layers are mocked (see conftest), so a request that
 passes validation returns 200 without touching a real cluster.
@@ -158,39 +153,48 @@ class TestExplicitUrlList:
         assert client.post("/jobs/batch", json=body).status_code == 422
 
 
-class TestHardeningGaps:
-    """Ranges the API does NOT check yet. These are the edge cases from the
-    mid-July hardening campaign. They are xfail until a validator is added
-    (e.g. Pydantic `Field(gt=0)`, `Field(ge=0, le=1)`, a model_validator for
-    stride <= tile and non-empty labels)."""
+class TestValueRanges:
+    """Values the pipeline cannot honour must get a 422, not a job.
 
-    @pytest.mark.xfail(reason="no lower-bound check on tileSize yet", strict=True)
+    Enforced by the Field constraints and the stride_must_fit_tile
+    validator on BatchRequest/SoloRequest.
+    """
+
     def test_negative_tile_size_rejected(self, client):
         assert client.post("/jobs/batch", json=_batch(tileSize=-512)).status_code == 422
 
-    @pytest.mark.xfail(reason="no zero check on tileSize yet", strict=True)
     def test_zero_tile_size_rejected(self, client):
         assert client.post("/jobs/batch", json=_batch(tileSize=0)).status_code == 422
 
-    @pytest.mark.xfail(reason="no range check on downsample yet", strict=True)
     def test_downsample_above_one_rejected(self, client):
         assert client.post("/jobs/batch", json=_batch(downsample=5.0)).status_code == 422
 
-    @pytest.mark.xfail(reason="no range check on downsample yet", strict=True)
     def test_downsample_negative_rejected(self, client):
         assert client.post("/jobs/batch", json=_batch(downsample=-0.5)).status_code == 422
 
-    @pytest.mark.xfail(reason="no stride<=tile invariant yet", strict=True)
     def test_stride_larger_than_tile_rejected(self, client):
         # stride > tile leaves uncovered gaps between tiles (see test_tiling)
         assert client.post(
             "/jobs/batch", json=_batch(tileSize=1008, tileStride=2000)
         ).status_code == 422
 
-    @pytest.mark.xfail(reason="no positivity check on numWorkers yet", strict=True)
     def test_zero_workers_rejected(self, client):
         assert client.post("/jobs/batch", json=_batch(numWorkers=0)).status_code == 422
 
-    @pytest.mark.xfail(reason="empty labels list is not rejected yet", strict=True)
     def test_empty_labels_rejected(self, client):
         assert client.post("/jobs/batch", json=_batch(labels=[])).status_code == 422
+
+    def test_full_resolution_downsample_accepted(self, client):
+        # 1.0 is the upper bound and must stay valid (no off-by-one on le=1.0)
+        assert client.post("/jobs/batch", json=_batch(downsample=1.0)).status_code == 200
+
+    def test_solo_negative_tile_size_rejected(self, client):
+        assert client.post("/jobs/solo", json=_solo(tileSize=-512)).status_code == 422
+
+    def test_solo_empty_labels_rejected(self, client):
+        assert client.post("/jobs/solo", json=_solo(labels=[])).status_code == 422
+
+    def test_solo_stride_larger_than_tile_rejected(self, client):
+        assert client.post(
+            "/jobs/solo", json=_solo(tileSize=1008, tileStride=2000)
+        ).status_code == 422

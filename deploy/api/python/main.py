@@ -19,7 +19,7 @@ from fastapi.responses import (
     StreamingResponse,
 )
 from kubernetes import client, config
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, model_validator
 
 try:
     from jobCore.labelstudio import polygon_result
@@ -81,18 +81,29 @@ class BatchRequest(BaseModel):
         tileSize: side of the square tiles the images are cut into.
         tileStride: tile step; a stride < tileSize overlaps tiles so an object split across a cut is still analysed whole.
         downsample: shrink factor applied before tiling (1.0 = full resolution).
+
+    The Field constraints reject the values the pipeline cannot honour
+    (empty labels, zero workers, negative tiling, downsample outside ]0, 1])
+    with a 422 before anything reaches the cluster.
     """
 
     s3Uri: Optional[str] = None
     s3Uris: Optional[List[str]] = None
     s3OutputUri: Optional[str] = None
     s3Bucket: str
-    labels: List[str]
-    numWorkers: int
-    batchSize: int
-    tileSize: int = 1008
-    tileStride: int = 768
-    downsample: float = 1.0
+    labels: List[str] = Field(min_length=1)
+    numWorkers: int = Field(gt=0)
+    batchSize: int = Field(gt=0)
+    tileSize: int = Field(default=1008, gt=0)
+    tileStride: int = Field(default=768, gt=0)
+    downsample: float = Field(default=1.0, gt=0, le=1.0)
+
+    @model_validator(mode="after")
+    def stride_must_fit_tile(self):
+        # a stride beyond the tile size leaves uncovered strips between tiles
+        if self.tileStride > self.tileSize:
+            raise ValueError("tileStride must be <= tileSize")
+        return self
 
 
 class SoloRequest(BaseModel):
@@ -105,14 +116,24 @@ class SoloRequest(BaseModel):
         tileSize: side of the square tiles the image is cut into.
         tileStride: tile step; a stride < tileSize overlaps tiles so an object split across a cut is still analysed whole.
         downsample: shrink factor applied before tiling (1.0 = full resolution).
+
+    Same Field constraints as BatchRequest: impossible values get a 422
+    before a job is created.
     """
 
     imageUri: str
     s3Bucket: str
-    labels: List[str]
-    tileSize: int = 1008
-    tileStride: int = 768
-    downsample: float = 1.0
+    labels: List[str] = Field(min_length=1)
+    tileSize: int = Field(default=1008, gt=0)
+    tileStride: int = Field(default=768, gt=0)
+    downsample: float = Field(default=1.0, gt=0, le=1.0)
+
+    @model_validator(mode="after")
+    def stride_must_fit_tile(self):
+        # a stride beyond the tile size leaves uncovered strips between tiles
+        if self.tileStride > self.tileSize:
+            raise ValueError("tileStride must be <= tileSize")
+        return self
 
 
 class SegmentItem(BaseModel):
