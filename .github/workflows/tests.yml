@@ -6,10 +6,11 @@ name: Tests
 # so it finishes in a few seconds on a plain ubuntu runner.
 #
 # This is the "Validation" stage described in the architecture chapter: it runs
-# before "Build & push images" (build-images.yml). To make a green run mandatory
-# before merging, enable branch protection on master and require this check.
+# before "Build & push images" (build-images.yml), which calls it as a reusable
+# workflow (workflow_call below) so no image is built on a red suite.
 
 on:
+  workflow_call:
   push:
     branches: [master]
     paths:

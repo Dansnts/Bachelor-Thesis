@@ -1,9 +1,11 @@
 name: Build & push images
 
 # Builds the pipeline images and pushes them to ghcr.io/nearai-interreg.
-# Runs on demand (workflow_dispatch, pick one image or "all") and on a push to
-# master that touches a Dockerfile or the code it bundles. This replaces the
-# manual `docker --context homelab build` flow, which needs the home network.
+# Runs on demand (workflow_dispatch, pick one image or "all" and an image tag,
+# staging by default) and on a push to master that touches a Dockerfile or the
+# code it bundles. The unit suite runs first (test job) and a red suite blocks
+# the build. This replaces the manual `docker --context homelab build` flow,
+# which needs the home network.
 #
 # Prerequisite: a repo secret GHCR_PAT (a classic PAT with write:packages that
 # can write to the nearai-interreg org), because the automatic GITHUB_TOKEN can
@@ -22,6 +24,10 @@ on:
           - sam3-solo
           - sam3-api
           - sam3-segment
+      tag:
+        description: "Image tag to push (e.g. 1.0)"
+        type: string
+        default: staging
   # Note: a push builds ALL images (the matrix isn't narrowed per changed path).
   # The filters below avoid triggering on a manifest-only edit; for a single
   # image, prefer a manual run via workflow_dispatch.
@@ -40,14 +46,20 @@ on:
 env:
   REGISTRY: ghcr.io
   OWNER: nearai-interreg
-  TAG: staging
+  # A push always tags staging; a manual run can pick a release tag (e.g. 1.0).
+  TAG: ${{ github.event.inputs.tag || 'staging' }}
 
 jobs:
+  # Gate: the unit suite (tests.yml) must be green before any image is built.
+  test:
+    uses: ./.github/workflows/tests.yml
+
   # The matrix can't be filtered by a workflow input directly (the `matrix`
   # context isn't available in a job-level `if`), so we compute it here: a
   # manual run with a specific image builds just that one, anything else builds
   # all four.
   prepare:
+    needs: test
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set.outputs.matrix }}
