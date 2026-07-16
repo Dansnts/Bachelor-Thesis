@@ -56,9 +56,9 @@ spec:
             - name: MINIO_CONSOLE_URL
               value: "https://storage-kubernetes.iict-heig-vd.in:9090"
             - name: SOLO_IMAGE
-              value: "ghcr.io/nearai-interreg/sam3-solo:staging"
+              value: "ghcr.io/nearai-interreg/sam3-solo:1.0"
             - name: BATCH_IMAGE
-              value: "ghcr.io/nearai-interreg/ray-sam3:staging"
+              value: "ghcr.io/nearai-interreg/ray-sam3:1.0"
             - name: PORT
               value: "8000"
             - name: V4_ADDRESS

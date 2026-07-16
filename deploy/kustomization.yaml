@@ -15,8 +15,8 @@ resources:
 # here instead of editing each deployment (e.g. staging -> staging-<sha>).
 images:
   - name: ghcr.io/nearai-interreg/sam3-api
-    newTag: staging
+    newTag: "1.0"
   - name: ghcr.io/nearai-interreg/sam3-segment
-    newTag: staging
+    newTag: "1.0"
   - name: ghcr.io/nearai-interreg/ray-sam3
-    newTag: staging
+    newTag: "1.0"
