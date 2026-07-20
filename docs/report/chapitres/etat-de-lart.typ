@@ -13,8 +13,9 @@ SAM3 (Segment Anything Model 3) est le modèle de segmentation publié par Meta 
 
 Le modèle fonctionne principalement en mode _promptable_ et en mode _everything_.
 
-En mode *prompt*, il attends simplement un message comme : "Un panneau octogonal avec le texte STOP à son centre", ou, simplement, "Un panneau".
-Tandis que en mode *everything*, il segmente tous les objets détectables de l'image. Aucune supervision n'est fournie à l'inférence et SAM3 propose des masques candidats que la pipeline filtre par classe et score.
+En mode *prompt*, il attend simplement un message comme : "Un panneau octogonal avec le texte STOP à son centre", ou, simplement, "Un panneau". Tandis qu'en mode *everything*, il segmente tous les objets détectables de l'image sans aucune supervision, sans leur associer de classe.
+
+Le mode *prompt* est retenu pour cette pipeline : chaque label du vocabulaire (`sign`, `road_marking`, etc.) devient une requête `FindQuery` distincte, ce qui associe directement chaque masque à sa classe sans post-filtrage.
 
 #linebreak()
 #figure(
@@ -28,19 +29,17 @@ Tandis que en mode *everything*, il segmente tous les objets détectables de l'i
 #pagebreak()
 SAM3 a été entraîné sur SA-1B, un corpus de 1,1 milliard de masques sur 11 millions d'images. Cette couverture lui confère une généralisation forte sur des domaines non vus à l'entraînement, dont les images routières équirectangulaires.
 
-Ce modèle accepte des images jusqu'à 1'008 x 1'008 pixels. Une panoramique de 8'192 x 4'096 pixels doit donc être découpée avant l'inférence. Ce travail adopte des tuiles de 508 x 508 pixels, ce qui produit 128 tuiles par image à pleine résolution. Un downsampling à 50 % ramènerait ce nombre à 32 tuiles et réduirait le temps d'inférence d'un facteur 4, au prix d'une perte de détail acceptable pour les classes cibles.
+Ce modèle accepte des images jusqu'à 1'008 x 1'008 pixels. Une panoramique de 8'192 x 4'096 pixels doit donc être découpée en tuiles avant l'inférence, quel que soit le nombre de tuiles retenu. La stratégie de tuilage est détaillée au chapitre architecture (cf. @tuilage-strategie) et le compromis taille de tuile / downsampling est mesuré au chapitre résultats (cf. @run-solo).
 
-Les images équirectangulaires présentent une distorsion géométrique croissante vers le zénith et le nadir. Les objets cibles (panneaux, marquages) se concentrent dans la bande centrale de l'image, correspondant à ±30° d'élévation, là où la distorsion est minimale. La correction de projection n'est donc pas implémentée, elle apporterait un gain marginal pour un coût d'implémentation élevé. Le bas du panorama est en grande partie occulté par la carrosserie du véhicule. Ce choix est documenté comme limitation connue.
+Les images équirectangulaires présentent une distorsion géométrique croissante vers le zénith et le nadir. Les objets cibles (panneaux, marquages) se concentrent dans la bande centrale de l'image, correspondant à ±30° d'élévation, là où la distorsion est minimale, mais rien ne garantit qu'un panneau ou un feu de signalisation ne se trouve jamais près du zénith selon l'angle de prise de vue. La correction de projection n'est donc pas implémentée, elle apporterait un gain marginal pour un coût d'implémentation élevé. Le bas du panorama est en grande partie occulté par la carrosserie du véhicule. Ce choix est documenté comme limitation connue.
 
 #linebreak()
 #figure(
   image("../images/zenithNadir.png", width: 90%),
   caption: [
-    Dans ce cas, on peut voir en zone que même si non découpe le Nadir, nous pouvons perdre des éléments.
+    Même sans rogner le nadir, des éléments de cette zone peuvent être perdus.
   ],
 ) <fig-zenith-nadir>
-
-La compléxité est due que rien ne garanti à 100% que un signe ou feu de signaisaiton ne soit présent sur le Zenith de l'image du à l'angle de la prise.
 
 #pagebreak()
 == Ultralytics
@@ -51,13 +50,13 @@ Ainsi, SAM3 accepte un prompt visuel (un point ou une boîte) qui désigne un ob
 
 == Calcul distribué
 
-Apache Spark est le framework de calcul distribué dominant pour les workloads analytiques sur données structurées. Son modèle d'exécution repose sur un DAG de transformations sur des RDDs ou DataFrames, optimisé pour les opérations SQL et les pipelines ETL à large échelle sur clusters homogènes.
+Apache Spark est le framework de calcul distribué dominant pour les workloads analytiques sur données structurées. Son modèle d'exécution repose sur un DAG de transformations sur des RDD (_Resilient Distributed Dataset_) ou DataFrames, optimisé pour les opérations SQL et les pipelines ETL à large échelle sur clusters homogènes.
 
 Spark présente trois limitations structurelles pour l'inférence GPU :
 
 *Héritage CPU* : Spark a été conçu dans l'écosystème Hadoop pour le traitement de données tabulaires. Le support GPU a été ajouté a posteriori via RAPIDS (NVIDIA). Il n'est pas natif, les workers Spark ne savent pas scheduler dynamiquement des tâches GPU hétérogènes.
 
-*Clusters homogènes* : Spark optimise pour la localité des données sur des clusters uniformes. Le cluster iict-rad dispose de trois types de GPU (L40S, A40, L4) avec des performances très différentes. Ray gère nativement cette hétérogénéité via ses mécanismes de placement group et de priorité par ressource.
+*Clusters homogènes* : Spark optimise pour la localité des données sur des clusters uniformes. Le cluster HEIG-VD dispose de trois types de GPU (L40S, A40, L4) avec des performances très différentes. Ray gère nativement cette hétérogénéité via ses mécanismes de placement group et de priorité par ressource.
 
 *Performance sur inférence ML* : Sur des benchmarks de classification d'images en batch, Ray Data atteint une vitesse 2x supérieure à Spark @anyscale-spark. Sur des workloads multimodaux (images, vidéo), l'écart est 10× par rapport à Spark @daft-benchmark.
 
@@ -157,7 +156,7 @@ Il n'est pourtant pas retenu, car la géométrie produite n'est pas géographiqu
 
 La seule coordonnée géographique disponible est la position de la caméra (`latitude`, `longitude`), identique pour toutes les détections d'une même image. Deux colonnes flottantes suffisent à ce besoin de filtrage par zone, sans la machinerie WKB et CRS. GeoParquet, et à plus grande échelle un moteur spatial distribué comme Apache Sedona, ne prendrait son sens qu'une fois les détections reprojetées en coordonnées sol, une piste laissée aux travaux futurs.
 
-*JSON* (JavaScript Object Notation) est le format accepté par LabelStudio pour importer les données géospatiales sur une images. Ce format va être utiliser uniquement pour le mode `on demand` et en legacy pour labelstudio afin de visualiser les résultats des runs.
+*JSON* (JavaScript Object Notation) est le format accepté par Label Studio pour importer les données géospatiales sur une images. Ce format va être utiliser uniquement pour le mode `on demand` et en legacy pour Label Studio afin de visualiser les résultats des runs.
 
 #figure(
   ```json
@@ -182,7 +181,7 @@ La seule coordonnée géographique disponible est la position de la caméra (`la
     }]
   }]
   ```,
-  caption: [Exemple d'output JSON pour une image traitée et marquée sur LabelStudio],
+  caption: [Exemple d'output JSON pour une image traitée et marquée sur Label Studio],
 )
 
 == Annotation
@@ -192,11 +191,11 @@ Il est configuré avec MinIO comme _cloud storage_ source.
 
 Les URLs `s3://nearai/...` sont converties en URLs HTTP temporaires signées, ce qui évite d'exposer les credentials de stockage aux navigateurs clients.
 
-En parallèle de ce projet, le service NearLabel a été mis en place par un autre étudiant. Il vise à offrir une interface plus simple et rapide pour l'annotation des images et leur visualisation selon leurs données géographiques. Une API sera également conçue sur ce projet pour piloter la segmentation à la volée et l'analyse des résultats depuis NearLabel.
+En parallèle de ce projet, Valentin Ricard développe NearLabel dans le cadre de son propre travail de bachelor (cf. @introduction). L'application offre une interface plus simple et rapide pour l'annotation des images et leur visualisation selon leurs données géographiques, et pilote la segmentation à la volée depuis l'endpoint `/segment` de la pipeline.
 
 == Gestion des secrets
 
-Trois secrets pilotent la pipeline : les credentials MinIO, le token HuggingFace et les identifiants du registre privé. Un Secret Kubernetes ne les protège pas en soi car son contenu n'est encodé qu'en base64, trivialement réversible. Le créer à la main (`kubectl create secret`) le laisse de plus hors du contrôle de version, sans trace de sa structure.
+Quatre secrets pilotent la pipeline : les credentials MinIO, le token HuggingFace, les identifiants du registre privé et le compte administrateur du dashboard d'observabilité. Un Secret Kubernetes ne les protège pas en soi car son contenu n'est encodé qu'en base64, trivialement réversible. Le créer à la main (`kubectl create secret`) le laisse de plus hors du contrôle de version, sans trace de sa structure.
 
 
 Pour versionner des secrets sans les exposer les logiques utilisée dans l'industrie sont :
@@ -205,13 +204,13 @@ Pour versionner des secrets sans les exposer les logiques utilisée dans l'indus
 
 *External Secrets Operator* @external-secrets et *Vault* @vault vont plus loin, les secrets vivent dans un coffre externe et un opérateur les synchronise dans le cluster à la demande. Ces trois solutions partagent un prérequis rédhibitoire ici car elles imposent l'installation d'un composant à l'échelle du cluster (contrôleur ou opérateur), donc des droits d'administrateur hors de portée du namespace dans notre cas.
 
-*SOPS* @sops chiffre directement les fichiers de manifeste, sans aucun composant côté cluster. Il délègue le chiffrement à un backend PGP, KMS cloud, ou *age* @age, un outil de chiffrement asymétrique moderne réduit à une paire de clés dans un fichier. SOPS ne chiffre que les valeurs (`encrypted_regex` sur `stringData`), laissant le reste du manifeste lisible pour des diffs Git propres. Le déchiffrement est manuel, au moment du déploiement.
+*SOPS* @sops chiffre directement les fichiers de manifeste, sans aucun composant côté cluster. Il délègue le chiffrement à un backend PGP, KMS cloud, ou *age* @age, un outil de chiffrement asymétrique moderne réduit à une paire de clés dans un fichier. Le déchiffrement est manuel, au moment du déploiement.
 
-SOPS combiné à age est retenu, il versionne les secrets chiffrés dans Git sans rien installer sur le cluster, ce qui convient à un accès limité à un seul namespace. Le compromis assumé est l'absence de synchronisation automatique acceptable pour trois secrets statiques, la complexitée du projet et le déplacement du problème vers la protection de la clé privée age, qui ne doit jamais être commitée.
+SOPS combiné à age est retenu : c'est la seule des trois options qui ne demande aucune installation côté cluster, ce qui convient à un accès limité à un seul namespace. Le compromis assumé est l'absence de synchronisation automatique, acceptable pour quatre secrets statiques, et le déplacement du problème vers la protection de la clé privée age, qui ne doit jamais être commitée. L'outillage complet est détaillé au chapitre implémentation.
 
 == Observabilité
 
-*Prometheus* collecte des métriques en temps réel et génère des alertes. Les données sont stockées au format TSDB et interrogées via PromQL, un langage de requête basé sur les vecteurs instantanés, de portée et scalaires.
+*Prometheus* @prometheus collecte des métriques en temps réel et génère des alertes. Les données sont stockées au format TSDB et interrogées via PromQL, un langage de requête basé sur les vecteurs instantanés, de portée et scalaires.
 
 Ses principaux composants sont:
 
@@ -223,7 +222,7 @@ Ses principaux composants sont:
 
 *Elasticsearch* est la solution de référence pour l'agrégation et la recherche de logs. Il construit un index inversé sur le contenu intégral de chaque ligne de log, ce qui permet des recherches plein-texte arbitraires. Cette puissance a un coût : l'indexation consomme 3 à 5x plus de stockage que les logs bruts, et Elasticsearch requiert un minimum de trois nœuds pour fonctionner en haute disponibilité, avec une configuration mémoire JVM précise (heap généralement fixé à 50 % de la RAM disponible).
 
-*Loki* est un système d'agrégation de journaux qui indexe uniquement les labels de métadonnées, et non le contenu des lignes. Cette approche réduit drastiquement le volume d'index. Loki stocke les logs compressés en chunks sur le bucket @loki-storage, ce qui le rend _stateless_ et compatible avec l'infrastructure existante sans nœud dédié supplémentaire.
+*Loki* @loki est un système d'agrégation de journaux qui indexe uniquement les labels de métadonnées, et non le contenu des lignes. Cette approche réduit drastiquement le volume d'index. Loki stocke les logs compressés en chunks sur le bucket @loki-storage, ce qui le rend _stateless_ et compatible avec l'infrastructure existante sans nœud dédié supplémentaire.
 
 Il stocke les données dans un format S3 et est composé de 2 types de stockages principaux _index_ et _chunks_.
 
@@ -333,7 +332,7 @@ Un log émis par un worker Ray parcourt quatre étapes avant d'être interrogeab
 
 *DCGM* (NVIDIA Data Center GPU Manager) est la bibliothèque officielle NVIDIA pour monitorer et gérer les GPUs en environnement datacenter @dcgm. Elle lit les métriques directement depuis le driver NVIDIA et les expose via deux interfaces : `dcgmi`, un CLI pour l'inspection manuelle, et *DCGM Exporter*, un endpoint HTTP Prometheus (:9400).
 
-L'Exporter tourne en tant que DaemonSet. Donc, un pod par nœud GPU. Le GPU Operator l'installe automatiquement sur chaque nœud du cluster.
+L'Exporter tourne en tant que DaemonSet. Donc, un pod par nœud GPU. Le GPU Operator @gpuoperator l'installe automatiquement sur chaque nœud du cluster.
 
 Les quatre métriques intérésantes sont :
 #linebreak()
@@ -352,4 +351,4 @@ Les quatre métriques intérésantes sont :
 
 Un GPU à 0 % d'utilisation avec une VRAM occupée et une puissance supérieure à 17 W indique un worker Ray actif avec le modèle chargé en mémoire mais sans inférence en cours. Cette distinction est utile pour identifier les périodes d'attente entre deux batches d'images.
 
-Prometheus scrape DCGM Exporter via un `headless service` qui résout en autant d'adresses IP que de pods actifs (un par nœud GPU). La configuration `dns_sd_configs` de Prometheus collecte chaque nœud individuellement, contrairement à un ClusterIP qui n'expose qu'un pod en round-robin.#footnote[Avec un ClusterIP, Prometheus aurait obtenu une seule IP tournante car le label `hostname` de chaque nœud GPU aurait été perdu, rendant impossible la distinction entre L40S et A40 dans Grafana.]
+Prometheus scrape DCGM Exporter via un `headless service`, qui résout en autant d'adresses IP que de pods actifs plutôt qu'une seule IP tournante, ce qui préserve la distinction entre nœuds GPU. Le mécanisme est détaillé au chapitre implémentation (cf. @implementation).

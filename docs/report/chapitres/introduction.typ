@@ -6,6 +6,8 @@ L'Institut IICT de la HEIG-VD conduit le projet NearAI, dont l'objectif est de c
 
 Annoter manuellement ce volume n'est pas faisable, un annotateur humain habile et expérimenté consacrant trente secondes par image mettrait plus de 2'500 heures pour couvrir l'ensemble du corpus. L'annotation automatisée est la seule voie viable.
 
+Le projet NearAI s'appuie pour cela sur deux travaux de bachelor complémentaires. Le présent travail construit la pipeline distribuée qui produit les pré-annotations. En parallèle, Valentin Ricard développe NearLabel, une application web qui visualise ces détections selon leurs données géographiques et permet de les corriger. Les deux applications communiquent par le stockage S3 et par le service de segmentation interactive décrit dans ce rapport.
+
 == Problème
 
 Plusieures classes d'objets sont ciblées, comme par exemple, les panneaux de signalisation (`sign`) ou encore les marquages au sol (`road_marking`). Pour chaque image, la pipeline doit produire un ensemble de polygones identifiant ces objets, avec, leur classe, leur score de confiance, leurs coordonnées GPS et leurs dimensions normalisées.
@@ -21,17 +23,17 @@ Chaque image à 8'192 x 4'096 pixels dépasse la fenêtre d'entrée de tout mod�
 Ce travail conçoit et déploie une pipeline distribuée couvrant les étapes suivantes :
 
 + Lecture des images depuis le bucket S3.
-+ Découpage en tuiles 504 x 504 pixels et inférence sur chaque tuile.
++ Découpage en tuiles et inférence sur chaque tuile.
 + Extraction des polygones, normalisation des coordonnées et association des métadonnées GPS issues de l'EXIF.
 + Écriture des résultats au format Parquet sur le bucket.
 + Import des pré-annotations dans Label Studio et NearLabel pour validation humaine.
 
-Tout sera exécuté sur le cluster Kubernetes de la HEIG-VD via le framework Ray, qui distribue les tâches GPU sur les workers disponibles.
+Tout s'exécute sur le cluster Kubernetes de la HEIG-VD via le framework Ray, qui distribue les tâches GPU sur les workers disponibles.
 
 === Côté utilisateur
 
-Une API servira de porte d'accès aux développeurs ou utilisteurs du service pour faciliter l'accès aux services batch ou on-demand.
+Une API sert de porte d'accès aux développeurs ou utilisateurs du service pour faciliter l'accès aux services batch ou on-demand.
 
 === Analyse de la pipeline
 
-La pipeline sera analysable au niveau de ses performances et état via un dashboard alimenté de logs et métriques.
+La pipeline est analysable au niveau de ses performances et de son état via un dashboard alimenté de logs et métriques.

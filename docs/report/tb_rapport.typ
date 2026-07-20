@@ -285,6 +285,20 @@ Toute utilisation, même partielle, de ce TB doit être faite dans le respect du
                                                                                  ▀▀▀
 */
 
+= Remerciements
+
+Je remercie le Prof. Bertil Chapuis, mon superviseur et répondant industriel pour ce travail, pour son suivi tout au long du semestre, ses retours techniques précis et sa disponibilité à chaque fois que le projet a exigé une décision d'architecture.
+
+Je remercie également Valentin Ricard, avec qui j'ai partagé le projet NearAI le temps de ce travail de Bachelor. Nos échanges réguliers, sur l'intégration entre nos deux applications comme sur des problèmes de détection plus ponctuels, ont amélioré la qualité du résultat final.
+
+Je remercie enfin [NOM], pour la relecture attentive de ce rapport, et [NOM], pour [PRÉCISER].
+
+#v(2%)
+
+[MESSAGE PLUS PERSONNEL]
+
+#pagebreak(weak: true)
+
 // #include "chapitres/cahier-des-charges.typ"
 
 /*
@@ -416,14 +430,14 @@ Toute utilisation, même partielle, de ce TB doit être faite dans le respect du
     [*EOL*], [End of life, mise en terminaison d'un produit ou d'une solution],
     [*GCS*], [Global Control Service, Control Plane de Ray],
     [*Control Plane*],
-    [Cerveau d'un système réseau ou bien d'un système distribtué. Décide et contrôle la façon dont les données sont processées par les data plane],
+    [Cerveau d'un système réseau ou distribué. Décide et contrôle la façon dont les données sont traitées par le data plane],
 
-    [*Data Plane*], [Partie de l'infrastructure qui est responsable pour la transmitions de donnée/paquets],
+    [*Data Plane*], [Partie de l'infrastructure responsable de la transmission des données/paquets],
     [*DAG*],
     [Directed Acyclic Graph, définit un pipeline d'exécution où chaque étape dépend strictement de la réussite des précédentes. En éliminant les cycles, ce modèle permet d'identifier les tâches exécutables simultanément (parallélisation) et de reprendre le traitement à partir des points de défaillance.],
 
     [*PIL*],
-    [Python Image Library, bibliothèque historique de traitement d'images permettant l'ouverture, la manipulation et la sauvegarde de nombreux formats graphiques],
+    [Python Imaging Library, bibliothèque historique de traitement d'images permettant l'ouverture, la manipulation et la sauvegarde de nombreux formats graphiques],
 
     [*BLOB*],
     [Binary Large Object, fichier binaire non structuré (image JPEG, poids de modèle). Stocké dans un système de stockage objet (S3/MinIO) plutôt qu'en base de données],
@@ -514,7 +528,45 @@ Toute utilisation, même partielle, de ce TB doit être faite dans le respect du
     [*PVC*],
     [Persistant Volume Claim, contrat de location entre un pod et un noeud avec une capacité et des droits spécifiques],
 
-    [*NFS*], [Network File System, protocole pour partage de système de fichier sur un réesau.],
+    [*NFS*], [Network File System, protocole pour partage de système de fichier sur un réseau.],
+    [*OpenCV*],
+    [Bibliothèque open-source de vision par ordinateur. Utilisée ici pour vectoriser les masques en contours polygonaux (`findContours`)],
+
+    [*Masque de segmentation*],
+    [Image en noir et blanc de la taille de l'image analysée, où chaque pixel indique s'il appartient à l'objet détecté ou au fond],
+
+    [*boto3*],
+    [SDK Python officiel d'AWS, utilisé pour toutes les opérations S3 vers MinIO],
+
+    [*FastAPI*],
+    [Framework web Python. Sert l'API REST de la pipeline et génère automatiquement sa documentation OpenAPI],
+
+    [*OpenAPI*],
+    [Spécification standard décrivant une API REST (routes, paramètres, réponses). Générée par FastAPI par introspection du code],
+
+    [*Swagger UI*],
+    [Interface web interactive affichant la documentation OpenAPI (`/docs`), qui permet d'exécuter des requêtes depuis le navigateur],
+
+    [*Ultralytics*],
+    [Librairie Python unifiant l'usage de modèles de vision (YOLO, SAM). Utilisée par le service de segmentation interactive],
+
+    [*SOPS*],
+    [Outil de chiffrement de fichiers de configuration. Chiffre les valeurs d'un manifeste YAML en laissant sa structure lisible pour Git],
+
+    [*age*],
+    [Outil de chiffrement moderne à paire de clés unique, utilisé par SOPS pour chiffrer les Secrets versionnés],
+
+    [*Kustomize*],
+    [Outil de composition de manifestes Kubernetes intégré à `kubectl` (drapeau `-k`). Agrège les ressources et centralise le namespace et les tags d'images],
+
+    [*Ingress*],
+    [Ressource Kubernetes exposant un Service HTTP à l'extérieur du cluster via un nom de domaine],
+
+    [*ServiceAccount*],
+    [Identité Kubernetes attribuée à un pod pour appeler l'API du cluster avec des droits contrôlés],
+
+    [*RBAC*],
+    [Role-Based Access Control, modèle de permissions de Kubernetes. Un Role accorde des verbes précis sur des ressources, un RoleBinding le lie à un ServiceAccount],
   ),
   caption: [Glossaire],
 )

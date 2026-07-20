@@ -794,3 +794,17 @@
 | **Subtotal** |    | 4h |
 | **Total** |    | **4h** |
 | **Total** |    | **25h** |
+
+*Thursday July 16, 2026*
+
+| Task              | Status | Time |
+| :---------------- | :------: | ----: |
+| End-to-end release tests : API rollout on the fresh images, 183 unit tests green, 422 battery 7/7 on the live API, `/jobs` in 0.14s and `/status` in 0.39s, solo run (8 detections with scores), 40-image batch (176s, 40 parquet + params.json), Label Studio import with scores, interactive segmentation, segment up/down, CLI smoke | Done | 3h |
+| Ray head incident : head + worker restarted, the job's 5th retry then succeeded on its own, lesson written into the release checklist (restart head + segment after every build) | Done | 1h |
+| Release 1.0 : the 4 tested digests tagged `1.0` on ghcr by manifest copy (no rebuild), kustomize manifests bumped (newTag + SOLO_IMAGE/BATCH_IMAGE), applied to the cluster, API/head/segment all running `:1.0` | Done | 1h30 |
+| CI/CD finished : `tests.yml` reusable (`workflow_call`), `build-images.yml` gated behind a `test` job + `tag` dispatch input | Done | 1h |
+| Report Résultats : cost synthesis table dropped, assisted-vs-manual annotation table added, meticulous full-chapter review (every figure recomputed), 4 typos fixed, 5 substantive fixes, 5 repetitions removed | Done | 4h |
+| Journal | Done | 30min |
+| **Subtotal** |    | 11h |
+| **Total** |    | **11h** |
+| **Total** |    | **36h** |

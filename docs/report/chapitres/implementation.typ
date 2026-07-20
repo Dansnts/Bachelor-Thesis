@@ -71,8 +71,6 @@ env = [
 ]
 ```
 
-Les alternatives usuelles ont été écartées : Sealed Secrets ou Vault ajoutent un composant serveur à opérer dans le cluster, disproportionné pour un namespace unique, là où SOPS ne demande qu'un binaire côté client et fonctionne avec n'importe quel cluster.
-
 == Pipeline Python
 
 Le fichier `sam3_minio_pipeline.py` est le point d'entrée unique. Il supporte deux modes via l'argument `--local` :
@@ -229,7 +227,7 @@ L'interface XML du projet, à laquelle ces noms doivent correspondre, déclare l
 </View>
 ```
 
-La prochaine étape est d'automatiser cette conversion et l'appel à l'API REST Label Studio directement depuis la pipeline, conformément à la section 6.4 du cahier des charges.
+Cette conversion et l'appel à l'API REST Label Studio sont automatisés par l'endpoint `POST /import/{acquisition_id}`, qui lit les Parquet depuis MinIO et pousse le résultat (cf. @architecture).
 
 
 == API
@@ -342,6 +340,13 @@ La progression s'affiche comme une grille de 72 tuiles qui se remplissent, un cl
 L'endpoint `GET /segment/status` ajouté pour la console lit le `Deployment` du service de segmentation via le SDK Kubernetes (permission `get` sur `deployments`, déjà couverte par le Role existant) et retourne `{replicas, ready}`. La page en déduit trois états : *endormi* (`replicas == 0`), *démarrage* (`replicas > ready`, fenêtre de chargement du modèle en VRAM) et *prêt* (`ready ≥ 1`).
 
 La console renvoie vers la documentation OpenAPI (cf. @tab-api-endpoints) par un lien vers `/docs`. Côté code, nommer cette documentation se réduit aux métadonnées du constructeur, `FastAPI(title="NearAI API", version="1.0", ...)`. Seule dépendance à connaître : l'interface Swagger charge son JavaScript depuis un CDN, c'est donc le navigateur de l'utilisateur, et non le cluster, qui doit disposer d'un accès Internet.
+
+#figure(
+  image("../images/webUi.png", width: 100%),
+  caption: [
+    La console en plus de lancer des tâches permet de voir l'avancée de batchs.
+  ],
+) <fig-webui>
 
 == Observabilité
 

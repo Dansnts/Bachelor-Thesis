@@ -58,17 +58,6 @@
       l'état du cluster, ses performances et d'identifier les incidents.
 
       Enfin, la gestion chiffrée des secrets et une pipeline CI/CD assurent la sécurité de la configuration et la validation continue du code et des images produites.
-
-      #v(0.8em)
-      #block(
-        fill: rgb("#FFFBEB"),
-        stroke: (left: 3pt + rgb("#F59E0B")),
-        inset: (x: 10pt, y: 8pt),
-        radius: 3pt,
-        width: 100%,
-      )[
-        *Rapport intermédiaire* : Les images, diagrammes, tableaux et contenus sont incomplets et susceptibles d'être modifiés.
-      ]
     ],
   ),
   bibliography: (

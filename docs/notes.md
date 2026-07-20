@@ -1088,6 +1088,23 @@ JSON complet de chaque run : `s3://nearai/results/<job>.json` (colonne *Fichier 
 
 **Solo : 10 runs faits** (grille tuile×downsampling + labels), reportés dans `resultats.typ`.
 
+### Comparaison GPU : A40 vs L40S (solo 504 grossier, 09.07.2026)
+
+Même image de référence, même code, seul le GPU change (OFAT). Les runs L40S sont ceux du tableau ci-dessus (#5–8, sur `suchet`). Les runs A40 tournent tous sur `iict-k8s-node4-rad` (vérifié `-o wide`). Sweep downsampling à tuile 504, 3 labels grossier. **Temps A40 lus dans les logs des pods** (`in X.Xs`).
+
+**Détections identiques L40S↔A40** (mêmes polygones, mêmes scores : 1,0 → 36/0,716 ; 0,5 → 23/0,709 ; 0,25 → 15/0,704) → confirme que le GPU ne change que le temps, pas le résultat (déterminisme).
+
+| tuile | ds   | Tuiles | Temps L40S (réf) | Temps A40 | A40/L40S | Pod / json A40 |
+|-------|------|--------|------------------|-----------|----------|----------------|
+| 504   | 1,0  | 231    | 32,7 s           | 48,8 s    | 1,49×    | `sam3-solo-752f57a4-7wtdg` (`sam3-solo-752f57a4.json`) |
+| 504   | 0,75 | 128    | 18,1 s           | ~28,4 s ⁽¹⁾ | ~1,57× | `sam3-solo-764a9727-p2gkg` (`sam3-solo-764a9727.json`) |
+| 504   | 0,5  | 55     | 9,0 s            | 12,1 s    | 1,34×    | `sam3-solo-46b461bc-mn6j6` (`sam3-solo-46b461bc.json`) |
+| 504   | 0,25 | 15     | 4,3 s            | 4,4 s     | 1,02×    | `sam3-solo-a3e0f574-bw77c` (`sam3-solo-a3e0f574.json`) |
+
+⁽¹⁾ Le run 0,75 n'a pas émis la ligne de synthèse `in X.Xs` dans son log ; temps reconstruit par timestamps (`Image → 128 tiles` 07:27:18,246 → `Result written` 07:27:46,670 = 28,4 s), donc légèrement surestimé (inclut l'écriture S3).
+
+**Lecture** : le L40S est plus rapide, et son avance **croît avec la charge GPU** — à 231 tuiles il est ~1,5× plus rapide, à 15 tuiles les deux cartes s'égalisent (les coûts fixes dominent, le GPU n'est plus le maillon). Le L40S (Ada, 2022) domine l'A40 (Ampere, 2021) d'autant plus que le travail par image est lourd.
+
 ## Benchmarks : runs batch scalabilité (01.07.2026)
 
 
@@ -1122,10 +1139,73 @@ NB : `kubectl logs` ne gardait que la queue (~2000 img, rotation conteneur), les
 
 Note : les images `cc013c` et `d688f2` contiennent **toutes deux** le resize -> 1008 (vérifié empiriquement : un worker `cc013c` traite du 504 sans AssertionError) ; leur seule différence est l'exposition du score côté log/solo, sans impact sur le parquet batch (le score y est écrit depuis le tuple polygon dans les deux). Le run 504/3-workers a fait une 1re tentative en erreur (`ConnectionAbortedError: Starting Ray client server failed`, transitoire côté client Ray) puis a réussi au retry sans rapport avec l'image.
 
+### Scalabilité production : baseline 1 worker (04.07.2026)
+
+Baseline **1 worker** du run 6-labels sur le dataset complet Vevey (mêmes params : tuile 1008 / stride 768 / downsample 0,75 / 6 labels précis, sortie `09_parquet_6labels/`). Sert de référence pour chiffrer le speed-up 1 → 3 workers **sur la prod** (les 40 images du micro-bench étaient trop bruitées par le warmup, cf. plus haut).
+
+| Workers | Début UTC | Images | Détections | Wall time | s/image | Débit | Job |
+|---------|-----------|--------|------------|-----------|---------|-------|-----|
+| 1 | 21:26 (02.07) | 14'207 | 423'819 | 111'919 s (≈ 31 h 05) | 7,9 | ≈ 457 img/h | sam3-batch-c14b83ac |
+| 3 | 07:23 (02.07) | 14'207 | 423'819 | 37'388 s (≈ 10 h 23) | 2,6 | ≈ 1368 img/h | sam3-batch-452ca76a |
+
+**Détections identiques** (423'819) quel que soit le nombre de workers → confirme que le round-robin ne change que le temps, pas le résultat. **Speed-up 1 → 3 = 111'919 / 37'388 = 2,99×** : scaling quasi parfait, bien meilleur que le 2,52× du micro-bench 40 images. Sur un dataset assez gros, le coût fixe (warmup, JIT, cache) est amorti et chaque worker sature son GPU → l'inférence par tuiles est bien *embarrassingly parallel*. Confirme empiriquement la règle « throughput linéaire tant que chaque tuile va sur un GPU distinct et que le dataset sature les workers ».
+
+Remplit `@tab-run-vevey-scaling` dans `resultats.typ`. NB : job `c14b83ac` récupéré vivant dans kubectl (`Complete`, TTL 48 h désormais effectif) — logs et timings lus directement, pas besoin de Loki cette fois.
+
+#### Distribution par label et scores (run 6 labels, agrégé sur les 14'207 parquets)
+
+Agrégat des 423'819 détections directement depuis les parquets de sortie (`09_parquet_6labels/`, lu avec pyarrow). **14'083 images sur 14'207 ont au moins une détection** (124 images vides), soit ≈ 30,1 détections/image (parmi les images non vides).
+
+| Label | Détections | % | Score moy | méd | min | max |
+|-------|-----------:|----:|:---------:|:---:|:---:|:---:|
+| road_marking            | 249'064 | 58,8 | 0,671 | 0,663 | 0,504 | 0,957 |
+| rectangular_sign        |  57'669 | 13,6 | 0,642 | 0,617 | 0,504 | 0,947 |
+| circular_manhole_cover  |  46'981 | 11,1 | 0,721 | 0,723 | 0,504 | 0,955 |
+| circular_sign           |  38'329 |  9,0 | 0,705 | 0,703 | 0,504 | 0,969 |
+| rectangular_drain_grate |  17'157 |  4,0 | 0,715 | 0,711 | 0,504 | 0,961 |
+| arrow_marking           |  14'619 |  3,4 | 0,622 | 0,598 | 0,504 | 0,930 |
+| **Total** | **423'819** | 100 | **0,676** | 0,664 | 0,504 | 0,969 |
+
+Histogramme des scores (bins de 0,05, seuil de détection SAM3 = 0,5) :
+
+```
+0,50–0,55 :  63'102  14,9%  ######################################################
+0,55–0,60 :  69'676  16,4%  ############################################################
+0,60–0,65 :  62'462  14,7%  #####################################################
+0,65–0,70 :  56'998  13,4%  #################################################
+0,70–0,75 :  52'873  12,5%  #############################################
+0,75–0,80 :  46'458  11,0%  ########################################
+0,80–0,85 :  39'164   9,2%  #################################
+0,85–0,90 :  25'045   5,9%  #####################
+0,90–0,95 :   7'984   1,9%  ######
+0,95–1,00 :      57   0,0%
+```
+
+Lecture :
+- **`road_marking` écrase tout (58,8 %)** — cohérent avec l'analyse solo : le marquage au sol est omniprésent dans le contexte routier, chaque bande/ligne compte comme un polygone.
+- **Les formes circulaires sont les mieux notées** : `circular_manhole_cover` (0,721) et `circular_sign` (0,705) — géométrie nette, peu ambiguë. `rectangular_drain_grate` suit (0,715).
+- **`arrow_marking` (0,622) et `rectangular_sign` (0,642) sont les plus faibles** : flèches rares (3,4 %) et panneaux rectangulaires plus facilement confondus (façades, panneaux publicitaires).
+- **Distribution centrée bas** : ~82 % des scores entre 0,50 et 0,80, médiane 0,664, très peu de détections à haute confiance (>0,90 = 1,9 %). Le pic à 0,504 (min = seuil) montre que beaucoup de détections sont juste au-dessus du seuil → un `detection_threshold` plus élevé couperait surtout du `road_marking`/`rectangular_sign` bas de gamme.
+
+→ Remplit aussi le TODO `resultats.typ` « histogramme des scores SAM3 » (section Exploitation des résultats). Reste à décider si on met la figure dans le rapport (lilaq bar chart) ou juste la table.
+
+### Test de soumissions concurrentes — plafond head Ray (06.07.2026)
+
+En lançant volontairement ~5 batchs en même temps (nouveau layout `09_Pipeline_result/`, images testValentin), découverte d'un **3ᵉ goulot**, distinct du GPU et de MinIO : le **head Ray**.
+
+- Chaque driver batch se connecte en **mode Ray Client** (`ray://ray-cluster-head-svc:10001`) → le head démarre **un sous-process serveur par connexion** (`ray_client_server_2300x`), qui charge tout le runtime (PyTorch inclus).
+- Head limité à **2 CPU / 4 Gi** → au-delà d'**1–2 connexions concurrentes**, le serveur suivant échoue : `Starting Ray client server failed` → `ConnectionAbortedError`. Ports vus : 23000 → 23004 (5 tentatives).
+- Le head n'a **pas crashé** (0 restart) : c'est le sous-process par-connexion qui meurt (OOM process, pas pod).
+- Le **`backoffLimit` du Job k8s masque l'incident** : pods `Error` puis `Completed` pour un même job, le run repasse quand une connexion se libère. Chaque run terminé produit une **sortie correcte** (10 img / 177 dét).
+- **Paralléliser ne sert à rien** : 3 GPU seulement → les runs concurrents se battent pour les mêmes 3 workers. Modèle prévu = **un driver qui distribue sur tous les workers, batchs en série**.
+- Leviers si la soumission concurrente devient utile un jour : grossir le head, ou passer de Ray Client à **`RayJob`** (soumission intra-cluster, supprime le serveur par-connexion). → documenté dans `resultats.typ` (§ Goulots d'étranglement, `@tab-bottlenecks`).
+
+Validé au passage (déploiement du nouveau layout) : sortie `09_Pipeline_result/<job>/` sans double-nesting, `params.json` par run, et **dérivation auto du chemin de sortie** quand `s3OutputUri` est omis (run 17448262 : input `.../testValentin`, output dérivé correctement). Le chemin explicite reste honoré (test `SuperTest/` → `SuperTest/<job>/`).
+
 ## Attentes de Bertil (fin de projet)
 
 - [ ] Inférence distribuée : la démontrer.
-- [ ] Identifier les bottlenecks de l'architecture.
+- [x] Identifier les bottlenecks de l'architecture. → 3 identifiés et mesurés : GPU (maillon actif à 3 workers), MinIO (latent, ~2 Mo/s), head Ray (plafond soumissions concurrentes). Cf. `resultats.typ` § Goulots + `@tab-bottlenecks`.
 - [ ] Expliquer Ray (cœur métier du projet -> priorité).
 - [ ] Meilleur focus sur observabilité.
 - [ ] Comparer les coûts GPU : cloud vs on-premise.
@@ -1137,3 +1217,14 @@ Note : les images `cc013c` et `d688f2` contiennent **toutes deux** le resize -> 
   - Pour le rapport : script DuckDB one-shot sur le préfixe `09_parquet/` → figures Résultats (remplit le TODO « histogramme des scores SAM3 »). ~30 min, bon outil.
   - Grafana ne lit pas le Parquet nativement -> pas de dashboard direct (faudrait un exporter DuckDB = nouveau composant, disproportionné).
   - Voie cheap pour du live : la distribution des labels est déjà dans les logs (`{'sign': 10}`) ; pour le score moyen, ajouter 1 ligne de log dans le worker puis un panel LogQL.
+
+
+- Lancer batch avec un array de liens url s3 complets.
+- Calculer IoU avec Yolo et SAM3
+- Forcer le s3:// au début, car si plus tard on veut mettre du https pour par exemple download directement le simages depuis les serveurs de la ville qui fournit les images au lieu de passer par une phase de download en local chez nous.
+
+
+Reste pour la version relisible de ce soir :
+1. Les calculs de coûts (jalons TODO dans resultats.typ ~678–699) + tes chiffres confidentiels pour le tableau récap.
+2. La prose : conclusion (4 jalons posés), architecture.typ:486 "...", resultats.typ "Logs pods..." (:592) et les "..." (:523, :532, :717), section NearLabel.
+3. Décision sur "10 images de Vevey" vs Nyon S001 (resultats.typ:467 et :498 se contredisent).
