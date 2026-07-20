@@ -1,86 +1,102 @@
-# Pipeline Distribué d'Annotation d'Images Panoramiques par IA
+# Pipeline distribuée d'annotation automatique d'images géospatiales
 
-## Contexte :
+Travail de Bachelor HEIG-VD (filière ISC, orientation ISC-RS) — projet NearAI, IICT.
 
-L'annotation automatique d'objets dans de vastes collections d'images panoramiques haute définition est une tâche complexe nécessitant une puissance de calcul importante. Ce projet vise à concevoir et implémenter un pipeline de traitement distribué, exploitant le modèle d'IA SAM3 (Segment Anything Model 3), pour générer des annotations vectorielles de haute qualité sur 300 000 images. Le déploiement s'effectuera sur le cluster Kubernetes de l'école en utilisant le framework Ray pour orchestrer les calculs.
+Des véhicules équipés de caméras panoramiques produisent un corpus visé de 300'000 images
+équirectangulaires haute définition. Ce dépôt contient la pipeline qui détoure et étiquette
+automatiquement les objets de la voirie (panneaux, marquages au sol, bouches d'égout) sur ce
+corpus, à l'aide du modèle de segmentation **SAM3** (Meta) distribué sur les GPUs du cluster
+Kubernetes de la HEIG-VD via **Ray**.
 
-## Objectif :
+Le rapport complet (architecture, choix techniques, benchmarks, analyse des coûts) est dans
+[`docs/report`](docs/report), compilé en PDF à [`docs/report/tb_rapport.pdf`](docs/report/tb_rapport.pdf).
+Ce README documente uniquement la structure du dépôt et comment faire tourner le code.
 
-Développer une plateforme robuste et optimisée capable d'ingérer des images HD (ex : 8000x4000 pixels), d'exécuter à grande échelle un modèle de segmentation avancé (SAM3), et de stocker les annotations géométriques résultantes dans une base de données géospatiale, tout en étudiant les compromis performance/qualité via des techniques de réduction de résolution (downsampling).
+## Architecture en bref
 
-## Travail attendu :
+Chaque image est découpée en tuiles avec recouvrement, inférée par SAM3 en mode *prompt*
+(une requête par label du vocabulaire), puis les masques sont vectorisés en polygones
+géoréférencés et écrits en Parquet sur MinIO (S3). Deux modes de traitement :
 
-L’étudiant devra :
-* Déployer et configurer un environnement de calcul distribué avec Ray sur Kubernetes pour orchestrer les traitements.
-* Intégrer le modèle SAM3 au sein de tâches Ray et concevoir un pipeline efficace pour l'annotation par lots.
-* Mettre en place un stockage objet compatible S3 pour les images sources, les images intermédiaires (downsamplées) et les masques bruts.
-* Implémenter une stratégie de prétraitement incluant un downsampling contrôlé et analyser son impact sur la qualité des annotations générées et les performances du système.
-* Développer un module de post-traitement pour convertir les sorties de SAM3 (masques) en géométries vectorielles (polygones) propres.
-* Concevoir et peupler un schéma de base de données PostgreSQL/PostGIS adapté au stockage et à l'interrogation spatiale des annotations et de leurs métadonnées.
-* Évaluer l'ensemble du pipeline en termes de scalabilité, de précision et d'efficacité des ressources.
+- **Batch** : un `RayCluster` (KubeRay) distribue l'inférence sur les GPUs disponibles pour un
+  préfixe S3 entier.
+- **Solo / interactif** : un job ou un service dédié traite une image (ou un point) à la demande,
+  pour la démonstration et l'intégration avec NearLabel.
 
-## Livrables :
+Une API REST (FastAPI) pilote l'ensemble, sert une console web (`/ui`) et importe les
+pré-annotations dans Label Studio / NearLabel. Prometheus, Loki et Grafana observent le cluster,
+les GPUs (DCGM) et les logs applicatifs. Détails complets : chapitres Architecture et
+Implémentation du rapport.
 
-* Pipeline de traitement distribué complet et fonctionnel, de l'ingestion S3 à l'écriture dans la base de données.
-* Base de données PostGIS contenant un jeu d'annotations de démonstration géoréférencées.
-* Étude comparative documentée sur les stratégies de downsampling (qualité vs. performance).
-* Scripts de déploiement, de monitoring et de validation des résultats.
-* Rapport final détaillant l'architecture, les choix techniques, l'analyse des performances et les recommandations pour un passage à l'échelle supérieure.
-
-## Compétences développées :
-
-Traitement distribué (Ray), inférence de modèles d'IA à grande échelle, optimisation de pipelines de données, gestion de bases de données géospatiales (PostGIS), stockage cloud (S3), orchestration conteneurisée (Kubernetes), analyse de compromis performance/précision.
-
----
-
-## Structure du Projet
+## Structure du dépôt
 
 ```
-TB/
-├── pipeline/                   # Code principal du pipeline
-│   ├── ingestion/              # Lecture images depuis S3/MinIO
-│   ├── preprocessing/          # Downsampling, préparation images
-│   ├── inference/              # Wrapper SAM3 + tâches Ray
-│   ├── postprocessing/         # Masques → polygones vectoriels
-│   └── storage/                # Écriture Parquet sur S3
-│
-├── tests/                      # Tests et environnement de dev
-│   ├── Dockerfile              # Image Docker SAM3 (CUDA 12.6)
-│   ├── test_sam3.py            # Script de validation SAM3
-│   └── .env                    # Tokens (HF_TOKEN, GH_TOKEN) — ne pas commiter
-│
-├── experiments/                # Notebooks benchmarks et analyses
-│
-├── deploy/                     # Configs déploiement
-│   ├── k8s/                    # Manifestes Kubernetes
-│   └── ray/                    # Config Ray cluster
-│
-├── docs/                       # Documentation
-│   ├── Specification/          # Cahier des charges (.md + .tex)
-│   ├── Planification/          # Planning 450h
-│   ├── SAM3/                   # Notes et ressources SAM3
-│   ├── Redaction/              # Guides de rédaction
-│   ├── Thesis/                 # Documents officiels HEIG-VD
-│   ├── notes.md                # Notes hebdomadaires
-│   └── journal.md              # Journal de travail
-│
-├── specifications/             # Cahier des charges LaTeX
-├── report/                     # Rapport final LaTeX
-├── .gitignore
-└── readme.md
+.
+├── cli/                    # CLI `nearai` (push, batch, solo, status, result, jobs, import, segment)
+├── deploy/
+│   ├── api/                 # API FastAPI (console web /ui, endpoints REST) + manifestes K8s
+│   ├── jobs/
+│   │   ├── jobCore/          # Librairie partagée par batch/solo (S3, tuilage, worker SAM3, post-traitement)
+│   │   ├── batch/             # Driver Ray (Job K8s CPU) : distribue un préfixe S3 sur les workers GPU
+│   │   └── solo/               # Job GPU unique : traite une image
+│   ├── segment/              # Service de segmentation interactive (Ultralytics, scale-to-zero)
+│   ├── ray/                  # Manifestes du RayCluster (KubeRay)
+│   ├── observability/        # Prometheus, Loki, Alloy, Grafana (dashboards provisionnés en GitOps)
+│   ├── secrets/               # Secrets K8s chiffrés (SOPS + age), voir deploy/secrets/README.md
+│   ├── kustomization.yaml    # Point d'entrée unique : `kubectl apply -k deploy/`
+│   └── deploy.sh              # Déchiffre les secrets puis applique la stack
+├── tests/
+│   └── unit/                  # Suite pytest offline (Ray/Torch stubbés, K8s/S3 mockés)
+├── docs/
+│   ├── report/                 # Rapport de TB (Typst) : chapitres, bibliographie, glossaire, affiche
+│   ├── journal.md               # Journal de travail hebdomadaire
+│   └── ...                       # Diagrammes, notes, documents administratifs HEIG-VD
+└── .github/workflows/        # CI : tests unitaires (gate) puis build/push des 4 images vers ghcr.io
 ```
 
----
-## Journal
-[Journal](/docs/journal.md)
+## Démarrage rapide
 
+Prérequis : `kubectl` configuré sur le cluster cible, [`sops`](https://github.com/getsops/sops) et
+[`age`](https://github.com/FiloSottile/age) avec la clé privée du projet (voir
+[`deploy/secrets/README.md`](deploy/secrets/README.md)).
 
-## Cahier des charges
-[Cahier des charges](/docs/Specification/cahier-des-charges.pdf)
+```sh
+# Déploie tout : secrets SOPS puis le reste de la stack (RayCluster, API, segment, observabilité)
+./deploy/deploy.sh
+```
 
-## Notes
-[Notes](/docs/notes.md)
+Les images sont construites et publiées sur `ghcr.io/nearai-interreg/*` par la CI
+(`.github/workflows/build-images.yml`), déclenchée après que la suite de tests unitaires passe.
+Le tag déployé se change dans [`deploy/kustomization.yaml`](deploy/kustomization.yaml).
 
---- 
-## Calendrier
-![Calendrier](/docs/Planification/planning.png)
+### CLI
+
+```sh
+pip install -r cli/requirements.txt
+python cli/nearai.py --help
+```
+
+`push` envoie des images locales sur le bucket, `batch`/`solo` lancent un traitement,
+`status`/`jobs` suivent la progression, `result`/`import` récupèrent ou poussent les résultats
+vers Label Studio, `segment` réveille ou endort le service interactif.
+
+### Console web et API
+
+Une fois l'API déployée, la console de pilotage est servie sur `/ui` (par l'API elle-même, pas
+de déploiement séparé), et la documentation OpenAPI interactive sur `/docs`.
+
+## Tests
+
+```sh
+uv venv .venv
+uv pip install --python .venv/bin/python -r tests/unit/requirements-test.txt
+.venv/bin/python -m pytest tests/unit -q
+```
+
+Suite entièrement offline (aucun GPU, cluster ou service S3 requis), voir
+[`tests/unit/README.md`](tests/unit/README.md).
+
+## Auteur
+
+Dani Tiago Faria dos Santos — HEIG-VD, filière ISC.
+Superviseur et répondant industriel : Prof. Bertil Chapuis (IICT).

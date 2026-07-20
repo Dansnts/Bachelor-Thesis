@@ -23,3 +23,11 @@ archive/
 *.psd
 *.drawio.bkp
 .$*.drawio.bkp
+
+# Superseded docs, kept out of the repo (duplicated or replaced by docs/report)
+docs/Specification/
+docs/Thesis/
+docs/Planification/
+docs/SAM3/
+docs/ray.md
+tests/RAY/
