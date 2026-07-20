@@ -1,3 +1,7 @@
+**Grand total: 473h10** (budget 450h)
+
+---
+
 # Week 1
 *Vendredi 20 février 2026*
 
@@ -819,3 +823,14 @@
 | **Subtotal** |    | 13h |
 | **Total** |    | **13h** |
 | **Total** |    | **49h** |
+
+---
+
+*Monday July 20, 2026*
+
+| Task              | Status | Time |
+| :---------------- | :------: | ----: |
+| Report proofread + git repo cleanup | Done | 6h40 |
+| **Subtotal** |    | 6h40 |
+| **Total** |    | **6h40** |
+| **Total** |    | **55h40** |
