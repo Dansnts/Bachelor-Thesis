@@ -139,7 +139,7 @@
       [2.75],
 
       [17.07.2026],
-      [Semaine 22 — Relectures méticuleuses (architecture, implémentation, résultats), refactor jobCore + durcissement API (422), release 1.0 (tests de bout en bout, images taguées, gate CI tests→build), déploiement de la version finale, incidents cluster (Grafana, Loki, RayCluster), restructuration du rapport selon la directive du département, retours de relecture externe intégrés, affiche finalisée, rendu du travail de Bachelor],
+      [Semaine 22 — Relectures méticuleuses (architecture, implémentation, résultats), refactor jobCore + durcissement API, release 1.0 (tests de bout en bout, images taguées, gate CI tests→build), déploiement de la version finale, incidents cluster (Grafana, Loki, RayCluster), restructuration du rapport selon la directive du département, retours de relecture externe intégrés, affiche finalisée, rendu du TB],
       [0.5],
       [25],
       [44],

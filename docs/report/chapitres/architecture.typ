@@ -309,7 +309,7 @@ Grafana interroge les résultats via LogQL avec `regexp` et `unwrap` pour en ext
 Une API REST expose la pipeline aux utilisateurs et aux systèmes externes. Elle permet de soumettre des jobs batch ou on-demand, de consulter leur état et d'importer automatiquement les résultats dans Label Studio, le tout sans accès direct au cluster Kubernetes.
 
 #figure(
-  image("../images/API.png", width: 100%),
+  image("../images/Schema-API.png", width: 100%),
   caption: [
     L'API permet de créer les pods, de lire leur statut via les librairies K8s et de retourner les résultats post-traitement.
   ],

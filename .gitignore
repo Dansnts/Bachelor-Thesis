@@ -30,3 +30,6 @@ docs/Thesis/
 docs/Planification/
 docs/SAM3/
 docs/ray.md
+
+# Local submission staging (own nested repo, never tracked)
+rendu/

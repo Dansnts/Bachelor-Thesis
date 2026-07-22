@@ -25,7 +25,7 @@ Ce chapitre recense les outils, librairies et services qui composent le projet, 
   ),
   caption: [Langage et briques d'apprentissage automatique],
 )
-
+#pagebreak()
 == Calcul distribué et orchestration
 
 #figure(
@@ -119,6 +119,7 @@ Ce chapitre recense les outils, librairies et services qui composent le projet, 
   caption: [Gestion des secrets],
 )
 
+#pagebreak()
 == Rédaction et tests
 
 #figure(
