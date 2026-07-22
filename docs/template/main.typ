@@ -226,7 +226,6 @@
     align: (left + top, bottom + right),
     text(size: 12pt)[
       #if config.information.author.feminine_form { "Autrice" } else { "Auteur" }: #config.information.author.name \
-      #if config.information.industry_contact.feminine_form { "Répondante" } else { "Répondant" } externe: #config.information.industry_contact.name \
       Prof. responsable: #config.information.supervisor.name \
       Sujet proposé par: #config.information.industry_contact.industry_name \
     ],
