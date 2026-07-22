@@ -1,4 +1,4 @@
-**Grand total: 473h10** (budget 450h)
+**Grand total: 494h40** (budget 450h)
 
 ---
 
@@ -834,3 +834,37 @@
 | **Subtotal** |    | 6h40 |
 | **Total** |    | **6h40** |
 | **Total** |    | **55h40** |
+
+---
+
+*Tuesday July 21, 2026*
+
+| Task              | Status | Time |
+| :---------------- | :------: | ----: |
+| Report structure fixed to match department directive (specifications chapter reordered before publishable summary) | Done | 1h30 |
+| Specifications chapter and publishable summary content corrected (GPS/EXIF, terminology) | Done | 1h30 |
+| Poster rewritten and resized to fit | Done | 2h |
+| Conclusion completed (perspectives, fine-tuning retrospective) | Done | 2h |
+| Cost section addition (acquisition dominates over pipeline optimization) | Done | 1h |
+| Acknowledgments polish + report paragraph spacing bug fixed | Done | 1h |
+| Grafana secret and Loki PVC cluster incidents fixed | Done | 2h |
+| RayCluster stopped reconciling, escalated to cluster admin | Done | 1h |
+| **Subtotal** |    | 12h |
+| **Total** |    | **12h** |
+| **Total** |    | **67h40** |
+
+---
+
+*Wednesday July 22, 2026*
+
+| Task              | Status | Time |
+| :---------------- | :------: | ----: |
+| Report compliance check (annexes, Gantt milestone date fix, cover page overflow bug) | Done | 2h |
+| External review feedback incorporated (YOLO-World nuance, GeoParquet framing, cloud network bottleneck caveat, hostIPC security note) | Done | 2h |
+| Verified reviewer-flagged issues (3 false syntax/typo claims disproved, cost rounding fix) | Done | 1h |
+| Poster format and text choices confirmed with supervisor | Done | 30min |
+| Final report proofread | Done | 3h |
+| Final submission preparation and GAPS upload | Done | 1h |
+| **Subtotal** |    | 9h30 |
+| **Total** |    | **9h30** |
+| **Total** |    | **77h10** |
