@@ -2,6 +2,8 @@
 
 Les Secrets Kubernetes sont versionnés ici **chiffrés** avec [SOPS](https://github.com/getsops/sops) et [age](https://github.com/FiloSottile/age). Seules les valeurs sous `stringData` sont chiffrées (`encrypted_regex` dans `.sops.yaml`) ; le reste du manifeste reste lisible pour garder des diffs propres.
 
+Ce fichier suppose que vous avez déjà accès à la clé age de ce dépôt. Pour déployer sur votre propre cluster avec vos propres secrets, voir [`BOOTSTRAP.md`](BOOTSTRAP.md).
+
 ## Prérequis
 
 ```sh
@@ -31,6 +33,7 @@ sops -d deploy/secrets/minio-secret.enc.yaml | kubectl apply -f -
 | `minio-secret.enc.yaml` | `minio-secret` | `access_key`, `secret_key` | Opaque |
 | `hf-secret.enc.yaml` | `hf-secret` | `HF_TOKEN` | Opaque |
 | `ghcr-secret.enc.yaml` | `ghcr-secret` | `.dockerconfigjson` | dockerconfigjson |
+| `grafana-secret.enc.yaml` | `grafana-secret` | `admin_password` | Opaque |
 
 `ghcr-secret` (image pull) contient un blob JSON qu'il ne faut pas écrire à la main : on laisse `kubectl` le générer en clair, puis on le chiffre une fois.
 
