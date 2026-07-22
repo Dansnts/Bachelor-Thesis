@@ -12,10 +12,10 @@ Dates clés administratives :
 - 09.04.2026 : Cahier des charges final
 - 20.05.2026 : Rendu intermédiaire
 - 15.06.2026 : Passage en plein temps
-- 24.07.2026 : Rendu final du travail
+- 23.07.2026 : Rendu final du travail
 - août-septembre : Défense du travail de Bachelor
 
-=== Découpage prévisionnel
+== Découpage prévisionnel
 
 Le découpage prévisionnel par semaine, tel qu'établi en début de projet, est le suivant.
 
@@ -63,7 +63,7 @@ Le découpage prévisionnel par semaine, tel qu'établi en début de projet, est
   caption: [Découpage prévisionnel des 450 heures],
 )
 
-=== Jalons principaux
+== Jalons principaux
 
 #figure(
   table(
@@ -84,7 +84,7 @@ Le découpage prévisionnel par semaine, tel qu'établi en début de projet, est
   ),
   caption: [Jalons principaux du projet],
 )
-
+== Diagramme de Gantt
 // ---- Diagramme de Gantt (Typst natif) : données ----
 #let gd(m, day) = datetime(year: 2026, month: m, day: day)
 #let g-start = gd(2, 1)
@@ -117,7 +117,7 @@ Le découpage prévisionnel par semaine, tel qu'établi en début de projet, est
     ("Déploiement production HEIG", gd(6, 15), gd(6, 21)),
     ("Benchmarks E2E et tuning", gd(6, 22), gd(6, 28)),
     ("Rédaction du rapport", gd(6, 29), gd(7, 19)),
-    ("Finalisation et rendu", gd(7, 20), gd(7, 24)),
+    ("Finalisation et rendu", gd(7, 20), gd(7, 23)),
   )),
 )
 
@@ -127,7 +127,7 @@ Le découpage prévisionnel par semaine, tel qu'établi en début de projet, est
   ("CdC final", gd(4, 9), "left", 1),
   ("Rapport intermédiaire", gd(5, 20), "left", 2),
   ("Plein temps", gd(6, 15), "left", 0),
-  ("Rendu final", gd(7, 24), "right", 1),
+  ("Rendu final", gd(7, 23), "right", 1),
 )
 
 // ---- Diagramme de Gantt : rendu ----
@@ -232,7 +232,7 @@ Le découpage prévisionnel par semaine, tel qu'établi en début de projet, est
   )
 }
 
-#v(5%)
+#v(1%)
 #figure(
   block(breakable: false, gantt-chart()),
   caption: [

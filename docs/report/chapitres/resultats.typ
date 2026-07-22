@@ -229,7 +229,7 @@ En résumé, éviter les faux positifs demande un *vocabulaire spécifique au do
 
 == Comparaison L40S vs A40
 
-Les deux GPUs disponibles pour les workers diffèrent par leur architecture, Ada Lovelace (2022) pour le L40S @l40s-datasheet et Ampere (2020) pour l'A40 @a40-datasheet. Tous deux embarquent 48 GB en GDDR6, mais le L40S domine sur la plupart des métriques.
+Les deux GPUs disponibles pour les workers diffèrent par leur architecture, Ada Lovelace (2022) pour le L40S @l40s-datasheet et Ampere (2020) pour l'A40 @a40-datasheet. Tous deux embarquent 48 Go en GDDR6, mais le L40S domine sur la plupart des métriques.
 
 #figure(
   table(
@@ -246,8 +246,8 @@ Les deux GPUs disponibles pour les workers diffèrent par leur architecture, Ada
     [Tensor Cores], [568 (4ᵉ gén)], [336 (3ᵉ gén)], [—],
     [BF16 Tensor TFLOPS], [362], [149,7], [*×2,42*],
     [FP32 TFLOPS], [91,6], [37,4], [×2,45],
-    [Bande passante mémoire], [864 GB/s], [696 GB/s], [×1,24],
-    [Mémoire], [48 GB GDDR6], [48 GB GDDR6], [×1,00],
+    [Bande passante mémoire], [864 Go/s], [696 Go/s], [×1,24],
+    [Mémoire], [48 Go GDDR6], [48 Go GDDR6], [×1,00],
     [Puissance max], [350 W], [300 W], [×1,17],
   ),
   caption: [Spécifications L40S vs A40 (datasheets NVIDIA @l40s-datasheet @a40-datasheet)],
@@ -555,7 +555,7 @@ Pour le *dashboard*, Grafana corrèle sur une même vue les métriques Prometheu
 Le dashboard dédié aux runs batch (@fig-batch-running) illustre cette corrélation pendant le run de production Vevey. Les tuiles d'état du haut agrègent des signaux extraits des logs des workers : temps d'inférence moyen, tuiles par image, temps de chargement du modèle. La série temporelle suit le temps d'inférence de chaque image, et deux panneaux de logs filtrés affichent la progression du run et les détections par image.
 
 #figure(
-  image("../images/batchRunning.png", width: 80%),
+  image("../images/BatchRunning.png", width: 80%),
   caption: [Dashboard Grafana des runs batch pendant le run de production Vevey : état des tuiles, temps d'inférence par image, progression et détections extraites des logs Loki.],
 ) <fig-batch-running>
 
@@ -690,6 +690,8 @@ Sur le cluster HEIG-VD, déjà acquis, le coût marginal d'un run se réduit à 
 
 Un service sur site évite en outre le transfert du corpus vers le cloud : ~1,2 To d'images (57 Go pour le seul jeu Vevey). Les fournisseurs comparés ne facturent pas le trafic entrant, le coût est ailleurs : environ trois heures de transfert à 1 Gbit/s soutenu (davantage sur un lien partagé), puis le stockage objet du corpus pendant la durée des runs, ≈ 0,07 \$/Go/mois chez RunPod soit ≈ 68 CHF/mois pour le corpus complet. Le cluster local, colocalisé avec le MinIO source, échappe à ces deux postes.
 
+Cette estimation de transfert reste théorique, non mesurée. L'analyse des goulots d'étranglement (cf. @bottlenecks) couvre le régime testé, calcul et stockage colocalisés sur le cluster HEIG-VD, pas un scénario hybride où des GPUs loués liraient les images depuis MinIO par Internet. Sur ce chemin, la latence et le débit réel du lien pourraient redevenir le facteur limitant à la place du GPU, ce qui resterait à vérifier avant tout déploiement cloud en production.
+
 Pour un *run unique* du corpus complet, la hiérarchie est sans ambiguïté :
 
 #figure(
@@ -706,7 +708,7 @@ Pour un *run unique* du corpus complet, la hiérarchie est sans ambiguïté :
     [Location L40S (Infomaniak)], [≈ 465], [660 GPU-h × 0,70 CHF/h],
     [Location L40S (RunPod Secure)], [≈ 525], [660 GPU-h × 0,80 CHF/h],
     [Location L40S (OVHcloud)], [≈ 960], [660 GPU-h × 1,45 CHF/h],
-    [Achat d'une A40 dédiée], [≈ 4'140], [4'000 achat + 53 entretien au prorata + 85 électricité#footnote[980 GPU-h à 300 W ≈ 294 kWh, l'A40 compensant son prix horaire par des runs 1,49× plus longs.]],
+    [Achat d'une A40 dédiée], [≈ 4'138], [4'000 achat + 53 entretien au prorata + 85 électricité#footnote[980 GPU-h à 300 W ≈ 294 kWh, l'A40 compensant son prix horaire par des runs 1,49× plus longs.]],
     [Achat d'une L40S dédiée], [≈ 8'170], [8'000 achat + 107 entretien au prorata + 67 électricité],
   ),
   caption: [Coût d'un run unique du corpus 300k images, par option d'infrastructure],
@@ -749,7 +751,7 @@ En *usage récurrent*, l'achat s'amortit-il ? Hypothèse de cadence : 15 runs to
       text(fill: white)[*Achat A40*#footnote[4'000 CHF d'achat, plus 400 CHF/an d'entretien à la même cadence (53 CHF par run), plus 85 CHF d'électricité par run, soit 4'000 + 138 × n CHF.]],
       text(fill: white)[*Achat L40S*#footnote[8'000 CHF d'achat, plus 800 CHF/an d'entretien à la cadence de 7,5 runs par an, plus 67 CHF d'électricité par run, soit 8'000 + 174 × n CHF.]],
     ),
-    [1], [67], [350], [465], [525], [960], [4'140], [8'170],
+    [1], [67], [350], [465], [525], [960], [4'138], [8'170],
     [5], [335], [1'750], [2'330], [2'625], [4'800], [4'690], [8'870],
     [10], [670], [3'500], [4'650], [5'250], [9'600], [5'380], [9'740],
     [15], [1'005], [5'250], [6'980], [7'880], [14'400], [6'070], [10'610],
@@ -823,6 +825,8 @@ L'annotation manuelle intégrale du corpus exigerait plus de 2'500 heures humain
   ),
   caption: [Annotation manuelle et annotation assistée pour une ville, au taux horaire indicatif de 50 CHF/h. La pré-annotation coûte moins de 1 % de ce qu'elle économise en validation humaine.],
 ) <tab-annotation-assistee>
+
+Optimiser encore la pipeline ne changerait presque rien à ce total. La pré-annotation pèse moins de 0,1 % du coût d'une ville (@tab-chaine-complete) : la diviser par dix ne déplacerait le budget total que de quelques dizaines de francs. Les gains réels se jouent en amont, sur l'acquisition et le post-traitement, qui pèsent ensemble ≈ 94 % du coût combiné. Les 660 GPU-heures projetées plus haut pour le corpus cible de 300'000 images restent une simulation à l'échelle du projet NearAI. Ramenée à une seule ville, la chaîne complète de Vevey (14'207 images, @tab-chaine-complete) le confirme sur un cas réel : accélérer ou fiabiliser encore la pipeline améliore le confort d'exploitation, pas le budget d'une campagne d'acquisition.
 
 
 == Problèmes rencontrés lors des tests <problemes-driver>

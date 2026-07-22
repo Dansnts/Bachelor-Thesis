@@ -1,31 +1,22 @@
 = Conclusion <conclusion>
 
-// 1. Contribution : bien cadrer que le travail EXPLOITE SAM3 tel quel (inférence
-//    zero-shot, aucun fine-tuning, aucune modification du modèle — cf. cahier des
-//    charges). La contribution du TB est le pipeline distribué autour du modèle :
-//    tuilage, distribution Ray/K8s, reprise, observabilité, exploitation des
-//    résultats. SAM3 est un composant remplaçable (cf. piste YOLOv8).
-//
-// 2. Résultats clés à rappeler : 14'207 images en 10 h 23 sur 3 GPUs, speed-up
-//    2,99×, détections déterministes, gain de 47 % sur l'annotation humaine.
-//
-// 3. Coûts : renvoyer à @couts — annoter une ville coûte ≈ 22 CHF en location
-//    cloud (Infomaniak L40S 0,70 CHF/h, fournisseur suisse), l'achat d'une carte
-//    ne s'amortit qu'entre 11 et 28 runs de corpus (L40S) ou dès 13 runs (A40 à
-//    4'000 CHF), le cluster mutualisé existant écrase tout.
-//
-// 4. Perspectives : étude statistique de la distribution des tailles d'objets
-//    pour optimiser le stride, RayJob pour les soumissions concurrentes,
-//    montée en charge du nombre de GPUs jusqu'au seuil MinIO.
-//
-// 5. Améliorations non réalisées faute de temps (à présenter comme faciles,
-//    preuve que l'architecture tient sa promesse de modularité) :
-//    - Brancher YOLOv8 à la place de SAM3 : tout le code spécifique au modèle
-//      est confiné dans la classe Sam3Model de jobCore/worker.py ; le tuilage,
-//      la distribution Ray, la reprise et l'export ne connaissent pas SAM3.
-//      Il suffirait d'écrire une classe YoloModel exposant la même méthode de
-//      détection (image + labels → masques), soit quelques dizaines de lignes
-//      avec Ultralytics (un seul appel model.predict, cf. état de l'art).
-//      L'effort est minime, seul le temps a manqué en fin de projet. Nuance à
-//      mentionner : YOLO n'est pas promptable par texte, il faudrait un modèle
-//      entraîné sur les classes visées, là où SAM3 accepte un vocabulaire libre.
+Ce travail conçoit et déploie une pipeline distribuée qui transforme un modèle de segmentation zero-shot, SAM3, en un service de pré-annotation capable de traiter un corpus de plusieurs centaines de milliers d'images panoramiques. SAM3 est exploité tel quel, aucune modification du modèle, aucun fine-tuning, seule son inférence par prompt textuel est utilisée.
+
+La contribution du travail porte sur ce qui l'entoure : le découpage en tuiles qui ramène chaque panorama à la fenêtre d'entrée du modèle, la distribution du calcul sur plusieurs GPUs via Ray et Kubernetes, la reprise après incident, l'observabilité en production et l'exploitation des résultats vers les outils d'annotation. SAM3 n'est qu'un composant de cette architecture, remplaçable sans toucher au reste de la chaîne, comme le montre la piste YOLOv8 ci-dessous.
+
+Le run de production sur le dataset Vevey valide cette architecture à l'échelle : *14'207 images* traitées en *10 h 23* sur trois GPUs L40S, un speed-up de *2,99×* qui confirme le caractère embarrassingly parallel de l'inférence par tuiles (cf. @resultats). Les détections sont déterministes, le dispatch round-robin entre workers ne change que le temps d'exécution, jamais le résultat. Face à l'annotation humaine, l'assistance réduit le temps de validation de *47 %* (cf. @tab-score-e).
+
+Le coût confirme la pertinence économique du choix. Annoter une ville de la taille de Vevey coûte *≈ 22 CHF* en location cloud, au tarif de l'unique fournisseur suisse proposant une L40S à l'heure (Infomaniak, 0,70 CHF/h). L'achat d'une carte dédiée ne s'amortit qu'à partir d'une dizaine de runs de corpus (11 à 28 selon le fournisseur de référence pour une L40S, dès 13 pour une A40 à ≈ 4'000 CHF), et dans tous les cas le cluster mutualisé de l'institut, déjà acquis, reste sous toutes les options testées (cf. @couts).
+
+
+== Perspectives
+
+Trois pistes prolongent directement ce travail. Une étude statistique de la distribution des tailles d'objets dans le corpus permettrait d'ajuster le stride au cas par cas plutôt que de garder un ratio fixe de 76 % de la taille de tuile (cf. @resultats), affinant encore l'arbitrage entre coût de calcul et couverture. Le passage de Ray Client à `RayJob` supprimerait le plafond de connexions concurrentes au head observé pendant les tests (cf. @bottlenecks), utile si plusieurs acquisitions doivent un jour être traitées de front. Enfin, la pipeline reste aujourd'hui bornée par le nombre de GPUs libres sur le cluster partagé, pas par son architecture : une montée en charge du nombre de workers reste possible jusqu'à ce que le stockage MinIO devienne à son tour limitant, un seuil qui n'est pas atteint à l'échelle testée.
+
+Une amélioration a été identifiée mais non réalisée faute de temps en fin de projet : brancher YOLOv8 à la place de SAM3. Le code spécifique au modèle est confiné dans la classe `Sam3Model` de `jobCore/worker.py`, le tuilage, la distribution Ray, la reprise et l'export n'en dépendent pas. Il suffirait d'écrire une classe `YoloModel` exposant la même méthode de détection, une image et des labels en entrée, des masques en sortie, soit quelques dizaines de lignes avec Ultralytics (cf. @etat-de-lart). Faute de cette implémentation, aucune comparaison quantitative entre les deux modèles, par IoU ou autrement, n'a pu être menée. Nuance à garder : YOLOv8 seul n'est pas promptable par texte, il faudrait donc un modèle entraîné sur les classes visées, là où SAM3 accepte un vocabulaire libre. Une variante comme YOLO-World lèverait cette limite avec de la détection zero-shot par vocabulaire textuel, mais produit des boîtes englobantes, pas des masques, il faudrait alors la coupler à un second modèle pour obtenir des polygones. SAM3 reste donc le choix le plus direct pour ce travail, un seul modèle couvrant détection et segmentation par prompt texte. Cette limite illustre la promesse tenue de l'architecture : remplacer le modèle de segmentation ne demande pas de retoucher le reste de la pipeline.
+
+== Si c'était à refaire
+
+Le choix d'exploiter SAM3 en zero-shot, sans fine-tuning, découle directement du cahier des charges, qui exclut explicitement le réentraînement du modèle. Ce choix a permis de livrer une pipeline complète sans dépendre d'un corpus d'entraînement annoté au départ, mais il plafonne aussi la qualité des détections aux capacités génériques du modèle : une partie des faux positifs observés (cf. @resultats) tient à un vocabulaire textuel qui reste une approximation du domaine routier, pas une classification apprise sur des exemples réels.
+
+Avec le recul, la suite logique de ce travail serait de fine-tuner un modèle sur les classes ciblées plutôt que de rester en zero-shot. La pipeline fournit déjà la matière première pour ça : chaque cycle d'annotation assistée produit des détections corrigées par un humain dans Label Studio et NearLabel, un corpus qui grossit à chaque ville traitée. Réinjecter ces corrections comme jeu d'entraînement fermerait la boucle et devrait réduire mécaniquement le taux de faux positifs, sans toucher au reste de l'architecture : le tuilage, la distribution Ray et l'export Parquet ne dépendent pas du modèle utilisé, comme le montre déjà la piste YOLOv8 ci-dessus. Ce fine-tuning n'a pas été fait dans le cadre de ce TB, le cahier des charges l'excluant explicitement et le temps ayant de toute façon manqué en fin de projet, mais c'est la piste qui promet le plus grand gain de qualité pour la suite du projet NearAI.

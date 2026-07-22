@@ -47,17 +47,31 @@
       industry_name: "HEIG-VD — Institut IICT",
     ),
     resume_publiable: [
-      Ce travail porte sur la conception et le déploiement d'une pipeline distribuée
-      d'annotation automatique d'images géospatiales. La pipeline exploite SAM3 pour
-      la segmentation et Ray pour distribuer le traitement sur les GPUs du cluster
-      Kubernetes de la HEIG-VD. Les images sont lues depuis le service S3 sur MinIO, découpées en
-      patches et traitées en parallèle par des workers Ray. Les métadonnées GPS extraites
-      de l'EXIF sont associées aux polygones produits, stockés au format Parquet sur S3.
+      Ce travail conçoit et déploie une pipeline distribuée d'annotation automatique
+      d'images panoramiques pour le projet européen NearAI. La pipeline exploite SAM3, un modèle
+      de segmentation zero-shot, sans fine-tuning ni modification, pour détecter les
+      éléments routiers ciblés par un vocabulaire de labels texte. Ray distribue le
+      calcul sur les GPUs du cluster Kubernetes de la HEIG-VD : chaque panorama est
+      découpé en tuiles, traitées en parallèle par des workers GPU. Les images sont
+      lues depuis le stockage S3 sur MinIO, les coordonnées GPS des détections
+      proviennent des fichiers de trajectoire de l'acquisition, et les résultats sont
+      écrits au format Parquet sur le même bucket, puis exploités par Label Studio et
+      par NearLabel pour la validation humaine.
 
-      Une couche d'observabilité basée sur Prometheus, Loki et Grafana permet de surveiller
-      l'état du cluster, ses performances et d'identifier les incidents.
 
-      Enfin, la gestion chiffrée des secrets et une pipeline CI/CD assurent la sécurité de la configuration et la validation continue du code et des images produites.
+      Le run de production sur le dataset Vevey valide la pipeline à l'échelle :
+      14'207 images traitées en 10 h 23 sur trois GPUs L40S, un speed-up de 2,99×
+      qui confirme le parallélisme quasi parfait de l'inférence par tuiles. Face à
+      l'annotation manuelle, l'assistance réduit le temps de validation de 47 %,
+      pour un coût de pré-annotation de seulement environ 22 CHF par ville de cette
+      taille.
+
+
+      Une couche d'observabilité basée sur Prometheus, Loki et Grafana surveille
+      l'état du cluster, ses performances et ses goulots d'étranglement en production.
+      La gestion chiffrée des secrets et une pipeline CI/CD, qui exécute les tests
+      avant de construire et publier les images Docker, assurent la sécurité de la
+      configuration et la fiabilité des déploiements.
     ],
   ),
   bibliography: (

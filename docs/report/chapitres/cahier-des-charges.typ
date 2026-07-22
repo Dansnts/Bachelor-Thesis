@@ -1,10 +1,10 @@
 = Cahier des charges <cahier-des-charges>
 
-== Résumé
+== Résumé du problème
 
 Ce TB vise à implémenter la conception et le déploiement d'une pipeline distribuée d'annotation automatique d'images géospatiales.
 
-La pipeline exploite SAM3 pour la segmentation et Ray pour distribuer le traitement sur les GPUs du cluster Kubernetes de la HEIG-VD. Les images JPEG sont lues depuis le serveur MinIO, découpées en tuiles et traitées en parallèle par des workers Ray. Les métadonnées GPS extraites de l'EXIF sont associées aux polygones produits puis stockés au format Parquet sur S3. Une couche d'observabilité basée sur Prometheus, Loki et Grafana permet de surveiller l'état du cluster et d'identifier les incidents ou soucis de performances.
+La pipeline exploite SAM3 pour la segmentation et Ray pour distribuer le traitement sur les GPUs du cluster Kubernetes de la HEIG-VD. Les images JPEG sont lues depuis le serveur MinIO, découpées en tuiles et traitées en parallèle par des workers Ray. Les métadonnées GPS, associées aux polygones produits puis stockés au format Parquet sur S3, proviennent du fichier de trajectoire de l'acquisition (l'EXIF ne sert que de secours). Une couche d'observabilité basée sur Prometheus, Loki et Grafana permet de surveiller l'état du cluster et d'identifier les incidents ou soucis de performances.
 
 == Introduction
 
@@ -72,7 +72,7 @@ Les éléments suivants sont explicitement hors du périmètre de ce travail.
     [Le système découpe chaque image en tuiles avant inférence.], [Haute],
     [Le système exécute SAM3 sur chaque tuile d'image.], [Haute],
     [Le système distribue le traitement sur plusieurs workers Ray.], [Haute],
-    [Le système extrait les métadonnées GPS de l'EXIF et les associe aux résultats.], [Haute],
+    [Le système associe les métadonnées GPS de la trajectoire de l'acquisition aux résultats.], [Haute],
     [Le système stocke les polygones de segmentation au format Parquet sur S3.], [Haute],
     [Le système gère les erreurs par image sans interrompre la pipeline.], [Haute],
     [Le système produit un rapport de traitement (nombre d'images, durée, erreurs).], [Moyenne],
@@ -109,7 +109,7 @@ Les éléments suivants sont explicitement hors du périmètre de ce travail.
 La pipeline est composée de cinq couches fonctionnelles.
 
 + La couche *stockage* centralise les images brutes, les résultats Parquet et les logs sur MinIO via le protocole S3.
-+ La couche *prétraitement* charge chaque image, en extrait les métadonnées GPS de l'EXIF et la découpe en tuiles.
++ La couche *prétraitement* charge chaque image, lui associe ses métadonnées GPS depuis le fichier de trajectoire de l'acquisition et la découpe en tuiles.
 + La couche *traitement distribué* orchestre l'exécution de SAM3 sur les tuiles via des workers Ray dotés d'un GPU chacun.
 + La couche *persistance* écrit les polygones avec leurs métadonnées géographiques au format Parquet sur S3.
 + La couche *observabilité* collecte métriques et logs en continu pour rendre l'état du cluster visible dans Grafana.
@@ -119,7 +119,7 @@ La pipeline est composée de cinq couches fonctionnelles.
 Le scénario principal traite un lot d'images en mode batch.
 
 + L'utilisateur soumet un lot d'images stockées sur MinIO.
-+ Chaque image est téléchargée, ses métadonnées GPS sont extraites de l'EXIF et elle est découpée en tuiles.
++ Chaque image est téléchargée, ses métadonnées GPS sont récupérées depuis le fichier de trajectoire de l'acquisition et elle est découpée en tuiles.
 + Ray distribue les tuiles sur les workers GPU disponibles.
 + Chaque worker exécute SAM3 sur ses tuiles et produit des polygones de segmentation.
 + Les polygones sont agrégés avec leurs métadonnées géographiques et écrits au format Parquet sur S3.
@@ -130,7 +130,7 @@ Le scénario principal traite un lot d'images en mode batch.
 Le scénario secondaire traite une image unique avec une réponse proche du temps réel.
 
 + L'utilisateur soumet une image via l'API de la pipeline.
-+ La pipeline exécute SAM3 sur l'image et extrait les métadonnées GPS de l'EXIF.
++ La pipeline exécute SAM3 sur l'image et lui associe ses métadonnées GPS depuis le fichier de trajectoire de l'acquisition.
 + Le résultat est retourné à l'utilisateur et stocké sur S3.
 
 #pagebreak()

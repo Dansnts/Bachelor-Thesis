@@ -114,7 +114,7 @@
 ▀▀           ▀▀▀
 */
 
-#set par(leading: 0.55em, spacing: 0.55em, justify: true)
+#set par(leading: 0.55em, spacing: 1.2em, justify: true)
 #image("images/HEIG-VD_logotype-baseline_rouge-cmjn.pdf", width: 6cm)
 #v(10%)
 #align(center, [#text(size: 14pt, [*Travail de Bachelor*])])
@@ -162,7 +162,7 @@
     ],
   )
 ])
-#align(bottom + right, [
+#place(bottom + right, [
   Yverdon-les-Bains, le #datetime.today().display("[day].[month].[year]")
 ])
 #pagebreak(weak: true)
@@ -233,6 +233,9 @@ Toute utilisation, même partielle, de ce TB doit être faite dans le respect du
 ])
 #pagebreak(weak: true)
 
+#include "chapitres/cahier-des-charges.typ"
+#pagebreak(weak: true)
+
 /*
          ▄                          ▄
         ▀                          ▀
@@ -241,7 +244,7 @@ Toute utilisation, même partielle, de ce TB doit être faite dans le respect du
 ██    ▀█▄▄▄ ▄▄▄█▀ ▀██▀█ ██ ██ ██ ▀█▄▄▄
 */
 
-= Resumé
+= Résumé
 
 #align(left)[*Travail de Bachelor #config.information.academic_years*]
 #align(left)[*Titre:*  #config.information.title]
@@ -268,7 +271,7 @@ Toute utilisation, même partielle, de ce TB doit être faite dans le respect du
         [#config.information.supervisor.name],
 
         [], [],
-        [*Entreprise mandante*], [#config.information.industry_contact.name],
+        [*Entreprise mandante*], [#config.information.industry_contact.industry_name],
       )
     ],
   )
@@ -287,19 +290,19 @@ Toute utilisation, même partielle, de ce TB doit être faite dans le respect du
 
 = Remerciements
 
-Je remercie le Prof. Bertil Chapuis, mon superviseur et répondant industriel pour ce travail, pour son suivi tout au long du semestre, ses retours techniques précis et sa disponibilité à chaque fois que le projet a exigé une décision d'architecture.
+Je remercie le Prof. Bertil Chapuis, mon superviseur et répondant industriel, ainsi que Rémy Marquis, pour leur suivi tout au long du semestre, leurs retours techniques précis et leur disponibilité à chaque fois que le projet a exigé une décision d'architecture.
 
 Je remercie également Valentin Ricard, avec qui j'ai partagé le projet NearAI le temps de ce travail de Bachelor. Nos échanges réguliers, sur l'intégration entre nos deux applications comme sur des problèmes de détection plus ponctuels, ont amélioré la qualité du résultat final.
 
-Je remercie enfin [NOM], pour la relecture attentive de ce rapport, et [NOM], pour [PRÉCISER].
+Une mention spéciale à Monsieur Jean-Claude Dispaux et à sa femme Nicole, pour tout le temps qu'ils m'ont consacré durant ma formation professionnelle, ainsi que pour leur investissement personnel.
+
+Enfin, un grand remerciement à ma mère pour m'avoir soutenu durant toutes mes études et m'avoir motivé à les poursuivre.
+
 
 #v(2%)
 
-[MESSAGE PLUS PERSONNEL]
 
 #pagebreak(weak: true)
-
-// #include "chapitres/cahier-des-charges.typ"
 
 /*
                                    ▄▄

@@ -33,7 +33,7 @@ Les images solo et segment restent en root. Elles écrivent le cache des poids H
 
 == Gestion des secrets
 
-Quatre Secrets Kubernetes portent les credentials de la stack : `minio-secret` (clés d'accès S3), `hf-secret` (token HuggingFace, requis pour télécharger les 3,3 GB de poids SAM3), `ghcr-secret` (authentification `dockerconfigjson` pour tirer les images du registre privé) et `grafana-secret` (compte administrateur du dashboard).
+Quatre Secrets Kubernetes portent les credentials de la stack : `minio-secret` (clés d'accès S3), `hf-secret` (token HuggingFace, requis pour télécharger les 3,3 Go de poids SAM3), `ghcr-secret` (authentification `dockerconfigjson` pour tirer les images du registre privé) et `grafana-secret` (compte administrateur du dashboard).
 
 Ces secrets posent un dilemme classique : les versionner en clair dans le dépôt est exclu, mais les garder hors du dépôt rend le déploiement non reproductible, car chaque nouvelle machine devrait les recréer à la main.
 
@@ -173,9 +173,9 @@ args:
   - "3"
 ```
 
-Pour faire les tests, le fichier `tests/RAY/job-sam3-ray-test.yaml` est utilisé pour valider la pipeline sans cluster Ray (`--local --num_workers 1`). Il monte le PVC HuggingFace à `/root/.cache/huggingface` et un volume `emptyDir` de 16 Gi en mémoire sur `/dev/shm` pour accélérer le partage de tenseurs entre les processus PyTorch.#footnote[Sans `medium: Memory`, `/dev/shm` est limité à 64 MB par défaut dans un conteneur Docker : PyTorch échoue immédiatement au premier transfert de tenseur entre processus avec `Bus error`.] `hostIPC: true`#footnote[Sans `hostIPC: true`, les segments de mémoire partagée POSIX créés par PyTorch ne sont pas visibles entre processus dans le pod : l'inférence multi-GPU s'arrête avec `RuntimeError: unable to open shared memory object`.] est activé pour permettre la communication inter-processus via la mémoire partagée du nœud.
+Pour faire les tests, le fichier `tests/RAY/job-sam3-ray-test.yaml` est utilisé pour valider la pipeline sans cluster Ray (`--local --num_workers 1`). Il monte le PVC HuggingFace à `/root/.cache/huggingface` et un volume `emptyDir` de 16 Gi en mémoire sur `/dev/shm` pour accélérer le partage de tenseurs entre les processus PyTorch.#footnote[Sans `medium: Memory`, `/dev/shm` est limité à 64 MB par défaut dans un conteneur Docker : PyTorch échoue immédiatement au premier transfert de tenseur entre processus avec `Bus error`.] `hostIPC: true`#footnote[Sans `hostIPC: true`, les segments de mémoire partagée POSIX créés par PyTorch ne sont pas visibles entre processus dans le pod : l'inférence multi-GPU s'arrête avec `RuntimeError: unable to open shared memory object`.] est activé pour permettre la communication inter-processus via la mémoire partagée du nœud. Ce réglage élargit la surface d'isolation du pod en partageant l'espace de noms IPC du nœud hôte, un compromis de sécurité déconseillé sur un cluster mutualisé. Il reste circonscrit à ce manifeste de test local : le RayCluster de production ne le déclare pas, chaque Actor y tournant dans son propre pod sans ce besoin de mémoire partagée inter-processus. Ce fichier n'est référencé par aucune `kustomization.yaml`, il ne peut donc pas être appliqué par erreur via `kubectl apply -k deploy/`, seul un appel manuel et explicite (`kubectl apply -f tests/RAY/job-sam3-ray-test.yaml`) le déploie.
 
-Pour le cache des poids HuggingFace, `tests/RAY/pvc-hf-cache.yaml` crée un PVC Longhorn de 10 Gi en mode `ReadWriteOnce`, monté sur le pod worker à `/root/.cache/huggingface`. Le PVC de production, partagé entre deux nœuds, est lui en `ReadWriteMany` (cf. chapitre architecture). Le volume reste lié entre les redéploiements, évitant le re-téléchargement des 3,3 GB du modèle SAM3 à chaque run.
+Pour le cache des poids HuggingFace, `tests/RAY/pvc-hf-cache.yaml` crée un PVC Longhorn de 10 Gi en mode `ReadWriteOnce`, monté sur le pod worker à `/root/.cache/huggingface`. Le PVC de production, partagé entre deux nœuds, est lui en `ReadWriteMany` (cf. chapitre architecture). Le volume reste lié entre les redéploiements, évitant le re-téléchargement des 3,3 Go du modèle SAM3 à chaque run.
 
 Les manifestes sont organisés avec Kustomize (*kustomization.yaml*), intégré nativement à `kubectl`. Chaque composant (Ray, API, segmentation, observabilité) possède son dossier `manifests/` avec une `kustomization.yaml` qui liste ses ressources. Une kustomization racine (`deploy/kustomization.yaml`) les agrège, si bien que la stack complète se déploie en une commande : `kubectl apply -k deploy/`#footnote[Le drapeau `-k` est requis : `kubectl apply -f deploy/` ignorerait les fichiers `kustomization.yaml` et appliquerait les manifestes sans la composition (namespace, tags d'images).].
 
@@ -214,6 +214,7 @@ Deux contraintes sont critiques :
 - Le tableau de tâches doit être encapsulé dans un objet racine de type liste (pas un objet seul).
 - `from_name` doit correspondre exactement au `name` du tag `<PolygonLabels>` dans l'interface XML du projet Label Studio. Toute divergence provoque un import silencieusement invalide (polygones gris).
 
+#pagebreak()
 L'interface XML du projet, à laquelle ces noms doivent correspondre, déclare les classes annotables :
 
 ```xml
@@ -308,7 +309,7 @@ apps_v1.patch_namespaced_deployment_scale(
 Finalement, le service ne dispose que d'un GPU. Comme une seule inférence peut tourner à la fois, un `threading.Lock` met les appels en file et les traite l'un après l'autre. En pratique l'usage est séquentiel, un annotateur, une image à la fois, donc la file ne bloque jamais.
 
 
-Contrairement aux modes batch et solo, qui pilotent SAM3 via la librairie *jobCore* (tuilage, détection par concept, post-traitement), le service interactif s'appuie sur le wrapper `SAM` de la librairie *Ultralytics*. Celui-ci expose l'inférence par prompt visuel en un seul appel, sans le pipeline de tuilage inutile pour une prédiction ponctuelle.
+Contrairement aux modes batch et solo, qui pilotent SAM3 via la librairie *jobCore* (tuilage, détection par concept, post-traitement), le service interactif s'appuie sur le wrapper `SAM` de la librairie *Ultralytics*. Celui-ci expose l'inférence par prompt visuel en un seul appel, sans la pipeline de tuilage inutile pour une prédiction ponctuelle.
 
 Au démarrage du pod, les poids sont téléchargés depuis HuggingFace puis chargés une seule fois :
 
@@ -318,7 +319,7 @@ weights = hf_hub_download(repo_id="facebook/sam3", filename="sam3.pt")
 model = SAM(weights)
 ```
 
-Le fichier `sam3.pt` est le conteneur PyTorch des poids du modèle (3,3 GB). `SAM(weights)` reconstruit le réseau et le charge en VRAM. L'objet reste chaud pour toute la session, évitant de repayer le chargement à chaque requête.
+Le fichier `sam3.pt` est le conteneur PyTorch des poids du modèle (3,3 Go). `SAM(weights)` reconstruit le réseau et le charge en VRAM. L'objet reste chaud pour toute la session, évitant de repayer le chargement à chaque requête.
 
 Le masque renvoyé par `predict` est ensuite reconverti en polygone par `mask_to_polygon`, seule fonction de *jobCore* réutilisée par le service :
 
@@ -335,7 +336,7 @@ La console tient dans un unique fichier `index.html` autonome : HTML, CSS et Jav
 
 Le JavaScript n'utilise que `fetch` sur les endpoints REST, avec trois cadences de sondage : la liste des jobs toutes les 4 secondes, la santé de l'API et l'état du service interactif toutes les 10 secondes. Pour chaque batch actif, la console lit `/jobs/{name}/status` et en dérive le pourcentage, le temps écoulé et une estimation du temps restant (`écoulé / traitées × restantes`). Le fichier de statut d'un run terminé étant figé (`done: true`), sa réponse est mise en cache côté client et n'est plus re-sondée.
 
-La progression s'affiche comme une grille de 72 tuiles qui se remplissent, un clin d'œil à la grille de 72 × 72 patches du backbone ViT de SAM3 (cf. @resultats). Le formulaire de lancement expose les deux modes d'entrée du batch, préfixe S3 ou liste d'URLs `s3://` complètes, qui alimentent respectivement `s3Uri` et `s3Uris` de `POST /jobs/batch`. Les erreurs de validation de l'API remontent telles quelles à l'utilisateur : le champ `detail` d'une réponse 422 (par exemple le rejet d'une URL `https://`) est affiché en notification, sans traduction ni masquage.
+La progression s'affiche comme une grille de 72 tuiles qui se remplissent. C'est un clin d'œil à la grille de 72 × 72 patches du backbone ViT de SAM3 (cf. @resultats). Le formulaire de lancement expose les deux modes d'entrée du batch, préfixe S3 ou liste d'URLs `s3://` complètes, qui alimentent respectivement `s3Uri` et `s3Uris` de `POST /jobs/batch`. Les erreurs de validation de l'API remontent telles quelles à l'utilisateur : le champ `detail` d'une réponse 422 (par exemple le rejet d'une URL `https://`) est affiché en notification, sans traduction ni masquage.
 
 L'endpoint `GET /segment/status` ajouté pour la console lit le `Deployment` du service de segmentation via le SDK Kubernetes (permission `get` sur `deployments`, déjà couverte par le Role existant) et retourne `{replicas, ready}`. La page en déduit trois états : *endormi* (`replicas == 0`), *démarrage* (`replicas > ready`, fenêtre de chargement du modèle en VRAM) et *prêt* (`ready ≥ 1`).
 
@@ -386,7 +387,7 @@ La stack est assemblée par Kustomize, un dossier par composant (`deploy/observa
 
 *Loki* est le composant le plus travaillé. Il est _stateless_ : tout l'état part sur MinIO, dans un bucket dédié `nearai-logs`, avec une rétention de 720 h (30 jours) purgée par le compactor (`retention_enabled`, `retention_delete_delay: 2h`). Les credentials MinIO ne figurent pas en clair dans la ConfigMap car ils sont injectés à l'exécution grâce au drapeau `-config.expand-env=true`. Un piège rencontré : les flush échouaient en `400` parce que Loki contactait l'endpoint MinIO en HTTP alors qu'il écoute en HTTPS (certificat TLS). Le passage en HTTPS a rétabli l'écriture.
 
-*Alloy* remplace Promtail, passé en fin de vie. Là où Promtail tournait en DaemonSet et ouvrait un watcher `inotify` par fichier de log, Alloy est un `Deployment` unique qui lit les logs directement via l'API Kubernetes (`loki.source.kubernetes`), sans monter le système de fichiers du noeud. Il dispose pour cela d'un ServiceAccount avec un *Role* et un *RoleBinding* limités à la lecture des pods. Son bloc `discovery.relabel` attache les labels `namespace`, `pod`, `container` et `app` à chaque ligne avant de la pousser vers `loki-svc:3100` :
+*Alloy* remplace Promtail, passé en fin de vie. Là où Promtail tournait en DaemonSet et ouvrait un watcher `inotify` par fichier de log, Alloy est un `Deployment` unique qui lit les logs directement via l'API Kubernetes (`loki.source.kubernetes`), sans monter le système de fichiers du nœud. Il dispose pour cela d'un ServiceAccount avec un *Role* et un *RoleBinding* limités à la lecture des pods. Son bloc `discovery.relabel` attache les labels `namespace`, `pod`, `container` et `app` à chaque ligne avant de la pousser vers `loki-svc:3100` :
 
 ```yaml
 discovery.relabel "pods" {

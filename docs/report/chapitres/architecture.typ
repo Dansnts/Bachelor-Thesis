@@ -62,7 +62,7 @@ La pipeline suit un flux linéaire en cinq étapes :
 Ce découplage permet de déployer et de faire évoluer chaque partie indépendamment, et de remplacer un composant (le backend S3, par exemple) sans toucher aux autres.
 
 #figure(
-  image("../images/Schema-Overall.png", width: 85%),
+  image("../images/Schema-Overall.png", width: 95%),
   caption: [
     Dans les grandes lignes, la stack se découpe en trois parties, traitement, observabilité et stockage.
   ],
@@ -81,7 +81,7 @@ Le déploiement et les mises à jour reposent sur une pipeline d'intégration co
 Le cluster tire ensuite ces images via `imagePullPolicy: Always`, ce qui propage les changements au prochain redémarrage des pods. Cette automatisation garantit qu'une modification mergée est testée puis empaquetée de façon reproductible, et supprime les builds manuels locaux, source d'images incohérentes entre développeurs.
 
 #figure(
-  image("../images/Schema-Pipeline.png", width: 85%),
+  image("../images/Schema-Pipeline.png", width: 100%),
   caption: [
     Chaque commit sur la branche master lance le workflow. Les tests et les builds d'images s'exécutent en parallèle.
   ],
@@ -101,9 +101,9 @@ La pipeline s'exécute sur le cluster `iict-rad` de la HEIG-VD (Kubernetes 1.33.
     table.header(
       text(fill: white)[*Nœud*], text(fill: white)[*GPUs*], text(fill: white)[*Modèle*], text(fill: white)[*VRAM*]
     ),
-    [`iict-suchet`], [3], [NVIDIA L40S], [48 GB],
-    [`iict-k8s-node4-rad`], [2], [NVIDIA A40], [48 GB],
-    [`iict-chasseron`], [4], [NVIDIA L4], [24 GB],
+    [`iict-suchet`], [3], [NVIDIA L40S], [48 Go],
+    [`iict-k8s-node4-rad`], [2], [NVIDIA A40], [48 Go],
+    [`iict-chasseron`], [4], [NVIDIA L4], [24 Go],
   ),
   caption: [GPUs disponibles sur le cluster iict-rad],
 ) <tab-gpus>
@@ -117,14 +117,14 @@ Deux exceptions s'appliquent dans ce projet :
 - les pods Prometheus et Grafana sont épinglés sur `iict-suchet` via `nodeSelector` en raison de volumes Longhorn défectueux sur `iict-k8s-node4-rad`.
 
 #figure(
-  image("../images/Schema-Kubernetes.jpg", width: 85%),
+  image("../images/Schema-Kubernetes.png", width: 95%),
   caption: [
     Les ressources K8s sont distribuables sur n'importe quel nœud ; seuls les workers Ray ciblent les nœuds GPU via nodeAffinity.
   ],
 ) <Schema-Kubernets>
 
 Le nœud `iict-chasseron` est exclu pour deux raisons :
-- ses L4 offrent une puissance de calcul inférieure (24 GB de VRAM contre 48 GB)
+- ses L4 offrent une puissance de calcul inférieure (24 Go de VRAM contre 48 Go)
 - il portait un taint `node.kubernetes.io/disk-pressure` lors des tests, exposant les pods à des évictions SIGTERM sans préavis.#footnote[Le taint `disk-pressure` est appliqué automatiquement par Kubernetes quand l'usage disque dépasse le seuil `evictionHard`. Les pods sur ce nœud reçoivent un SIGTERM et sont immédiatement reschedulés sur un autre nœud, interrompant toute inférence en cours sans possibilité de reprise.]
 
 Le GPU Operator NVIDIA est installé sur le cluster. Il installe automatiquement les drivers GPU, le device plugin et DCGM Exporter sur chaque nœud. Les requêtes de ressource `nvidia.com/gpu` fonctionnent sans configuration manuelle.
@@ -185,7 +185,7 @@ Les manifestes correspondants sont détaillés au chapitre implémentation.
 
 == Cache du modèle SAM3
 
-Les poids du modèle SAM3 représentent 3,3 GB téléchargés depuis HuggingFace Hub. Sans cache persistant, chaque recréation de pod lance un nouveau téléchargement, ajoutant plusieurs minutes de latence avant que le worker soit opérationnel.
+Les poids du modèle SAM3 représentent 3,3 Go téléchargés depuis HuggingFace Hub. Sans cache persistant, chaque recréation de pod lance un nouveau téléchargement, ajoutant plusieurs minutes de latence avant que le worker soit opérationnel.
 
 Pour cela il faut ajouter une `StorageClass` et un `PersistentVolumeClaim`.
 
@@ -266,7 +266,7 @@ L'interface de labeling du projet déclare les classes annotables, et les pré-a
 La définition XML de l'interface et le format d'import sont détaillés au chapitre implémentation.
 
 #pagebreak()
-== Intégration Near Label <nearlabel-integration>
+== Intégration NearLabel <nearlabel-integration>
 
 NearLabel lit ses données directement depuis les fichiers Parquet stockés dans le bucket S3, sans passer par l'API de la pipeline. Le stockage objet sert de contrat d'échange entre les deux applications. Ce contrat repose sur une arborescence précise. Chaque acquisition expose un dossier `09_Pipeline_result/` contenant, par run, les fichiers Parquet de détections (en miroir de l'arborescence de `01_images/`), le fichier `params.json` qui fige les paramètres du run (labels, tuile, stride, downsample) et la configuration de la caméra propre à l'acquisition.
 
@@ -319,7 +319,7 @@ Une API REST expose la pipeline aux utilisateurs et aux systèmes externes. Elle
 
 L'API tourne comme un `Deployment` dans le namespace `dani`, avec un `ServiceAccount` aux droits limités (le détail du Role figure plus bas). Elle soumet les jobs en créant des ressources `Job` via le SDK Kubernetes Python, ce qui découple l'API de l'état interne du RayCluster.
 
-
+#pagebreak()
 La liste des endpoints est la suivante :
 #figure(
   table(
@@ -381,7 +381,7 @@ L'API tourne sous le ServiceAccount `sam3-api`, lié par un `RoleBinding` à un 
 
 Le Job solo écrit son résultat (`results/<job>.json`) sur S3, et l'endpoint `get_result` relit cet objet. Le stockage S3 est durable et indépendant du TTL des Jobs : le résultat survit à la suppression automatique du pod après une heure.
 
-Deux alternatives ont été écartées. Les logs du pod sont éphémères (effacés avec le pod) et, sur `kubernetes-client` 36.x, leur lecture souffre d'un bug d'encodage. Une base SQLite est inadaptée à un accès distribué et à un montage NFS partagé. S3 est déjà la source des données et le puits des prédictions, l'y conserver les résultats évite toute pièce supplémentaire.
+Deux alternatives ont été écartées. Les logs du pod sont éphémères (effacés avec le pod) et, sur `kubernetes-client` 36.x, leur lecture souffre d'un bug d'encodage. Une base SQLite est inadaptée à un accès distribué et à un montage NFS partagé. S3 est déjà la source des données et le puits des prédictions, y conserver les résultats évite toute pièce supplémentaire.
 
 == Segmentation interactive
 
@@ -406,7 +406,7 @@ Le réveil aurait pu être automatisé avec KEDA et son extension HTTP, qui rév
 
 Pour un usage ponctuel et séquentiel (un seul annotateur, une image à la fois), le pilotage manuel offre la même expérience réelle : un unique démarrage à froid en début de session, sans dépendance d'infrastructure ni composant réseau additionnel. Le mécanisme de scaling est détaillé au chapitre implémentation.
 
-L'endpoint interactif s'appuie sur l'API *Ultralytics*, qui expose la prédiction par prompt visuel en un seul appel (`model.predict(points=, labels=)`). Le service n'utilise que le prompt par point, l'annotateur clique, SAM3 renvoie le masque de l'objet sous le curseur. Cette API évite le pipeline complet du mode batch (tuilage, collate, postprocessor), inutile pour une inférence ponctuelle ; l'image Docker en est donc plus légère. Le service n'a pas d'authentification propre : il est exposé via l'Ingress et protégé au niveau du cluster.
+L'endpoint interactif s'appuie sur l'API *Ultralytics*, qui expose la prédiction par prompt visuel en un seul appel (`model.predict(points=, labels=)`). Le service n'utilise que le prompt par point, l'annotateur clique, SAM3 renvoie le masque de l'objet sous le curseur. Cette API évite la pipeline complète du mode batch (tuilage, collate, postprocessor), inutile pour une inférence ponctuelle ; l'image Docker en est donc plus légère. Le service n'a pas d'authentification propre : il est exposé via l'Ingress et protégé au niveau du cluster.
 
 
 == Console web

@@ -46,7 +46,7 @@ Les images équirectangulaires présentent une distorsion géométrique croissan
 
 Ultralytics est une librairie Python open-source qui unifie l'usage de modèles de vision sous une interface unique @ultralytics. Connue pour son implémentation de YOLO, elle intègre aussi la famille Segment Anything, dont SAM3. Là où le dépôt de référence de Meta expose une pipeline bas niveau (préparation des tenseurs, collation des tuiles, post-traitement manuel), Ultralytics réduit l'inférence à un seul appel `model.predict` en chargeant les poids depuis un fichier `.pt` puis place le modèle sur le GPU et renvoie directement les masques.
 
-Ainsi, SAM3 accepte un prompt visuel (un point ou une boîte) qui désigne un objet à un endroit précis de l'image. L'appel `model.predict(points=, labels=)` suffit alors à retourner le contour de l'objet sous le curseur, sans le pipeline de tuilage requis par le traitement par lot. Le coût est une moindre maîtrise des étapes internes. Ultralytics fige le pré- et le post-traitement, là où le dépôt de Meta les laisse configurables.
+Ainsi, SAM3 accepte un prompt visuel (un point ou une boîte) qui désigne un objet à un endroit précis de l'image. L'appel `model.predict(points=, labels=)` suffit alors à retourner le contour de l'objet sous le curseur, sans la pipeline de tuilage requise par le traitement par lot. Le coût est une moindre maîtrise des étapes internes. Ultralytics fige le pré- et le post-traitement, là où le dépôt de Meta les laisse configurables.
 
 == Calcul distribué
 
@@ -58,7 +58,7 @@ Spark présente trois limitations structurelles pour l'inférence GPU :
 
 *Clusters homogènes* : Spark optimise pour la localité des données sur des clusters uniformes. Le cluster HEIG-VD dispose de trois types de GPU (L40S, A40, L4) avec des performances très différentes. Ray gère nativement cette hétérogénéité via ses mécanismes de placement group et de priorité par ressource.
 
-*Performance sur inférence ML* : Sur des benchmarks de classification d'images en batch, Ray Data atteint une vitesse 2x supérieure à Spark @anyscale-spark. Sur des workloads multimodaux (images, vidéo), l'écart est 10× par rapport à Spark @daft-benchmark.
+*Performance sur inférence ML* : Sur des benchmarks de classification d'images en batch, Ray Data atteint une vitesse 2× supérieure à Spark @anyscale-spark. Sur des workloads multimodaux (images, vidéo), l'écart est 10× par rapport à Spark @daft-benchmark.
 
 Le signal industriel le plus fort est la migration d'Amazon en 2024 : leur équipe Business Data Technologies a migré 1,5 exaoctets de données Parquet de Spark vers Ray, réalisant une économie de plus de 120 millions de dollars par an avec une efficacité 82 % supérieure par GiB traité @amazon-ray. Cette migration a pris 4 ans et constitue la plus grande validation publique de Ray en production.
 
@@ -119,14 +119,14 @@ Une distinction importante sépare la terminologie Kubernetes de la terminologie
 
 == Stockage objet
 
-Les images panoramiques (JPEG, ~50 Mo chacune), les fichiers Parquet et les poids de modèles sont des *BLOBs*, des objets binaires nonstructurés que les bases de données relationnelles gèrent mal et que les systèmes de fichiers partagés (NFS) ne scalent pas.
+Les images panoramiques (JPEG, ~50 Mo chacune), les fichiers Parquet et les poids de modèles sont des *BLOBs*, des objets binaires non structurés que les bases de données relationnelles gèrent mal et que les systèmes de fichiers partagés (NFS) ne scalent pas.
 Le stockage objet est conçu pour ce cas. Chaque BLOB est adressé par une clé unique, accessible via HTTP, sans limite de taille ni de volume total.
 
 *S3* est le protocole standard pour ce type de stockage. `boto3`, PyArrow et Ray Data l'implémentent nativement, aucune couche d'abstraction supplémentaire n'est nécessaire. Enfin, remplacer la variable `S3_ENDPOINT_URL` suffit à changer de backend (MinIO, AWS S3, Ceph) sans modifier le code de la pipeline.
 
 *MinIO* est un serveur de stockage objet compatible avec le protocole S3 @minio. La HEIG-VD l'exploite sur un NAS Synology SA3200D, installé via _Container Manager_ avec l'image officielle `minio/minio`. La pipeline accède à MinIO via `boto3` avec les variables d'environnement S3 standard (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `S3_ENDPOINT_URL`).
 
-Des alternatives comme *RustFS* sous license Apache 2.0 et sorti il y'a moins d'un an ou *CEPH* qui lui est plus mature, sous license LGPL et gère du bloc/fichier/objet ont été évaluées. MinIO ferme son code source en 2025. La migration vers une alternative ajouterait du risque sans bénéfice immédiat. La configuration S3 est le seul point à modifier lors d'un changement de backend.
+Des alternatives comme *RustFS* sous licence Apache 2.0 et sorti il y a moins d'un an ou *CEPH* qui lui est plus mature, sous licence LGPL et gère du bloc/fichier/objet ont été évaluées. MinIO ferme son code source en 2025. La migration vers une alternative ajouterait du risque sans bénéfice immédiat. La configuration S3 est le seul point à modifier lors d'un changement de backend.
 
 == Format de résultats
 
@@ -135,7 +135,7 @@ Des alternatives comme *RustFS* sous license Apache 2.0 et sorti il y'a moins d'
 #figure(
   image("../images/parquetFormat.png", width: 90%),
   caption: [
-    Parquet exploite une solution hybride pour obtenir de meilleur performances. Source : https://towardsdatascience.com/demystifying-the-parquet-file-format-13adb0206705/
+    Parquet exploite une solution hybride pour obtenir de meilleures performances. Source : https://towardsdatascience.com/demystifying-the-parquet-file-format-13adb0206705/
   ],
 ) <parquetHybrid>
 #linebreak()
@@ -150,13 +150,15 @@ Parquet stocke des statistiques min/max par column chunk. Un moteur de requête 
 #pagebreak()
 *PostGIS* (extension PostgreSQL pour les données géospatiales) a été évalué comme alternative. Il offre des index spatiaux GIST et des requêtes géométriques natives (`ST_Within`, `ST_Intersects`). La décision est de le remplacer par Parquet sur S3. Les requêtes du projet ne nécessitent pas de jointures géospatiales complexes, et Parquet évite de maintenir une base de données.
 
-*GeoParquet* n'est pas un format distinct mais une convention posée au-dessus de Parquet, standardisée par l'OGC. Il est composé d'une colonne de géométrie encodée en WKB (_Well-Known Binary_) et un bloc de métadonnées déclarant cette colonne, son type et son système de coordonnées (CRS). Tout lecteur Parquet peut lire le fichier mais les les outils géospatiaux (QGIS, GeoPandas, DuckDB-spatial, Apache Sedona) reconnaissent en plus la géométrie et le CRS sans reconstruction manuelle. L'écosystème serait donc directement interopérable.
+*GeoParquet* n'est pas un format distinct mais une convention posée au-dessus de Parquet, standardisée par l'OGC. Il est composé d'une colonne de géométrie encodée en WKB (_Well-Known Binary_) et un bloc de métadonnées déclarant cette colonne, son type et son système de coordonnées (CRS). Tout lecteur Parquet peut lire le fichier mais les outils géospatiaux (QGIS, GeoPandas, DuckDB-spatial, Apache Sedona) reconnaissent en plus la géométrie et le CRS sans reconstruction manuelle. L'écosystème serait donc directement interopérable.
 
 Il n'est pourtant pas retenu, car la géométrie produite n'est pas géographique. Le polygone d'une détection (colonne `points`) est exprimé dans l'espace-image du panorama, en pourcentage de ses dimensions, et non dans un CRS au sol. Le reprojeter exigerait la pose de la caméra et une information de profondeur, hors du scope de ce travail.
 
 La seule coordonnée géographique disponible est la position de la caméra (`latitude`, `longitude`), identique pour toutes les détections d'une même image. Deux colonnes flottantes suffisent à ce besoin de filtrage par zone, sans la machinerie WKB et CRS. GeoParquet, et à plus grande échelle un moteur spatial distribué comme Apache Sedona, ne prendrait son sens qu'une fois les détections reprojetées en coordonnées sol, une piste laissée aux travaux futurs.
 
-*JSON* (JavaScript Object Notation) est le format accepté par Label Studio pour importer les données géospatiales sur une images. Ce format va être utiliser uniquement pour le mode `on demand` et en legacy pour Label Studio afin de visualiser les résultats des runs.
+Les polygones eux-mêmes ne sont donc pas des données géospatiales au sens strict d'un SIG : ils restent en coordonnées image, chacun ancré au point GPS unique de sa photo, pas reprojeté au sol. Le qualificatif « géospatiales » du titre porte sur le corpus source et le géoréférencement des acquisitions, pas sur la géométrie des détections elle-même.
+
+*JSON* (JavaScript Object Notation) est le format accepté par Label Studio pour importer les données géospatiales sur une image. Ce format va être utilisé uniquement pour le mode `on demand` et en legacy pour Label Studio afin de visualiser les résultats des runs.
 
 #figure(
   ```json
@@ -198,7 +200,7 @@ En parallèle de ce projet, Valentin Ricard développe NearLabel dans le cadre d
 Quatre secrets pilotent la pipeline : les credentials MinIO, le token HuggingFace, les identifiants du registre privé et le compte administrateur du dashboard d'observabilité. Un Secret Kubernetes ne les protège pas en soi car son contenu n'est encodé qu'en base64, trivialement réversible. Le créer à la main (`kubectl create secret`) le laisse de plus hors du contrôle de version, sans trace de sa structure.
 
 
-Pour versionner des secrets sans les exposer les logiques utilisée dans l'industrie sont :
+Pour versionner des secrets sans les exposer, les logiques utilisées dans l'industrie sont :
 
 *Sealed Secrets* @sealed-secrets chiffre un Secret avec la clé publique d'un contrôleur installé dans le cluster ; seul ce contrôleur peut le déchiffrer.
 
@@ -212,15 +214,15 @@ SOPS combiné à age est retenu : c'est la seule des trois options qui ne demand
 
 *Prometheus* @prometheus collecte des métriques en temps réel et génère des alertes. Les données sont stockées au format TSDB et interrogées via PromQL, un langage de requête basé sur les vecteurs instantanés, de portée et scalaires.
 
-Ses principaux composants sont:
+Ses principaux composants sont :
 
-- *Core Server* : Service principal de prometheus configurer via le fichier _prometheus.yaml_.
+- *Core Server* : Service principal de prometheus configuré via le fichier _prometheus.yaml_.
 - *Exporters* : Agents qui collectent les métriques tel que Node Exporter, Database Exporter.
 - *Alertmanager* : Pour la gestion d'alertes avec des fonctions de groupe ou d'inhibition.
 
 *Grafana* visualise les métriques Prometheus et les logs Loki dans des dashboards interactifs. Il expose l'état du cluster, le throughput de la pipeline et l'utilisation GPU en temps réel.
 
-*Elasticsearch* est la solution de référence pour l'agrégation et la recherche de logs. Il construit un index inversé sur le contenu intégral de chaque ligne de log, ce qui permet des recherches plein-texte arbitraires. Cette puissance a un coût : l'indexation consomme 3 à 5x plus de stockage que les logs bruts, et Elasticsearch requiert un minimum de trois nœuds pour fonctionner en haute disponibilité, avec une configuration mémoire JVM précise (heap généralement fixé à 50 % de la RAM disponible).
+*Elasticsearch* est la solution de référence pour l'agrégation et la recherche de logs. Il construit un index inversé sur le contenu intégral de chaque ligne de log, ce qui permet des recherches plein-texte arbitraires. Cette puissance a un coût : l'indexation consomme 3 à 5× plus de stockage que les logs bruts, et Elasticsearch requiert un minimum de trois nœuds pour fonctionner en haute disponibilité, avec une configuration mémoire JVM précise (heap généralement fixé à 50 % de la RAM disponible).
 
 *Loki* @loki est un système d'agrégation de journaux qui indexe uniquement les labels de métadonnées, et non le contenu des lignes. Cette approche réduit drastiquement le volume d'index. Loki stocke les logs compressés en chunks sur le bucket @loki-storage, ce qui le rend _stateless_ et compatible avec l'infrastructure existante sans nœud dédié supplémentaire.
 
@@ -241,8 +243,8 @@ Les logs sont traités avec LogQL en les filtrant selon les labels pour les tran
 
 Pour notre pipeline, la recherche plein-texte est inutile car les requêtes se limitent à retrouver les logs d'un worker Ray identifié par son nom de pod et son namespace. Elasticsearch apporterait une infrastructure disproportionnée par rapport au besoin.
 
-*Promtail* est un agent supplémentaire pour Loki. Il tourne en tant que _DaemonSet_ avec 1 instance par noeud et collecte toutes les métriques des pods sur ce dit noeud. Les pods sont découverts via le _service discovery_ de l'API K8s puis en lisant dans `/var/logs/pods/`.
-Les workers Ray dans notre cas n'auront qu'a écrire dans leur _stdout/stderr_ et Promtail les récupères.
+*Promtail* est un agent supplémentaire pour Loki. Il tourne en tant que _DaemonSet_ avec 1 instance par nœud et collecte toutes les métriques des pods sur ce nœud. Les pods sont découverts via le _service discovery_ de l'API K8s puis en lisant dans `/var/logs/pods/`.
+Les workers Ray dans notre cas n'auront qu'à écrire dans leur _stdout/stderr_ et Promtail les récupère.
 
 Malheureusement, Promtail a été mis en EOL. Il faut donc utiliser *Alloy* comme substitut.
 
